@@ -3,6 +3,7 @@
 
 > Este archivo debe leerse ANTES de tocar cualquier línea de código.
 > Aplica para Claude, ChatGPT, Gemini o cualquier IA que trabaje en este proyecto.
+> Leer también: docs/contexto_maestro.md — el alma del producto.
 
 ---
 
@@ -33,12 +34,16 @@
 
 Antes de proponer cualquier cambio técnico, verificar alineación con:
 
-- `README_follower.md` — visión, pantallas, flujo completo
-- `REGLAS_IA.md` — este archivo
-- `docs/arquitectura.md` — decisiones técnicas *(próximamente)*
-- `docs/bitacora.md` — historial, bugs resueltos, deuda técnica *(próximamente)*
+- `docs/contexto_maestro.md` — alma del producto, pregunta rectora
+- `README.md` — visión, pantallas, flujo completo
+- `docs/arquitectura.md` — decisiones DA-1 a DA-10
+- `docs/bitacora.md` — historial, bugs resueltos, deuda técnica
 
-Preguntarse siempre: **¿esto acerca al usuario a sentir que está en una película, o agrega fricción?**
+Preguntarse siempre:
+
+> **¿Esto nos acerca a una experiencia cinematográfica o a una audioguía tradicional?**
+
+Si nos acerca a una audioguía, probablemente es la decisión equivocada.
 
 ---
 
@@ -47,7 +52,8 @@ Preguntarse siempre: **¿esto acerca al usuario a sentir que está en una pelíc
 - **El GPS es el corazón** — nunca bloquear, pausar ni interrumpir su ciclo de detección
 - **La narración siempre va SOBRE la música** — nunca antes, nunca sin música de fondo
 - **El modo Libre es el default** — el modo Recorrido es siempre opt-in
-- **Las sugerencias de cuidado son contextuales** — nunca intrusivas ni automáticas sin datos reales (pasos, clima)
+- **Las sugerencias de cuidado son contextuales** — nunca intrusivas ni automáticas sin datos reales
+- **Los recorridos son relatos** — la ruta existe para servir a la narrativa, no al contrario
 - **No construir monetización** hasta completar piloto con viajeros reales (v1.0)
 
 ---
@@ -56,16 +62,18 @@ Preguntarse siempre: **¿esto acerca al usuario a sentir que está en una pelíc
 
 | Regla | Descripción |
 |-------|-------------|
-| `detectPOI()` | ÚNICA función para detectar puntos de interés cercanos — nunca lógica duplicada |
-| `triggerNarration(poi, mood, lang)` | ÚNICA función para iniciar narración AI — siempre recibe los 3 parámetros |
-| `fadeMusic(mood, direction)` | ÚNICA función para transiciones de música — `direction`: 'in' o 'out' |
-| `checkCareContext()` | Revisa pasos + clima + hora — NUNCA sugerir descanso sin pasar por esta función |
-| Sístole `#1a5276` | Color de movimiento/caminando — nunca usar en estado de narración |
-| Diástole `#c0392b` | Color de narración activa — nunca usar en estado de caminando |
+| `detectPOI()` | ÚNICA función para detectar POIs cercanos — nunca lógica duplicada |
+| `triggerNarration(poi, mood, lang)` | ÚNICA función para iniciar narración AI |
+| `fadeMusic(mood, direction)` | ÚNICA función para transiciones de música |
+| `checkCareContext()` | Revisa pasos + clima + hora — NUNCA sugerir sin pasar por esta función |
+| `setPhase(phase)` | ÚNICA función para cambiar sístole/diástole — nunca CSS directo |
+| `navigateTo(screen)` | ÚNICA función para cambiar pantalla |
+| Sístole `#1a5276` | Color de movimiento/caminando — nunca en estado de narración |
+| Diástole `#c0392b` | Color de narración activa — nunca en estado de caminando |
 | Dorado `#f0c87a` | Solo para estados de descanso y sugerencias de cuidado |
-| POIs | Siempre desde OpenStreetMap via Leaflet — nunca hardcodeados en el código |
-| Idioma | Siempre desde `userConfig.lang` — nunca asumir español por defecto |
-| Mood | Siempre desde `userConfig.mood` — nunca asumir épico por defecto |
+| POIs | Siempre desde OpenStreetMap via Overpass — nunca hardcodeados |
+| Idioma | Siempre desde `Config.get('lang')` — nunca asumir español |
+| Mood | Siempre desde `Config.get('mood')` — nunca asumir épico |
 
 ---
 
@@ -75,8 +83,6 @@ Preguntarse siempre: **¿esto acerca al usuario a sentir que está en una pelíc
 1. Hacer mockup interactivo en HTML
 2. Iterar con el usuario hasta aprobación
 3. Solo entonces integrar al proyecto real
-
-Aplica para: nuevas pantallas, rediseños, cambios en flujos, onboarding.
 
 ---
 
@@ -91,7 +97,7 @@ La app tiene dos estados de vida. **Nunca mezclarlos:**
 | Descanso | `#f0c87a` dorado | Sugerencia de pausa activa |
 | Alerta | `#e74c3c` rojo vivo | Lluvia, urgencia, advertencia |
 
-El color del botón central del bottom bar refleja SIEMPRE el estado actual. Es el indicador de vida de la app.
+El color del botón central del bottom bar refleja SIEMPRE el estado actual.
 
 ---
 
@@ -102,7 +108,7 @@ El color del botón central del bottom bar refleja SIEMPRE el estado actual. Es 
 | Libre | ✅ Sí | Automático al iniciar |
 | Recorrido | ❌ No | Solo si el usuario lo elige explícitamente |
 
-**Transición inteligente:** si el usuario está a menos de 300m del inicio de un recorrido popular, la app puede sugerir activarlo — pero nunca activarlo automáticamente.
+**Transición inteligente:** sugerir si el usuario está a <300m del inicio — nunca activar automáticamente.
 
 **Salida del recorrido:** en cualquier momento, sin perder el progreso de POIs visitados.
 
@@ -110,10 +116,31 @@ El color del botón central del bottom bar refleja SIEMPRE el estado actual. Es 
 
 ## Regla de Narración AI
 
-- El prompt a Claude API siempre incluye: `poi.nombre`, `poi.descripcion`, `userConfig.mood`, `userConfig.lang`, `currentWeather`, `timeOfDay`
+- Motor actual: **Gemini 1.5 Flash** (gratuito para piloto)
+- El prompt siempre incluye: `poi.name`, `poi.description`, `AppState.cityName`, `mood`, `lang`, `topic`
 - La narración tiene máximo **3 minutos** — concisa, cinematográfica
-- Si la API falla → reproducir narración de fallback pregenerada (offline)
-- Nunca mostrar texto de error al usuario — la experiencia no se rompe
+- Flujo: cache IndexedDB → Gemini API (timeout 8s) → fallback genérico
+- Nunca mostrar error al usuario — la experiencia no se rompe
+
+---
+
+## Regla de Offline — CRÍTICA
+
+| Regla | Descripción |
+|-------|-------------|
+| Indicador offline | Discreto en el top pill — nunca modal de error intrusivo |
+| Fallback narración | Siempre hay texto de fallback — nunca silencio ni error visible |
+| Timeout API | Gemini API máximo 8 segundos — si falla, usar cache |
+| IndexedDB | POIs y narraciones en IndexedDB — nunca solo en memoria |
+| sw.js | NUNCA commitear antes que los archivos que cachea |
+
+**4 capas de cache:**
+```
+Capa 1 — sw.js      → shell HTML, CSS, JS
+Capa 2 — Leaflet    → tiles del mapa
+Capa 3 — IndexedDB  → POIs, narraciones, config
+Capa 4 — Cache API  → música, assets
+```
 
 ---
 
@@ -122,26 +149,22 @@ El color del botón central del bottom bar refleja SIEMPRE el estado actual. Es 
 Un commit por cambio específico. Formato:
 
 ```
-feat: descripción corta de la nueva funcionalidad
-fix: descripción corta del bug corregido  
-docs: descripción de documentación actualizada
-refactor: descripción del cambio técnico sin nueva funcionalidad
+feat: nueva funcionalidad
+fix: bug corregido
+docs: documentación actualizada
+refactor: cambio técnico sin nueva funcionalidad
 design: cambio visual o de interfaz
 ```
 
 ---
 
-## Regla de sw.js — Orden de commits obligatorio
+## Regla de sw.js — Orden obligatorio
 
-El service worker cachea el shell en el momento del install. Si `sw.js` se sube antes que los archivos corregidos, el cache queda con la versión bugueada.
-
-**Orden obligatorio:**
-
-1. `git add [archivos modificados]` → `git commit` → `git push`
-2. Esperar 1-2 minutos para que GitHub Pages propague
+1. `git add [archivos]` → `git commit` → `git push`
+2. Esperar 1-2 minutos (GitHub Pages propaga)
 3. Recién entonces: `git add sw.js` → `git commit -m "fix: bump cache vX-Y"` → `git push`
 
-**El bump de `sw.js` es siempre el último commit de cualquier deploy.**
+**sw.js es siempre el último commit de cualquier deploy.**
 
 ---
 
@@ -150,10 +173,11 @@ El service worker cachea el shell en el momento del install. Si `sw.js` se sube 
 ```
 HTML + CSS + JS Vanilla     — sin frameworks
 Leaflet.js                  — mapas OpenStreetMap
-Claude API                  — narración AI en tiempo real
-Web Speech API              — síntesis de voz nativa
+Gemini 1.5 Flash            — narración AI (gratuito para piloto)
+Web Speech API              — síntesis de voz nativa (12 idiomas)
 OpenWeatherMap API          — clima en tiempo real
 Web Audio API               — música por mood nativa
+IndexedDB                   — cache offline
 GitHub Pages                — hosting
 PWA                         — instalable
 ```
@@ -164,11 +188,10 @@ PWA                         — instalable
 
 ## Contexto del Proyecto
 
-- **App:** `follower.github.io` *(próximamente)*
-- **Repo:** `github.com/follower/app` *(próximamente)*
-- **Estado actual:** v0.3 — diseño completo, iniciando código
-- **Pantallas listas:** splash, exploración, POI expandido
-- **Próximo hito:** v0.4 — alerta lluvia + resumen del paseo
+- **App:** [follower-app.github.io/follower](https://follower-app.github.io/follower)
+- **Repo:** [github.com/follower-app/follower](https://github.com/follower-app/follower)
+- **Estado actual:** v0.4 — código base completo, keys configuradas, iniciando pruebas
+- **Próximo hito:** v0.5 — pruebas en iPhone, debugging
 
 ---
 
@@ -176,59 +199,31 @@ PWA                         — instalable
 
 | Archivo | Descripción |
 |---------|-------------|
-| `index.html` | PWA principal — modo exploración |
-| `splash.html` | Pantalla de carga con latido |
-| `config.js` | Configuración del usuario (idioma, mood) |
-| `gps.js` | Detección de ubicación y POIs cercanos |
-| `narration.js` | Integración Claude API |
-| `music.js` | Control de música por mood |
-| `weather.js` | Integración OpenWeatherMap |
-| `care.js` | Lógica de sugerencias de cuidado |
-| `sw.js` | Service worker PWA |
-| `README_follower.md` | Documentación principal |
-| `REGLAS_IA.md` | Este archivo |
+| `index.html` | Shell mínimo — 4 pantallas + 2 modales |
+| `manifest.json` | PWA config |
+| `sw.js` | Service worker (pendiente — siempre último) |
+| `css/main.css` | Variables globales, reset, sistema de fases |
+| `css/components.css` | Botones, pills, cards, waves |
+| `css/splash.css` | Latido, rings, animación expansión |
+| `css/modal.css` | Modales, care card, route picker |
+| `css/explore.css` | Mapa, pins POI, card pequeña |
+| `css/poi.css` | Pantalla POI expandida |
+| `js/keys.js` | API keys — LOCAL ONLY, en .gitignore |
+| `js/config.js` | Idioma, mood, preferencias, localStorage |
+| `js/app.js` | AppState, navigateTo(), setPhase(), init |
+| `js/gps.js` | Leaflet, watchPosition, Haversine, Nominatim |
+| `js/poi.js` | Overpass OSM, IndexedDB, detectPOI |
+| `js/narration.js` | Gemini API, prompts × 4 moods × 2 langs |
+| `js/voice.js` | Web Speech API, 12 idiomas BCP-47 |
+| `js/music.js` | Web Audio API, fadeMusic, dip/restore |
+| `js/weather.js` | OpenWeatherMap, lluvia, cache 30min |
+| `js/care.js` | checkCareContext, 4 prioridades, cooldown |
+| `js/routes.js` | 5 recorridos Roma, Leaflet polyline, picker |
+| `docs/contexto_maestro.md` | Alma del producto, principios, pregunta rectora |
+| `docs/producto.md` | Producto, usuarios, principios |
+| `docs/arquitectura.md` | Decisiones DA-1 a DA-10 |
+| `docs/bitacora.md` | Historial, bugs, deuda técnica |
 
 ---
 
 *Follower — REGLAS_IA.md | Junio 2026*
-
----
-
-## Regla de Offline — CRÍTICA
-
-El offline no es opcional en Follower. Un turista puede perder señal en cualquier momento.
-
-### Qué DEBE funcionar siempre sin señal
-
-- Interfaz completa (shell cacheado por sw.js)
-- Mapa de la zona ya cargada (tiles Leaflet cacheados)
-- POIs del radio de 5km (cacheados en splash)
-- Narración de POIs pre-generados (cacheada en splash)
-- Música de los 4 moods (pre-cargada en splash)
-
-### Reglas de implementación
-
-| Regla | Descripción |
-|-------|-------------|
-| `cacheOnSplash()` | SIEMPRE pre-cargar POIs + narraciones + música durante el splash — nunca lazy load |
-| Indicador offline | SIEMPRE discrero en el top pill — nunca modal de error intrusivo |
-| Fallback narración | SIEMPRE hay un texto de fallback — nunca silencio ni error visible |
-| Timeout API | Claude API tiene máximo 8 segundos — si falla, usar cache sin avisar al usuario |
-| IndexedDB | POIs y narraciones se guardan en IndexedDB — nunca solo en memoria |
-| sw.js | NUNCA hacer commit de sw.js antes que los archivos que cachea |
-
-### Estrategia de cache por capa
-
-```
-Capa 1 — sw.js        → shell HTML, CSS, JS (siempre disponible)
-Capa 2 — Leaflet      → tiles del mapa (zona activa)
-Capa 3 — IndexedDB    → POIs, narraciones pre-generadas, config usuario
-Capa 4 — Cache API    → música por mood, assets estáticos
-```
-
-### Al recuperar señal
-
-- Sincronización silenciosa en background
-- No interrumpir la experiencia del usuario
-- Actualizar POIs y clima sin que el usuario lo note
-

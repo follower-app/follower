@@ -2,18 +2,28 @@
 
 > **Your city soundtrack.**
 
-Follower es una PWA de audio guía turística que convierte cualquier paseo en una experiencia cinematográfica y humana — narración AI en tiempo real, música que cambia según el lugar, y un acompañante que cuida de ti mientras exploras.
+Follower es una PWA de exploración cinematográfica que combina audioguía contextual, narrativa AI, música y cuidado humano para convertir cualquier paseo en una experiencia memorable.
 
-**App:** [follower-app.github.io/follower](https://follower-app.github.io/follower) *(próximamente)*
+**App:** [follower-app.github.io/follower](https://follower-app.github.io/follower)
 **Repo:** [github.com/follower-app/follower](https://github.com/follower-app/follower)
 
 ---
 
 ## El problema que resuelve
 
-Los audio guides tradicionales son aburridos, estáticos y genéricos. Los free tours dependen de un guía que puede ser bueno o malo. Las apps de mapas te dan datos fríos sin emoción.
+Explorar una ciudad genera carga cognitiva. El viajero debe orientarse, buscar información, elegir recorridos, coordinar horarios. La logística termina robándole espacio a la experiencia.
+
+Los audio guides son aburridos y estáticos. Los free tours dependen de un guía. Los mapas dan datos fríos sin emoción.
 
 **Follower existe para que caminar una ciudad extraña se sienta como protagonizar una película.**
+
+---
+
+## Principio fundamental
+
+> Follower no compite por información. Follower compite por emoción.
+
+Los usuarios no recordarán los datos históricos. Recordarán cómo se sintieron mientras caminaban.
 
 ---
 
@@ -26,6 +36,14 @@ El usuario guarda el celular en el bolsillo. La app orquesta todo sola:
 - Narración AI empieza sobre la música, en el idioma del usuario
 - Se aleja → música hace fade out suavemente
 - Lleva mucho tiempo caminando o va a llover → la app lo cuida y sugiere dónde descansar
+
+---
+
+## Pregunta rectora
+
+> ¿Esto nos acerca a una experiencia cinematográfica o a una audioguía tradicional?
+
+Si nos acerca a una audioguía, probablemente es la decisión equivocada.
 
 ---
 
@@ -67,10 +85,10 @@ El usuario guarda el celular en el bolsillo. La app orquesta todo sola:
 ## Modos de exploración
 
 ### Modo Libre *(default)*
-El usuario camina sin rumbo. La app detecta POIs cercanos y reacciona automáticamente.
+El usuario camina sin rumbo. La app detecta POIs cercanos y reacciona automáticamente. La ciudad sorprende.
 
 ### Modo Recorrido *(opt-in)*
-El usuario elige una ruta temática. La app traza el camino y ordena los POIs narrativamente.
+El usuario elige una ruta temática. La app cuenta una historia. La ruta existe para servir a la narrativa — no al contrario.
 
 ### Transición inteligente
 Si el usuario está a menos de 300m del inicio de un recorrido popular, la app lo sugiere suavemente. Nunca lo activa automáticamente.
@@ -122,7 +140,7 @@ follower/
 ├── manifest.json           → PWA config
 ├── sw.js                   → service worker (al final)
 ├── REGLAS_IA.md
-├── README_follower.md
+├── README.md
 │
 ├── css/
 │   ├── main.css            → variables, reset, tipografía
@@ -138,7 +156,7 @@ follower/
 │   ├── app.js              → AppState, router, setPhase, init
 │   ├── gps.js              → GPS, Leaflet, distancia, ciudad
 │   ├── poi.js              → POIs desde OSM, detectPOI, IndexedDB
-│   ├── narration.js        → Claude API, prompts, fallback
+│   ├── narration.js        → Gemini API, prompts, fallback
 │   ├── voice.js            → Web Speech API, 12 idiomas
 │   ├── music.js            → música por mood, fadeMusic
 │   ├── weather.js          → OpenWeatherMap, alerta lluvia
@@ -151,9 +169,10 @@ follower/
 │   └── icons/              → icon-192.png, icon-512.png (pendiente logo)
 │
 └── docs/
-    ├── producto_v0.4.md
-    ├── arquitectura_v0.4.md
-    └── bitacora_v0.4.md
+    ├── contexto_maestro.md → alma del producto, principios fundamentales
+    ├── producto.md
+    ├── arquitectura.md
+    └── bitacora.md
 ```
 
 ---
@@ -163,7 +182,7 @@ follower/
 ```
 HTML + CSS + JS Vanilla
 Leaflet.js          → mapas (OpenStreetMap)
-Claude API          → narración AI (claude-sonnet-4-6)
+Gemini 1.5 Flash    → narración AI en tiempo real (gratuito)
 Web Speech API      → síntesis de voz nativa (12 idiomas)
 Web Audio API       → música por mood nativa
 OpenWeatherMap API  → clima en tiempo real
@@ -179,6 +198,7 @@ PWA                 → instalable, offline parcial
 ## Para IAs y desarrolladores
 
 **Leer antes de tocar cualquier archivo:** `REGLAS_IA.md`
+**Leer para entender el alma del producto:** `docs/contexto_maestro.md`
 
 Funciones únicas — nunca duplicar:
 - `detectPOI()` → poi.js

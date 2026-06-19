@@ -111,3 +111,53 @@ Se escribieron todos los archivos del proyecto:
 ---
 
 *Follower — Bitácora v0.4 | Junio 2026*
+
+---
+
+## Sesión 3 — Junio 2026
+
+### Decisiones
+- Migración de Claude API → Gemini 1.5 Flash para piloto (gratuito)
+- Keys subidas temporalmente al repo (privado) para pruebas en iPhone
+- `contexto_maestro.md` agregado a docs — define el alma del producto
+- Descripción actualizada: *"PWA de exploración cinematográfica que combina audioguía contextual, narrativa AI, música y cuidado humano"*
+
+### Bugs encontrados en primera prueba — iPhone
+
+**BUG-001 — Modal de config no aparecía**
+- Causa: `Config.isFirstTime()` devolvía `false` en recargas — saltaba directo al mapa
+- Fix: `expandHeart()` ahora siempre muestra el modal de config, pre-seleccionando valores guardados
+- Archivo: `js/app.js`
+
+**BUG-002 — GPS no pedía permiso en iOS**
+- Causa: `GPS.start()` se llamaba después de la config — iOS requiere gesto del usuario primero
+- Fix: `requestGPSPermission()` se llama durante el splash, en paralelo con la animación
+- La barra de progreso se frena en 95% hasta tener GPS, luego completa
+- Archivo: `js/app.js`
+
+**BUG-003 — Mostraba Bogotá en vez de Cali**
+- Causa: Consecuencia de BUG-002 — sin GPS caía al fallback de IP (ipapi.co registra Cali como Bogotá)
+- Fix: resuelto al resolver BUG-002
+- Archivo: `js/gps.js` (sin cambios — el fix fue en app.js)
+
+### Deuda técnica actualizada
+
+| ID | Descripción | Prioridad |
+|----|-------------|-----------|
+| DT-1 | Logo SVG final — trazo del corazón pendiente | Alta |
+| DT-2 | Archivos de música por mood (4 MP3) | Alta |
+| DT-3 | sw.js — service worker (siempre último) | Alta |
+| DT-4 | Pantalla resumen del paseo | Media |
+| DT-5 | Más ciudades en routes.js | Baja |
+| DT-6 | Remover keys del repo antes de producción | Alta |
+| DT-7 | Backend proxy para API keys en producción | Baja |
+
+### Próxima sesión — v0.5
+
+1. Probar app.js actualizado en iPhone
+2. Verificar que GPS pide permiso correctamente
+3. Verificar que modal de config aparece
+4. Probar narración con Gemini API
+5. Verificar música por mood
+6. Documentar nuevos bugs encontrados
+

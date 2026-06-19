@@ -6,5 +6,5 @@
 
 const KEYS = {
   openWeatherMap: '779622c54207da34012c353358fa5c02',
-  gemini:         'AQ.Ab8RN6K9967CarlM1EK3k0xgwSRrwg3wfh8wA_mq0q4vRmUrBA'
+  gemini:         'AQ.Ab8RN6I7A_0XyxoOGHP9ZlK5dBAL8NWOXIOjhTlExaV-2yM8FA'
 };

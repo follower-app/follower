@@ -1,25 +1,23 @@
 /* ═══════════════════════════════════════════
    FOLLOWER — narration.js
-   Claude API en tiempo real, prompts por
-   mood e idioma, fallback offline. DA-3:
-   triggerNarration() función única.
+   Gemini 1.5 Flash (gratuito) para piloto.
+   Mismos prompts por mood e idioma.
+   DA-3: trigger() función única.
    ═══════════════════════════════════════════ */
 
 const Narration = (() => {
 
   /* ── ESTADO INTERNO ── */
-  let _currentText  = '';      // texto de narración en curso
-  let _isPaused     = false;   // narración pausada
-  let _isNarrating  = false;   // narración activa
-  let _currentPOI   = null;    // POI siendo narrado
-  let _currentTopic = 'historia'; // tema actual
+  let _currentText  = '';
+  let _isPaused     = false;
+  let _isNarrating  = false;
+  let _currentPOI   = null;
+  let _currentTopic = 'historia';
 
   /* ── CONFIGURACIÓN ── */
   const CONFIG = {
-    API_URL:     'https://api.anthropic.com/v1/messages',
-    MODEL:       'claude-sonnet-4-6',
-    MAX_TOKENS:  400,           // narración concisa ~2-3 min hablada
-    API_TIMEOUT: 8000,          // 8 segundos máximo (DA-6)
+    API_URL:     'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent',
+    API_TIMEOUT: 8000,
   };
 
   /* ── PROMPTS POR MOOD ── */
@@ -91,42 +89,44 @@ Take a moment to observe the details — every stone, every arch, has a story to
     return langPrompt(poi, topic);
   }
 
-  /* ── LLAMAR CLAUDE API ── */
-  async function callClaude(prompt) {
+  /* ── LLAMAR GEMINI API ── */
+  async function callGemini(prompt) {
     const controller = new AbortController();
     const timeout    = setTimeout(() => controller.abort(), CONFIG.API_TIMEOUT);
 
     try {
-      const res = await fetch(CONFIG.API_URL, {
+      const url = `${CONFIG.API_URL}?key=${KEYS.gemini}`;
+
+      const res = await fetch(url, {
         method:  'POST',
         signal:  controller.signal,
         headers: {
-          'Content-Type':      'application/json',
-          'x-api-key':         KEYS.claude,
-          'anthropic-version': '2023-06-01'
+          'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          model:      CONFIG.MODEL,
-          max_tokens: CONFIG.MAX_TOKENS,
-          messages: [
-            { role: 'user', content: prompt }
-          ]
+          contents: [{
+            parts: [{ text: prompt }]
+          }],
+          generationConfig: {
+            maxOutputTokens: 400,
+            temperature:     0.8
+          }
         })
       });
 
       clearTimeout(timeout);
 
-      if (!res.ok) throw new Error(`API error ${res.status}`);
+      if (!res.ok) throw new Error(`Gemini API error ${res.status}`);
 
       const data = await res.json();
-      return data.content?.[0]?.text || null;
+      return data.candidates?.[0]?.content?.parts?.[0]?.text || null;
 
     } catch (e) {
       clearTimeout(timeout);
       if (e.name === 'AbortError') {
-        console.warn('Narration: timeout de Claude API');
+        console.warn('Narration: timeout de Gemini API');
       } else {
-        console.warn('Narration: error de Claude API:', e.message);
+        console.warn('Narration: error de Gemini API:', e.message);
       }
       return null;
     }
@@ -173,14 +173,11 @@ Take a moment to observe the details — every stone, every arch, has a story to
   function updateNarrationUI(text) {
     _currentText = text;
 
-    // Card pequeña en exploración
     const cardText = document.getElementById('poiCardText');
     if (cardText) cardText.textContent = text.slice(0, 120) + '...';
 
-    // Pantalla expandida
     const narText = document.getElementById('narrationText');
     if (narText) {
-      // Destacar primera oración
       const sentences = text.split('. ');
       if (sentences.length > 1) {
         narText.innerHTML = `<span class="highlight">${sentences[0]}.</span> ${sentences.slice(1).join('. ')}`;
@@ -190,7 +187,7 @@ Take a moment to observe the details — every stone, every arch, has a story to
     }
   }
 
-  /* ── ACTUALIZAR BARRA DE PROGRESO ── */
+  /* ── PROGRESS BAR ── */
   function startProgressBar() {
     const fill  = document.getElementById('audioProgressFill');
     const pFill = document.getElementById('playerBarFill');
@@ -198,10 +195,7 @@ Take a moment to observe the details — every stone, every arch, has a story to
 
     let pct = 0;
     const iv = setInterval(() => {
-      if (!_isNarrating || _isPaused) {
-        clearInterval(iv);
-        return;
-      }
+      if (!_isNarrating || _isPaused) { clearInterval(iv); return; }
       pct += 0.5;
       if (pct > 100) { clearInterval(iv); pct = 100; }
       if (fill)  fill.style.width  = pct + '%';
@@ -209,7 +203,7 @@ Take a moment to observe the details — every stone, every arch, has a story to
     }, 300);
   }
 
-  /* ── INICIAR WAVES ── */
+  /* ── WAVES ── */
   function startWaves() {
     const waves = document.getElementById('audioWaves');
     if (waves) waves.classList.remove('paused');
@@ -232,31 +226,26 @@ Take a moment to observe the details — every stone, every arch, has a story to
     startWaves();
     startProgressBar();
 
-    // 1. Intentar cache primero
+    // 1. Cache primero
     let text = await loadFromCache(poi.id, mood, lang, topic);
 
-    // 2. Si no hay cache y hay conexión → Claude API
+    // 2. Gemini API si no hay cache
     if (!text && !AppState.offline) {
       const prompt = buildPrompt(poi, mood, lang, topic);
-      text = await callClaude(prompt);
-
-      // Guardar en cache para offline
+      text = await callGemini(prompt);
       if (text) await saveToCache(poi.id, mood, lang, topic, text);
     }
 
-    // 3. Fallback — texto genérico (DA-6)
+    // 3. Fallback genérico (DA-6)
     if (!text) {
       const fallbacks = FALLBACK_TEXTS[lang] || FALLBACK_TEXTS.es;
       text = fallbacks(poi);
     }
 
-    // Actualizar UI con el texto
     updateNarrationUI(text);
 
-    // Sintetizar voz
     if (typeof Voice !== 'undefined') {
       Voice.speak(text, lang, () => {
-        // Callback al terminar — volver a sístole
         _isNarrating = false;
         stopWaves();
         if (AppState.activePOI?.id === poi.id) {
@@ -266,7 +255,7 @@ Take a moment to observe the details — every stone, every arch, has a story to
     }
   }
 
-  /* ── STOP ── */
+  /* ── STOP / PAUSE / RESUME ── */
   function stop() {
     _isNarrating = false;
     _isPaused    = false;
@@ -275,7 +264,6 @@ Take a moment to observe the details — every stone, every arch, has a story to
     if (typeof Voice !== 'undefined') Voice.stop();
   }
 
-  /* ── PAUSE / RESUME ── */
   function pause() {
     _isPaused = true;
     stopWaves();
@@ -288,18 +276,9 @@ Take a moment to observe the details — every stone, every arch, has a story to
     if (typeof Voice !== 'undefined') Voice.resume();
   }
 
-  /* ── GETTERS ── */
   function getCurrentText() { return _currentText; }
   function isNarrating()    { return _isNarrating; }
 
-  /* ── API PÚBLICA ── */
-  return {
-    trigger,
-    stop,
-    pause,
-    resume,
-    getCurrentText,
-    isNarrating
-  };
+  return { trigger, stop, pause, resume, getCurrentText, isNarrating };
 
 })();

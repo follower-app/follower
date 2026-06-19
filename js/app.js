@@ -6,33 +6,30 @@
 
 /* ── APP STATE — fuente de verdad ── */
 const AppState = {
-  screen:      'splash',    // pantalla activa
-  phase:       'systole',   // systole | diastole | rest | alert
-  mode:        'free',      // free | route
-  mood:        'epic',      // epic | romantic | mystery | curious
-  lang:        'es',        // idioma
-  gps:         null,        // { lat, lng, accuracy }
-  nearbyPOIs:  [],          // POIs en radio activo
-  activePOI:   null,        // POI actualmente en narración
-  activeRoute: null,        // recorrido activo (modo route)
-  offline:     false,       // estado de conectividad
-  steps:       0,           // pasos acumulados
-  kmWalked:    0,           // kilómetros recorridos
-  poisVisited: 0,           // POIs visitados en esta sesión
-  weather:     null,        // { temp, condition, rain }
-  cityName:    ''           // nombre de la ciudad detectada
+  screen:      'splash',
+  phase:       'systole',
+  mode:        'free',
+  mood:        'epic',
+  lang:        'es',
+  gps:         null,
+  nearbyPOIs:  [],
+  activePOI:   null,
+  activeRoute: null,
+  offline:     false,
+  steps:       0,
+  kmWalked:    0,
+  poisVisited: 0,
+  weather:     null,
+  cityName:    ''
 };
 
 /* ── ROUTER — cambiar pantalla ── */
 function navigateTo(screenId) {
-  // Ocultar pantalla actual
   const current = document.querySelector('.screen.active');
   if (current) {
     current.classList.remove('active');
     current.classList.add('hidden');
   }
-
-  // Mostrar nueva pantalla
   const next = document.getElementById(`screen-${screenId}`);
   if (!next) {
     console.warn(`navigateTo: pantalla "${screenId}" no encontrada`);
@@ -40,7 +37,6 @@ function navigateTo(screenId) {
   }
   next.classList.remove('hidden');
   next.classList.add('active');
-
   AppState.screen = screenId;
 }
 
@@ -51,15 +47,9 @@ function setPhase(phase) {
     console.warn(`setPhase: fase inválida "${phase}"`);
     return;
   }
-
-  // Remover fase anterior del body
   valid.forEach(p => document.body.classList.remove(`phase-${p}`));
-
-  // Aplicar nueva fase
   document.body.classList.add(`phase-${phase}`);
   AppState.phase = phase;
-
-  // Actualizar top pill mood color
   updateTopPillPhase(phase);
 }
 
@@ -68,8 +58,7 @@ function showModal(modalId) {
   const modal = document.getElementById(`modal-${modalId}`);
   if (!modal) return;
   modal.classList.remove('hidden');
-  // Forzar reflow para que la transición funcione
-  modal.offsetHeight;
+  modal.offsetHeight; // forzar reflow
   modal.classList.add('visible');
 }
 
@@ -87,7 +76,6 @@ function updateTopPill() {
   const cityEl = document.getElementById('topCity');
   const moodEl = document.getElementById('topMood');
   const pill   = document.querySelector('.top-pill');
-
   if (cityEl) cityEl.textContent = AppState.cityName || 'Explorando...';
   if (moodEl) moodEl.textContent = Config.getMoodLabel();
   if (pill)   pill.classList.toggle('offline', AppState.offline);
@@ -96,15 +84,9 @@ function updateTopPill() {
 function updateTopPillPhase(phase) {
   const moodEl = document.getElementById('topMood');
   if (!moodEl) return;
-  // El color lo maneja CSS via body.phase-*
-  // Aquí solo actualizamos el texto si cambia el estado
-  if (phase === 'rest') {
-    moodEl.textContent = '☕ descansando';
-  } else if (phase === 'alert') {
-    moodEl.textContent = '🌧️ lluvia';
-  } else {
-    moodEl.textContent = Config.getMoodLabel();
-  }
+  if (phase === 'rest')  moodEl.textContent = '☕ descansando';
+  else if (phase === 'alert') moodEl.textContent = '🌧️ lluvia';
+  else moodEl.textContent = Config.getMoodLabel();
 }
 
 /* ── ACTUALIZAR STATS ── */
@@ -116,48 +98,76 @@ function updateStats() {
 }
 
 /* ── CONECTIVIDAD ── */
-function handleOnline() {
-  AppState.offline = false;
-  updateTopPill();
-  console.log('App: conexión recuperada');
-}
+function handleOnline()  { AppState.offline = false; updateTopPill(); }
+function handleOffline() { AppState.offline = true;  updateTopPill(); }
 
-function handleOffline() {
-  AppState.offline = true;
-  updateTopPill();
-  console.log('App: sin conexión — modo offline');
+/* ── PEDIR PERMISO GPS — necesario en iOS antes de cualquier interacción ── */
+function requestGPSPermission() {
+  return new Promise((resolve) => {
+    if (!navigator.geolocation) { resolve(false); return; }
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        // Guardar posición inicial en AppState
+        AppState.gps = {
+          lat:      pos.coords.latitude,
+          lng:      pos.coords.longitude,
+          accuracy: pos.coords.accuracy
+        };
+        resolve(true);
+      },
+      () => resolve(false),
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+    );
+  });
 }
 
 /* ── SPLASH — progreso de carga ── */
-function runSplash() {
+async function runSplash() {
   const fill   = document.getElementById('progressFill');
   const label  = document.getElementById('progressLabel');
   const heart  = document.getElementById('heartSvg');
 
   const msgs = [
     'iniciando...',
-    `cargando ${AppState.cityName || 'tu ciudad'}...`,
-    'buscando puntos históricos...',
+    'obteniendo ubicación...',
+    'cargando puntos históricos...',
     'preparando tu soundtrack...',
     'casi listo...'
   ];
 
   let pct = 0;
 
+  // Pedir permiso GPS en paralelo con la animación del splash
+  const gpsPromise = requestGPSPermission();
+
   const iv = setInterval(() => {
-    pct += Math.random() * 16 + 7;
-    if (pct > 100) pct = 100;
+    // Avanzar más lento al llegar a 80% — esperar GPS
+    const increment = pct < 80
+      ? Math.random() * 16 + 7
+      : Math.random() * 4 + 1;
+
+    pct += increment;
+    if (pct > 95) pct = 95; // No llegar al 100% hasta tener GPS
 
     if (fill)  fill.style.width = pct + '%';
     if (label) label.textContent = msgs[
       Math.min(Math.floor((pct / 100) * msgs.length), msgs.length - 1)
     ];
-
-    if (pct >= 100) {
-      clearInterval(iv);
-      setTimeout(() => expandHeart(heart), 350);
-    }
   }, 480);
+
+  // Esperar GPS (máximo 8 segundos)
+  const gpsOk = await Promise.race([
+    gpsPromise,
+    new Promise(resolve => setTimeout(() => resolve(false), 8000))
+  ]);
+
+  clearInterval(iv);
+
+  // Completar barra
+  if (fill)  fill.style.width = '100%';
+  if (label) label.textContent = gpsOk ? 'listo ✓' : 'continuando sin GPS...';
+
+  setTimeout(() => expandHeart(heart), 400);
 }
 
 function expandHeart(heart) {
@@ -170,17 +180,9 @@ function expandHeart(heart) {
   }, 550);
 
   setTimeout(() => {
-    // Primera vez → mostrar config
-    // Veces siguientes → ir directo al mapa
-    if (Config.isFirstTime()) {
-      showModal('config');
-    } else {
-      AppState.lang = Config.get('lang');
-      AppState.mood = Config.get('mood');
-      AppState.mode = Config.get('mode');
-      navigateTo('explore');
-      initExplore();
-    }
+    // SIEMPRE mostrar config — así el usuario puede confirmar idioma y mood
+    // independientemente de si es primera vez o no
+    showModal('config');
   }, 720);
 }
 
@@ -190,7 +192,7 @@ function initExplore() {
   updateTopPill();
   updateStats();
 
-  // Iniciar GPS
+  // GPS ya tiene permiso — solo iniciar el watch continuo
   if (typeof GPS !== 'undefined') GPS.start();
 
   // Iniciar música
@@ -205,9 +207,15 @@ function initExplore() {
 
 /* ── EVENT LISTENERS — CONFIG MODAL ── */
 function initConfigModal() {
+  // Preseleccionar valores guardados
+  const savedLang = Config.get('lang');
+  const savedMood = Config.get('mood');
+
   // Pills de idioma
   const langPills = document.querySelectorAll('#langPills .pill');
   langPills.forEach(pill => {
+    if (pill.dataset.value === savedLang) pill.classList.add('active');
+    else pill.classList.remove('active');
     pill.addEventListener('click', () => {
       langPills.forEach(p => p.classList.remove('active'));
       pill.classList.add('active');
@@ -218,6 +226,8 @@ function initConfigModal() {
   // Cards de mood
   const moodCards = document.querySelectorAll('#moodCards .mood-card');
   moodCards.forEach(card => {
+    if (card.dataset.value === savedMood) card.classList.add('active');
+    else card.classList.remove('active');
     card.addEventListener('click', () => {
       moodCards.forEach(c => c.classList.remove('active'));
       card.classList.add('active');
@@ -229,13 +239,9 @@ function initConfigModal() {
   const btnStart = document.getElementById('btnStartExplore');
   if (btnStart) {
     btnStart.addEventListener('click', () => {
-      // Guardar config
       Config.setLang(AppState.lang);
       Config.setMood(AppState.mood);
-
       hideModal('config');
-
-      // Mostrar selección de modo
       setTimeout(() => showModal('mode'), 300);
     });
   }
@@ -265,7 +271,6 @@ function initModeModal() {
       setTimeout(() => {
         navigateTo('explore');
         initExplore();
-        // Mostrar selector de recorridos
         if (typeof Routes !== 'undefined') Routes.showPicker();
       }, 300);
     });
@@ -274,7 +279,6 @@ function initModeModal() {
 
 /* ── EVENT LISTENERS — EXPLORACIÓN ── */
 function initExploreListeners() {
-  // Tap en card POI pequeña → expandir
   const poiCard = document.getElementById('poiCard');
   if (poiCard) {
     poiCard.addEventListener('click', () => {
@@ -285,15 +289,11 @@ function initExploreListeners() {
     });
   }
 
-  // Botón volver desde POI expandido
   const btnBack = document.getElementById('btnBackFromPOI');
   if (btnBack) {
-    btnBack.addEventListener('click', () => {
-      navigateTo('explore');
-    });
+    btnBack.addEventListener('click', () => navigateTo('explore'));
   }
 
-  // Botón continuar narrando
   const btnContinue = document.getElementById('btnContinueNarration');
   if (btnContinue) {
     btnContinue.addEventListener('click', () => {
@@ -302,37 +302,29 @@ function initExploreListeners() {
     });
   }
 
-  // Botón center — brújula
   const btnCenter = document.getElementById('btnCenter');
   if (btnCenter) {
     btnCenter.addEventListener('click', () => {
-      if (AppState.gps && typeof GPS !== 'undefined') {
-        GPS.centerMap();
-      }
+      if (AppState.gps && typeof GPS !== 'undefined') GPS.centerMap();
     });
   }
 }
 
 /* ── INIT PRINCIPAL ── */
 function init() {
-  // Cargar config guardada
   AppState.lang = Config.get('lang');
   AppState.mood = Config.get('mood');
   AppState.mode = Config.get('mode');
 
-  // Escuchar conectividad
   window.addEventListener('online',  handleOnline);
   window.addEventListener('offline', handleOffline);
   AppState.offline = !navigator.onLine;
 
-  // Inicializar listeners
   initConfigModal();
   initModeModal();
   initExploreListeners();
 
-  // Arrancar splash
   runSplash();
 }
 
-/* ── ARRANCAR AL CARGAR EL DOM ── */
 document.addEventListener('DOMContentLoaded', init);

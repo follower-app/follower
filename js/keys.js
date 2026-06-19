@@ -5,6 +5,6 @@
 // ═══════════════════════════════════════════
 
 const KEYS = {
-  openWeatherMap: 'TU_API_KEY_OPENWEATHERMAP',
-  claude:         'TU_API_KEY_CLAUDE'
+  openWeatherMap: '779622c54207da34012c353358fa5c02',
+  gemini:         'AQ.Ab8RN6K9967CarlM1EK3k0xgwSRrwg3wfh8wA_mq0q4vRmUrBA'
 };

@@ -1,0 +1,297 @@
+/* ═══════════════════════════════════════════
+   FOLLOWER — gps.js
+   Ubicación en tiempo real, mapa Leaflet,
+   detección de movimiento, ciudad actual.
+   El GPS nunca se interrumpe — DA-7
+   ═══════════════════════════════════════════ */
+
+const GPS = (() => {
+
+  /* ── ESTADO INTERNO ── */
+  let _map          = null;   // instancia de Leaflet
+  let _userMarker   = null;   // marcador del usuario en el mapa
+  let _watchId      = null;   // ID del watchPosition
+  let _lastPos      = null;   // última posición conocida
+  let _lastPOICheck = 0;      // timestamp del último checkeo de POIs
+
+  /* ── CONFIGURACIÓN ── */
+  const CONFIG = {
+    POI_CHECK_INTERVAL: 5000,    // ms entre chequeos de POIs cercanos
+    POI_RADIUS_METERS:  80,      // radio para activar narración
+    NEARBY_RADIUS:      300,     // radio para mostrar pin como "cercano"
+    STEPS_PER_METER:    1.3,     // pasos por metro (estimado)
+    CITY_UPDATE_KM:     0.5,     // actualizar nombre de ciudad cada 500m
+    MAP_ZOOM:           17,      // zoom inicial del mapa
+    MAP_ZOOM_MIN:       14,
+    MAP_ZOOM_MAX:       19
+  };
+
+  /* ── INICIALIZAR MAPA LEAFLET ── */
+  function initMap(lat, lng) {
+    if (_map) return;
+
+    _map = L.map('map', {
+      center:          [lat, lng],
+      zoom:            CONFIG.MAP_ZOOM,
+      zoomControl:     false,
+      attributionControl: false,
+      dragging:        true,
+      touchZoom:       true,
+      doubleClickZoom: false,
+      scrollWheelZoom: false,
+      minZoom:         CONFIG.MAP_ZOOM_MIN,
+      maxZoom:         CONFIG.MAP_ZOOM_MAX
+    });
+
+    // Tiles OpenStreetMap
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom:     CONFIG.MAP_ZOOM_MAX,
+      attribution: ''
+    }).addTo(_map);
+
+    // Marcador del usuario — círculo azul sístole
+    const userIcon = L.divIcon({
+      className:   '',
+      html:        `<div class="user-marker">
+                      <div class="user-pulse"></div>
+                      <div class="user-pulse"></div>
+                      <div class="user-dot"></div>
+                    </div>`,
+      iconSize:    [60, 60],
+      iconAnchor:  [30, 30]
+    });
+
+    _userMarker = L.marker([lat, lng], {
+      icon:        userIcon,
+      zIndexOffset: 1000
+    }).addTo(_map);
+  }
+
+  /* ── ACTUALIZAR POSICIÓN EN EL MAPA ── */
+  function updateUserPosition(lat, lng) {
+    if (!_map || !_userMarker) return;
+    _userMarker.setLatLng([lat, lng]);
+  }
+
+  /* ── CENTRAR MAPA EN EL USUARIO ── */
+  function centerMap() {
+    if (!_map || !AppState.gps) return;
+    _map.setView(
+      [AppState.gps.lat, AppState.gps.lng],
+      CONFIG.MAP_ZOOM,
+      { animate: true, duration: 0.5 }
+    );
+  }
+
+  /* ── CALCULAR DISTANCIA entre dos puntos (metros) ── */
+  function distanceMeters(lat1, lng1, lat2, lng2) {
+    const R    = 6371000; // radio tierra en metros
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLng = (lng2 - lng1) * Math.PI / 180;
+    const a    = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                 Math.cos(lat1 * Math.PI / 180) *
+                 Math.cos(lat2 * Math.PI / 180) *
+                 Math.sin(dLng / 2) * Math.sin(dLng / 2);
+    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  }
+
+  /* ── CALCULAR KM RECORRIDOS ── */
+  function updateDistance(newLat, newLng) {
+    if (!_lastPos) return;
+
+    const meters = distanceMeters(
+      _lastPos.lat, _lastPos.lng,
+      newLat, newLng
+    );
+
+    // Filtrar saltos GPS (> 50m en un tick = error de GPS)
+    if (meters > 50) return;
+
+    AppState.kmWalked += meters / 1000;
+    AppState.steps    += Math.round(meters * CONFIG.STEPS_PER_METER);
+
+    updateStats();
+  }
+
+  /* ── OBTENER NOMBRE DE CIUDAD (Nominatim) ── */
+  async function fetchCityName(lat, lng) {
+    if (AppState.offline) return;
+
+    try {
+      const url  = `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lng=${lng}&format=json`;
+      const res  = await fetch(url);
+      const data = await res.json();
+
+      const city = data.address?.city
+                || data.address?.town
+                || data.address?.village
+                || data.address?.county
+                || '';
+
+      const country = data.address?.country_code?.toUpperCase() || '';
+
+      if (city) {
+        AppState.cityName = country ? `${city}, ${country}` : city;
+        updateTopPill();
+      }
+    } catch (e) {
+      // Sin conexión o error — mantener cityName anterior
+    }
+  }
+
+  /* ── CALLBACK PRINCIPAL DE POSICIÓN ── */
+  function onPosition(position) {
+    const lat = position.coords.latitude;
+    const lng = position.coords.longitude;
+    const acc = position.coords.accuracy;
+
+    // Actualizar AppState
+    const prevPos = AppState.gps;
+    AppState.gps = { lat, lng, accuracy: acc };
+
+    // Inicializar mapa si es la primera posición
+    if (!_map) {
+      initMap(lat, lng);
+      fetchCityName(lat, lng);
+    }
+
+    // Actualizar marcador en el mapa
+    updateUserPosition(lat, lng);
+
+    // Actualizar distancia recorrida
+    if (_lastPos) {
+      updateDistance(lat, lng);
+
+      // Actualizar ciudad si nos movimos más de CITY_UPDATE_KM
+      const kmMoved = distanceMeters(
+        _lastPos.lat, _lastPos.lng, lat, lng
+      ) / 1000;
+
+      if (kmMoved > CONFIG.CITY_UPDATE_KM) {
+        fetchCityName(lat, lng);
+      }
+    }
+
+    _lastPos = { lat, lng };
+
+    // Chequear POIs cercanos — con throttle
+    const now = Date.now();
+    if (now - _lastPOICheck > CONFIG.POI_CHECK_INTERVAL) {
+      _lastPOICheck = now;
+      if (typeof POI !== 'undefined') {
+        POI.detectNearby(lat, lng, CONFIG.POI_RADIUS_METERS, CONFIG.NEARBY_RADIUS);
+      }
+      if (typeof Care !== 'undefined') {
+        Care.check();
+      }
+    }
+  }
+
+  /* ── CALLBACK DE ERROR ── */
+  function onError(error) {
+    console.warn('GPS error:', error.message);
+
+    // Si no hay posición previa, intentar con IP (muy impreciso pero algo)
+    if (!AppState.gps && !AppState.offline) {
+      fetchCityByIP();
+    }
+  }
+
+  /* ── FALLBACK — ciudad por IP ── */
+  async function fetchCityByIP() {
+    try {
+      const res  = await fetch('https://ipapi.co/json/');
+      const data = await res.json();
+      if (data.city) {
+        AppState.cityName = `${data.city}, ${data.country_code || ''}`;
+        updateTopPill();
+
+        // Inicializar mapa en la ciudad detectada
+        if (data.latitude && data.longitude && !_map) {
+          initMap(data.latitude, data.longitude);
+        }
+      }
+    } catch (e) {
+      AppState.cityName = 'Tu ciudad';
+      updateTopPill();
+    }
+  }
+
+  /* ── INICIAR GPS ── */
+  function start() {
+    if (!navigator.geolocation) {
+      console.warn('GPS: geolocalización no disponible');
+      fetchCityByIP();
+      return;
+    }
+
+    // Primera posición rápida
+    navigator.geolocation.getCurrentPosition(onPosition, onError, {
+      enableHighAccuracy: true,
+      timeout:            10000,
+      maximumAge:         0
+    });
+
+    // Seguimiento continuo — NUNCA se detiene (DA-7)
+    _watchId = navigator.geolocation.watchPosition(onPosition, onError, {
+      enableHighAccuracy: true,
+      timeout:            15000,
+      maximumAge:         3000
+    });
+  }
+
+  /* ── DETENER GPS — solo en emergencias ── */
+  function stop() {
+    if (_watchId !== null) {
+      navigator.geolocation.clearWatch(_watchId);
+      _watchId = null;
+    }
+  }
+
+  /* ── AGREGAR MARCADOR POI AL MAPA ── */
+  function addPOIMarker(poi) {
+    if (!_map) return null;
+
+    const isActive  = AppState.activePOI?.id === poi.id;
+    const distMeters = AppState.gps
+      ? distanceMeters(AppState.gps.lat, AppState.gps.lng, poi.lat, poi.lng)
+      : 999;
+    const isNearby  = distMeters <= 300;
+
+    const pinClass  = isActive ? 'active' : isNearby ? 'nearby' : 'far';
+    const labelClass = isActive ? 'active' : '';
+
+    const icon = L.divIcon({
+      className: '',
+      html: `<div class="poi-marker-wrap">
+               <div class="poi-pin ${pinClass}">
+                 <div class="poi-pin-inner">${poi.icon || '📍'}</div>
+               </div>
+               <div class="poi-pin-label ${labelClass}">
+                 ${poi.name}${isActive ? ` · ${Math.round(distMeters)}m` : ''}
+               </div>
+             </div>`,
+      iconSize:   [80, 60],
+      iconAnchor: [40, 48]
+    });
+
+    const marker = L.marker([poi.lat, poi.lng], { icon })
+      .addTo(_map)
+      .on('click', () => {
+        if (typeof POI !== 'undefined') POI.onMarkerTap(poi);
+      });
+
+    return marker;
+  }
+
+  /* ── API PÚBLICA ── */
+  return {
+    start,
+    stop,
+    centerMap,
+    distanceMeters,
+    addPOIMarker,
+    getMap: () => _map
+  };
+
+})();

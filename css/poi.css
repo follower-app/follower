@@ -1,0 +1,233 @@
+/* ═══════════════════════════════════════════
+   FOLLOWER — poi.css
+   Pantalla expandida del punto de interés:
+   héroe, player, narración, datos, acciones
+   ═══════════════════════════════════════════ */
+
+/* ── PANTALLA POI ── */
+
+#screen-poi {
+  background: var(--color-night);
+  position: relative;
+  overflow: hidden;
+}
+
+/* ── IMAGEN HÉROE ── */
+
+.poi-hero {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 300px;
+  overflow: hidden;
+  z-index: 1;
+  background: var(--color-night-2);
+}
+
+.poi-hero svg {
+  width: 100%;
+  height: 100%;
+}
+
+.poi-hero-gradient {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(
+    to bottom,
+    rgba(13, 20, 32, 0) 30%,
+    rgba(13, 20, 32, 1) 100%
+  );
+  z-index: 2;
+  pointer-events: none;
+}
+
+/* ── BOTÓN VOLVER ── */
+
+.back-btn {
+  position: absolute;
+  top: 52px;
+  left: 20px;
+  z-index: var(--z-ui);
+}
+
+/* ── BADGE MOOD ── */
+
+.poi-mood-badge {
+  position: absolute;
+  top: 52px;
+  right: 20px;
+  z-index: var(--z-ui);
+  font-family: var(--font-ui);
+  font-size: 10px;
+  font-weight: var(--weight-light);
+  color: #fff;
+  background: rgba(192, 57, 43, 0.85);
+  padding: 5px 12px;
+  border-radius: var(--radius-pill);
+  letter-spacing: 0.06em;
+}
+
+/* ── CONTENIDO SCROLLEABLE ── */
+
+.poi-content {
+  position: absolute;
+  top: 260px;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  overflow-y: auto;
+  padding: 0 20px 140px;
+  z-index: 3;
+  scrollbar-width: none;
+}
+
+.poi-content::-webkit-scrollbar {
+  display: none;
+}
+
+/* ── TÍTULO ── */
+
+.poi-title {
+  font-family: var(--font-display);
+  font-size: 28px;
+  font-weight: 400;
+  color: var(--color-ice);
+  line-height: 1.15;
+  margin-bottom: var(--space-sm);
+}
+
+/* ── META ROW ── */
+
+.poi-meta-row {
+  font-family: var(--font-ui);
+  font-size: 11px;
+  font-weight: var(--weight-light);
+  color: var(--color-smoke-3);
+  letter-spacing: 0.08em;
+  margin-bottom: var(--space-xl);
+  display: flex;
+  gap: var(--space-md);
+  align-items: center;
+}
+
+.poi-meta-dot {
+  color: var(--color-border);
+  font-size: 8px;
+}
+
+/* ── PLAYER ── */
+
+.player {
+  background: rgba(10, 19, 32, 0.8);
+  border: 0.5px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-md) var(--space-lg);
+  margin-bottom: var(--space-xl);
+}
+
+.player-top {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  margin-bottom: var(--space-md);
+}
+
+.player-state {
+  font-family: var(--font-ui);
+  font-size: 10px;
+  font-weight: var(--weight-regular);
+  color: var(--color-diastole);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  flex: 1;
+}
+
+.player-time {
+  font-family: var(--font-ui);
+  font-size: 10px;
+  font-weight: var(--weight-light);
+  color: var(--color-smoke-3);
+  letter-spacing: 0.06em;
+}
+
+/* Barra de progreso del player */
+.player-progress-row {
+  margin-bottom: var(--space-md);
+}
+
+.player-bar {
+  width: 100%;
+  height: 2px;
+  background: var(--color-border-2);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.player-bar-fill {
+  height: 100%;
+  width: 0%;
+  background: var(--color-diastole);
+  border-radius: 2px;
+  transition: width 1s linear;
+}
+
+/* Música en el player */
+.player-music-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  padding-top: var(--space-md);
+  border-top: 0.5px solid var(--color-border-2);
+}
+
+.player-music-icon {
+  font-size: 13px;
+  flex-shrink: 0;
+}
+
+.player-music-name {
+  font-family: var(--font-ui);
+  font-size: 11px;
+  font-weight: var(--weight-light);
+  color: var(--color-smoke-2);
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.player-music-mood {
+  font-family: var(--font-ui);
+  font-size: 10px;
+  font-weight: var(--weight-light);
+  color: var(--color-diastole);
+  letter-spacing: 0.04em;
+  flex-shrink: 0;
+}
+
+/* ── ACCIONES BOTTOM — fixed al fondo ── */
+
+.poi-bottom-actions {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  padding: var(--space-lg) 20px 36px;
+  background: linear-gradient(
+    to top,
+    var(--color-night) 70%,
+    rgba(13, 20, 32, 0) 100%
+  );
+  z-index: var(--z-ui);
+  display: flex;
+  gap: var(--space-md);
+  align-items: center;
+}
+
+.poi-bottom-actions .btn-primary {
+  flex: 1;
+}

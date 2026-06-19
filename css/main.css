@@ -1,0 +1,205 @@
+/* ═══════════════════════════════════════════
+   FOLLOWER — main.css
+   Variables globales, reset, tipografía base
+   ═══════════════════════════════════════════ */
+
+/* ── VARIABLES GLOBALES ── */
+:root {
+
+  /* Paleta — Sístole y Diástole */
+  --color-navy:      #0d1b2a;
+  --color-night:     #0d1420;
+  --color-night-2:   #0a1018;
+  --color-night-3:   #111d2b;
+
+  --color-diastole:  #c0392b;   /* rojo — narrando */
+  --color-alert:     #e74c3c;   /* rojo vivo — alertas */
+  --color-systole:   #1a5276;   /* azul — caminando */
+  --color-gold:      #f0c87a;   /* dorado — descansando */
+
+  --color-smoke:     #c8d4e0;   /* textos secundarios dark */
+  --color-smoke-2:   #4a5568;   /* textos terciarios dark */
+  --color-smoke-3:   #2d3e50;   /* textos sutiles dark */
+  --color-border:    #1e2d3d;   /* bordes dark */
+  --color-border-2:  #1a2535;   /* bordes más sutiles */
+
+  --color-cream:     #f5f3ef;   /* fondo claro */
+  --color-ice:       #e8eef4;   /* textos principales dark */
+
+  /* Tipografía */
+  --font-display:    'DM Serif Display', serif;
+  --font-ui:         'Inter', sans-serif;
+
+  /* Pesos */
+  --weight-thin:     200;
+  --weight-light:    300;
+  --weight-regular:  400;
+  --weight-medium:   500;
+
+  /* Espaciado */
+  --space-xs:   4px;
+  --space-sm:   8px;
+  --space-md:   12px;
+  --space-lg:   16px;
+  --space-xl:   24px;
+  --space-2xl:  32px;
+  --space-3xl:  48px;
+
+  /* Radios */
+  --radius-sm:   8px;
+  --radius-md:   12px;
+  --radius-lg:   16px;
+  --radius-xl:   20px;
+  --radius-2xl:  28px;
+  --radius-pill: 100px;
+
+  /* Transiciones */
+  --transition-fast:   0.18s ease;
+  --transition-base:   0.3s ease;
+  --transition-slow:   0.5s ease;
+  --transition-spring: 0.55s cubic-bezier(0.34, 1.1, 0.64, 1);
+
+  /* Z-index */
+  --z-map:     1;
+  --z-ui:      10;
+  --z-card:    20;
+  --z-modal:   30;
+  --z-notch:   50;
+}
+
+/* ── RESET ── */
+*, *::before, *::after {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
+
+html {
+  height: 100%;
+  overflow: hidden;
+}
+
+body {
+  height: 100%;
+  overflow: hidden;
+  background: var(--color-night);
+  color: var(--color-ice);
+  font-family: var(--font-ui);
+  font-size: 16px;
+  font-weight: var(--weight-regular);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+button {
+  cursor: pointer;
+  border: none;
+  background: none;
+  font-family: var(--font-ui);
+  -webkit-tap-highlight-color: transparent;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+svg {
+  display: block;
+}
+
+/* ── SISTEMA DE PANTALLAS ── */
+.screen {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  transition: opacity var(--transition-slow);
+}
+
+.screen.active {
+  display: flex;
+  flex-direction: column;
+  opacity: 1;
+  pointer-events: all;
+  z-index: 1;
+}
+
+.screen.hidden {
+  display: none;
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* ── FASES — Sístole / Diástole ── */
+body.phase-systole  .btn-center { background: var(--color-systole); }
+body.phase-diastole .btn-center { background: var(--color-diastole); }
+body.phase-rest     .btn-center { background: var(--color-gold); }
+body.phase-alert    .btn-center { background: var(--color-alert); }
+
+body.phase-systole  .top-pill-mood { color: var(--color-systole); }
+body.phase-diastole .top-pill-mood { color: var(--color-diastole); }
+body.phase-rest     .top-pill-mood { color: var(--color-gold); }
+body.phase-alert    .top-pill-mood { color: var(--color-alert); }
+
+/* ── UTILIDADES ── */
+.hidden { display: none !important; }
+.visible { display: flex !important; }
+
+.text-display {
+  font-family: var(--font-display);
+  font-weight: var(--weight-regular);
+}
+
+.text-display-italic {
+  font-family: var(--font-display);
+  font-style: italic;
+}
+
+.text-narration {
+  font-family: var(--font-ui);
+  font-weight: var(--weight-thin);
+  line-height: 1.7;
+}
+
+.text-label {
+  font-family: var(--font-ui);
+  font-size: 9px;
+  font-weight: var(--weight-medium);
+  color: var(--color-smoke-3);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.text-meta {
+  font-family: var(--font-ui);
+  font-size: 11px;
+  font-weight: var(--weight-light);
+  color: var(--color-smoke-3);
+  letter-spacing: 0.06em;
+}
+
+/* ── SCROLLBAR ── */
+::-webkit-scrollbar { display: none; }
+* { scrollbar-width: none; }
+
+/* ── MAPA LEAFLET — override base ── */
+.leaflet-container {
+  background: var(--color-night) !important;
+  font-family: var(--font-ui) !important;
+}
+
+.leaflet-tile-pane {
+  filter: brightness(0.5) saturate(0.4) hue-rotate(180deg);
+}
+
+.leaflet-control-zoom {
+  display: none !important;
+}
+
+.leaflet-control-attribution {
+  display: none !important;
+}

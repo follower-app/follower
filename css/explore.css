@@ -1,0 +1,297 @@
+/* ═══════════════════════════════════════════
+   FOLLOWER — explore.css
+   Modo exploración: mapa, pins, card POI
+   pequeña, bottom bar, vol control
+   ═══════════════════════════════════════════ */
+
+/* ── PANTALLA EXPLORACIÓN ── */
+
+#screen-explore {
+  background: var(--color-night);
+  position: relative;
+}
+
+/* ── MAPA ── */
+
+#map {
+  position: absolute;
+  inset: 0;
+  z-index: var(--z-map);
+  width: 100%;
+  height: 100%;
+}
+
+/* ── USUARIO EN EL MAPA — punto azul sístole ── */
+
+.user-marker {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.user-dot {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--color-systole);
+  border: 3px solid var(--color-ice);
+  position: relative;
+  z-index: 2;
+  box-shadow: 0 2px 8px rgba(26, 82, 118, 0.5);
+}
+
+.user-pulse {
+  position: absolute;
+  border-radius: 50%;
+  border: 1.5px solid rgba(26, 82, 118, 0.5);
+  animation: user-pulse 2s ease-out infinite;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+}
+
+.user-pulse:nth-child(2) { animation-delay: 0.5s; }
+
+@keyframes user-pulse {
+  0%   { width: 16px; height: 16px; opacity: 0.8; }
+  100% { width: 60px; height: 60px; opacity: 0; }
+}
+
+/* ── POI MARKERS ── */
+
+.poi-marker-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  cursor: pointer;
+  animation: poi-float 3s ease-in-out infinite;
+}
+
+@keyframes poi-float {
+  0%, 100% { transform: translateY(0); }
+  50%       { transform: translateY(-3px); }
+}
+
+.poi-pin {
+  width: 32px;
+  height: 32px;
+  border-radius: 50% 50% 50% 0;
+  transform: rotate(-45deg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+  transition: all var(--transition-fast);
+}
+
+.poi-pin-inner {
+  transform: rotate(45deg);
+  font-size: 13px;
+  line-height: 1;
+}
+
+/* Estados del pin */
+.poi-pin.active {
+  background: var(--color-diastole);
+  width: 38px;
+  height: 38px;
+  box-shadow: 0 3px 12px rgba(192, 57, 43, 0.5);
+}
+
+.poi-pin.nearby {
+  background: var(--color-systole);
+}
+
+.poi-pin.far {
+  background: var(--color-border);
+}
+
+.poi-pin.active .poi-pin-inner {
+  font-size: 16px;
+}
+
+/* Label del pin */
+.poi-pin-label {
+  margin-top: var(--space-xs);
+  font-family: var(--font-ui);
+  font-size: 9px;
+  font-weight: var(--weight-regular);
+  color: var(--color-ice);
+  background: rgba(10, 16, 24, 0.75);
+  padding: 2px 7px;
+  border-radius: var(--radius-pill);
+  white-space: nowrap;
+  letter-spacing: 0.04em;
+}
+
+.poi-pin-label.active {
+  color: #fff;
+  background: rgba(192, 57, 43, 0.85);
+}
+
+/* ── CARD POI PEQUEÑA — flota sobre el mapa ── */
+
+.poi-card {
+  position: absolute;
+  bottom: 120px;
+  left: var(--space-lg);
+  right: var(--space-lg);
+  z-index: var(--z-card);
+  background: rgba(10, 16, 24, 0.92);
+  border: 0.5px solid var(--color-border);
+  border-radius: var(--radius-xl);
+  padding: var(--space-lg) 18px;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  animation: card-rise 0.6s cubic-bezier(0.34, 1.2, 0.64, 1) both;
+  cursor: pointer;
+  transition: transform var(--transition-fast);
+}
+
+.poi-card:hover {
+  transform: translateY(-2px);
+}
+
+.poi-card.hidden {
+  display: none !important;
+}
+
+.poi-card-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: var(--space-xs);
+}
+
+.poi-card-name {
+  font-family: var(--font-display);
+  font-size: 18px;
+  color: var(--color-ice);
+  line-height: 1.2;
+}
+
+.poi-card-badge {
+  font-family: var(--font-ui);
+  font-size: 9px;
+  font-weight: var(--weight-regular);
+  color: #fff;
+  background: var(--color-diastole);
+  padding: 3px 9px;
+  border-radius: var(--radius-pill);
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+}
+
+.poi-card-meta {
+  font-family: var(--font-ui);
+  font-size: 10px;
+  font-weight: var(--weight-light);
+  color: var(--color-smoke-3);
+  letter-spacing: 0.05em;
+  margin-bottom: var(--space-md);
+}
+
+.poi-card-text {
+  font-family: var(--font-ui);
+  font-size: 12px;
+  font-weight: var(--weight-thin);
+  color: var(--color-smoke);
+  line-height: 1.6;
+  margin-bottom: var(--space-md);
+
+  /* Limitar a 2 líneas */
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* ── AUDIO BAR dentro de poi-card ── */
+
+.audio-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+}
+
+.audio-progress {
+  flex: 1;
+  height: 2px;
+  background: var(--color-border-2);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.audio-progress-fill {
+  height: 100%;
+  width: 0%;
+  background: var(--color-diastole);
+  border-radius: 2px;
+  transition: width 1s linear;
+}
+
+/* ── GRADIENTE SUPERIOR — status bar ── */
+
+#screen-explore::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 100px;
+  background: linear-gradient(
+    to bottom,
+    rgba(10, 16, 24, 0.9) 0%,
+    rgba(10, 16, 24, 0) 100%
+  );
+  z-index: var(--z-ui);
+  pointer-events: none;
+}
+
+/* ── MODO RECORRIDO — línea de ruta en el mapa ── */
+
+.route-path {
+  stroke: var(--color-gold);
+  stroke-width: 2;
+  stroke-dasharray: 5, 4;
+  fill: none;
+  opacity: 0.7;
+}
+
+/* ── INDICADOR DE RECORRIDO ── */
+
+.route-indicator {
+  position: absolute;
+  top: 100px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: var(--z-ui);
+  background: rgba(10, 16, 24, 0.82);
+  border: 0.5px solid var(--color-gold);
+  border-radius: var(--radius-pill);
+  padding: 5px 14px;
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  white-space: nowrap;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+.route-indicator.hidden { display: none !important; }
+
+.route-indicator-name {
+  font-family: var(--font-ui);
+  font-size: 11px;
+  font-weight: var(--weight-light);
+  color: var(--color-gold);
+  letter-spacing: 0.06em;
+}
+
+.route-indicator-progress {
+  font-family: var(--font-ui);
+  font-size: 10px;
+  font-weight: var(--weight-light);
+  color: var(--color-smoke-3);
+}

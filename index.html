@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <meta name="theme-color" content="#0d1420">
+  <meta name="description" content="Follower — your city soundtrack">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Follower">
+
+  <title>Follower</title>
+
+  <!-- CSS -->
+  <link rel="stylesheet" href="css/main.css">
+  <link rel="stylesheet" href="css/components.css">
+  <link rel="stylesheet" href="css/splash.css">
+  <link rel="stylesheet" href="css/modal.css">
+  <link rel="stylesheet" href="css/explore.css">
+  <link rel="stylesheet" href="css/poi.css">
+
+  <!-- Fuentes -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=Inter:wght@200;300;400;500&display=swap" rel="stylesheet">
+
+  <!-- Leaflet -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+
+  <!-- Manifest — temporal sin icono -->
+  <link rel="manifest" href="manifest.json">
+</head>
+<body>
+
+  <!-- ══════════════════════════════════════ -->
+  <!-- PANTALLA 1 — SPLASH                   -->
+  <!-- ══════════════════════════════════════ -->
+  <div id="screen-splash" class="screen active">
+
+    <div class="splash-center">
+
+      <!-- Logo / corazón latiendo -->
+      <div class="splash-logo-wrap" id="splashLogo">
+        <div class="splash-rings">
+          <div class="ring"></div>
+          <div class="ring"></div>
+          <div class="ring"></div>
+          <div class="ring"></div>
+        </div>
+        <svg class="heart-svg" id="heartSvg" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+          <path d="M50,75 C50,75 16,54 16,31 C16,16 27,8 38,11 C44,13 48,19 50,25 C52,19 56,13 62,11 C73,8 84,16 84,31 C84,54 50,75 50,75 Z"
+            fill="none" stroke="#c8d4e0" stroke-width="2.2" stroke-linejoin="round"/>
+          <line x1="50" y1="2" x2="50" y2="9" stroke="#c0392b" stroke-width="2" stroke-linecap="round"/>
+          <text x="50" y="9" text-anchor="middle" font-family="Inter,sans-serif" font-size="7" font-weight="700" fill="#c0392b">N</text>
+          <line x1="50" y1="76" x2="50" y2="83" stroke="#c8d4e0" stroke-width="1" stroke-linecap="round" opacity="0.2"/>
+          <line x1="85" y1="40" x2="92" y2="40" stroke="#c8d4e0" stroke-width="1" stroke-linecap="round" opacity="0.2"/>
+          <line x1="8"  y1="40" x2="15" y2="40" stroke="#c8d4e0" stroke-width="1" stroke-linecap="round" opacity="0.2"/>
+          <polygon points="50,10 46,40 50,34 54,40" fill="#c0392b"/>
+          <polygon points="50,71 46,40 50,46 54,40" fill="#c8d4e0" opacity="0.18"/>
+          <circle cx="50" cy="40" r="4.5" fill="none" stroke="#c8d4e0" stroke-width="1.5"/>
+          <circle cx="50" cy="40" r="2" fill="#c8d4e0"/>
+        </svg>
+      </div>
+
+      <h1 class="splash-name">follower</h1>
+      <p class="splash-slogan">your city soundtrack</p>
+
+    </div>
+
+    <!-- Barra de progreso -->
+    <div class="splash-progress">
+      <div class="progress-bar">
+        <div class="progress-fill" id="progressFill"></div>
+      </div>
+      <p class="progress-label" id="progressLabel">iniciando...</p>
+    </div>
+
+  </div>
+
+  <!-- ══════════════════════════════════════ -->
+  <!-- MODAL — CONFIG INICIAL                 -->
+  <!-- ══════════════════════════════════════ -->
+  <div id="modal-config" class="modal-overlay hidden">
+    <div class="modal">
+      <div class="modal-handle"></div>
+      <h2 class="modal-title">Bienvenido</h2>
+      <p class="modal-subtitle">configura tu experiencia · tarda 30 segundos</p>
+
+      <!-- Idioma -->
+      <div class="config-block">
+        <p class="config-label">Idioma de la guía</p>
+        <div class="pill-row" id="langPills">
+          <div class="pill active" data-value="es">Español</div>
+          <div class="pill" data-value="en">English</div>
+          <div class="pill" data-value="fr">Français</div>
+          <div class="pill" data-value="it">Italiano</div>
+          <div class="pill" data-value="more">+12</div>
+        </div>
+      </div>
+
+      <!-- Mood -->
+      <div class="config-block">
+        <p class="config-label">Mood de la experiencia</p>
+        <div class="mood-row" id="moodCards">
+          <div class="mood-card active" data-value="epic">
+            <div class="mood-icon">🎬</div>
+            <div class="mood-name">épico</div>
+          </div>
+          <div class="mood-card" data-value="romantic">
+            <div class="mood-icon">🌹</div>
+            <div class="mood-name">romántico</div>
+          </div>
+          <div class="mood-card" data-value="mystery">
+            <div class="mood-icon">🔮</div>
+            <div class="mood-name">misterio</div>
+          </div>
+          <div class="mood-card" data-value="curious">
+            <div class="mood-icon">😄</div>
+            <div class="mood-name">curioso</div>
+          </div>
+        </div>
+      </div>
+
+      <button class="btn-primary" id="btnStartExplore">Comenzar exploración →</button>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════ -->
+  <!-- MODAL — SELECCIÓN DE MODO             -->
+  <!-- ══════════════════════════════════════ -->
+  <div id="modal-mode" class="modal-overlay hidden">
+    <div class="modal">
+      <div class="modal-handle"></div>
+      <h2 class="modal-title">¿Cómo quieres explorar?</h2>
+      <p class="modal-subtitle">puedes cambiar en cualquier momento</p>
+
+      <div class="mode-cards">
+        <div class="mode-card" id="btnModeFreee">
+          <div class="mode-card-icon">🗺️</div>
+          <div class="mode-card-info">
+            <div class="mode-card-name">Modo Libre</div>
+            <div class="mode-card-desc">camina, yo te acompaño donde vayas</div>
+          </div>
+        </div>
+        <div class="mode-card" id="btnModeRoute">
+          <div class="mode-card-icon">🛤️</div>
+          <div class="mode-card-info">
+            <div class="mode-card-name">Recorrido</div>
+            <div class="mode-card-desc">elige una ruta y te cuento la historia en orden</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════ -->
+  <!-- PANTALLA 2 — EXPLORACIÓN              -->
+  <!-- ══════════════════════════════════════ -->
+  <div id="screen-explore" class="screen hidden">
+
+    <!-- Mapa Leaflet -->
+    <div id="map"></div>
+
+    <!-- Top pill — ciudad + mood -->
+    <div class="top-pill" id="topPill">
+      <span class="top-pill-city" id="topCity">Cargando...</span>
+      <span class="top-pill-divider"></span>
+      <span class="top-pill-mood" id="topMood">🎬 épico</span>
+    </div>
+
+    <!-- Control de volumen -->
+    <div class="vol-control">
+      <span class="vol-icon">🎵</span>
+      <div class="vol-track">
+        <div class="vol-fill" id="volMusic"></div>
+      </div>
+      <span class="vol-icon">🎙️</span>
+    </div>
+
+    <!-- Card POI activo — oculta por defecto -->
+    <div class="poi-card hidden" id="poiCard">
+      <div class="poi-card-top">
+        <div class="poi-card-name" id="poiCardName"></div>
+        <div class="poi-card-badge" id="poiCardBadge">diástole</div>
+      </div>
+      <div class="poi-card-meta" id="poiCardMeta"></div>
+      <div class="poi-card-text" id="poiCardText"></div>
+      <div class="audio-bar">
+        <div class="audio-waves" id="audioWaves">
+          <div class="wave-bar"></div>
+          <div class="wave-bar"></div>
+          <div class="wave-bar"></div>
+          <div class="wave-bar"></div>
+          <div class="wave-bar"></div>
+          <div class="wave-bar"></div>
+          <div class="wave-bar"></div>
+        </div>
+        <div class="audio-progress">
+          <div class="audio-progress-fill" id="audioProgressFill"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Card sugerencia de cuidado — oculta por defecto -->
+    <div class="care-card hidden" id="careCard">
+      <div class="care-card-top">
+        <div class="care-card-title" id="careTitle"></div>
+        <div class="care-card-badge" id="careBadge"></div>
+      </div>
+      <div class="care-card-meta" id="careMeta"></div>
+      <div class="care-card-text" id="careText"></div>
+      <div class="care-actions">
+        <button class="btn-care-primary" id="btnCareAccept"></button>
+        <button class="btn-care-secondary" id="btnCareDismiss">Seguir</button>
+      </div>
+    </div>
+
+    <!-- Bottom bar -->
+    <div class="bottom-bar">
+      <div class="bottom-stat">
+        <div class="stat-value" id="statKm">0.0</div>
+        <div class="stat-label">km</div>
+      </div>
+      <div class="btn-center" id="btnCenter">
+        <svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round">
+          <path d="M12 2L12 6M12 18L12 22M2 12L6 12M18 12L22 12"/>
+          <circle cx="12" cy="12" r="4" fill="white" stroke="none"/>
+        </svg>
+      </div>
+      <div class="bottom-stat">
+        <div class="stat-value" id="statPOIs">0</div>
+        <div class="stat-label">POIs</div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ══════════════════════════════════════ -->
+  <!-- PANTALLA 3 — POI EXPANDIDO            -->
+  <!-- ══════════════════════════════════════ -->
+  <div id="screen-poi" class="screen hidden">
+
+    <div class="poi-hero" id="poiHero"></div>
+    <div class="poi-hero-gradient"></div>
+
+    <button class="back-btn" id="btnBackFromPOI">
+      <svg viewBox="0 0 24 24" fill="none" stroke="#c8d4e0" stroke-width="2" stroke-linecap="round">
+        <path d="M19 12H5M12 5l-7 7 7 7"/>
+      </svg>
+    </button>
+
+    <div class="poi-mood-badge" id="poiMoodBadge"></div>
+
+    <div class="poi-content" id="poiContent">
+      <h1 class="poi-title" id="poiTitle"></h1>
+      <div class="poi-meta-row" id="poiMetaRow"></div>
+
+      <!-- Player -->
+      <div class="player" id="player">
+        <div class="player-top">
+          <div class="player-waves">
+            <div class="wb"></div><div class="wb"></div><div class="wb"></div>
+            <div class="wb"></div><div class="wb"></div><div class="wb"></div>
+            <div class="wb"></div><div class="wb"></div><div class="wb"></div>
+          </div>
+          <div class="player-state">narrando</div>
+          <div class="player-time" id="playerTime">0:00</div>
+        </div>
+        <div class="player-progress-row">
+          <div class="player-bar">
+            <div class="player-bar-fill" id="playerBarFill"></div>
+          </div>
+        </div>
+        <div class="player-music-row">
+          <span class="player-music-icon">🎵</span>
+          <span class="player-music-name" id="playerMusicName"></span>
+          <span class="player-music-mood" id="playerMusicMood"></span>
+        </div>
+      </div>
+
+      <!-- Narración -->
+      <p class="narration-label">narración en curso</p>
+      <p class="narration-text" id="narrationText"></p>
+
+      <!-- Datos rápidos -->
+      <p class="narration-label">datos del lugar</p>
+      <div class="quick-facts" id="quickFacts"></div>
+
+      <!-- Profundidad -->
+      <p class="narration-label">explorar más</p>
+      <div class="depth-pills" id="depthPills"></div>
+
+    </div>
+
+    <div class="poi-bottom-actions">
+      <button class="btn-primary" id="btnContinueNarration">Continuar narrando</button>
+      <button class="btn-icon" id="btnBookmark">🔖</button>
+      <button class="btn-icon" id="btnShare">📤</button>
+    </div>
+
+  </div>
+
+  <!-- ══════════════════════════════════════ -->
+  <!-- PANTALLA 4 — RESUMEN DEL PASEO        -->
+  <!-- ══════════════════════════════════════ -->
+  <div id="screen-summary" class="screen hidden">
+    <!-- Se construye dinámicamente desde app.js -->
+  </div>
+
+  <!-- ══════════════════════════════════════ -->
+  <!-- JS — orden importa                    -->
+  <!-- ══════════════════════════════════════ -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="js/keys.js"></script>
+  <script src="js/config.js"></script>
+  <script src="js/app.js"></script>
+  <script src="js/gps.js"></script>
+  <script src="js/poi.js"></script>
+  <script src="js/narration.js"></script>
+  <script src="js/voice.js"></script>
+  <script src="js/music.js"></script>
+  <script src="js/weather.js"></script>
+  <script src="js/care.js"></script>
+  <script src="js/routes.js"></script>
+
+</body>
+</html>

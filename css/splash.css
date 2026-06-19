@@ -1,0 +1,165 @@
+/* ═══════════════════════════════════════════
+   FOLLOWER — splash.css
+   Pantalla de carga, latido y transición
+   ═══════════════════════════════════════════ */
+
+/* ── PANTALLA SPLASH ── */
+
+#screen-splash {
+  background: var(--color-night);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
+
+#screen-splash.fade-out {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.7s ease;
+}
+
+/* ── CENTRO — logo + nombre + slogan ── */
+
+.splash-center {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-xl);
+}
+
+/* ── LOGO WRAP — contiene rings + corazón ── */
+
+.splash-logo-wrap {
+  position: relative;
+  width: 160px;
+  height: 160px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* ── ANILLOS DE PULSO ── */
+
+.splash-rings {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ring {
+  position: absolute;
+  border-radius: 50%;
+  border: 1px solid rgba(192, 57, 43, 0.4);
+  animation: ring-pulse 2.8s ease-out infinite;
+}
+
+.ring:nth-child(1) { animation-delay: 0s; }
+.ring:nth-child(2) { animation-delay: 0.7s; }
+.ring:nth-child(3) { animation-delay: 1.4s; }
+.ring:nth-child(4) { animation-delay: 2.1s; }
+
+@keyframes ring-pulse {
+  0% {
+    width: 70px;
+    height: 70px;
+    opacity: 0.6;
+  }
+  100% {
+    width: 190px;
+    height: 190px;
+    opacity: 0;
+  }
+}
+
+/* ── CORAZÓN SVG ── */
+
+.heart-svg {
+  width: 120px;
+  height: 120px;
+  position: relative;
+  z-index: 2;
+  transform-origin: center;
+  animation: heartbeat 1.4s ease-in-out infinite;
+}
+
+@keyframes heartbeat {
+  0%   { transform: scale(1); }
+  15%  { transform: scale(1.13); }
+  30%  { transform: scale(1); }
+  45%  { transform: scale(1.07); }
+  60%  { transform: scale(1); }
+  100% { transform: scale(1); }
+}
+
+/* Estado expansión — al terminar la carga */
+.heart-svg.expanding {
+  animation: heart-expand 0.9s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+@keyframes heart-expand {
+  0%   { transform: scale(1);  opacity: 1; }
+  55%  { transform: scale(3);  opacity: 0.7; }
+  100% { transform: scale(10); opacity: 0; }
+}
+
+/* ── NOMBRE DE LA APP ── */
+
+.splash-name {
+  font-family: var(--font-display);
+  font-size: 40px;
+  font-weight: 400;
+  color: var(--color-ice);
+  letter-spacing: 0.03em;
+  animation: splash-rise 0.8s ease 0.4s both;
+}
+
+/* ── SLOGAN ── */
+
+.splash-slogan {
+  font-family: var(--font-ui);
+  font-size: 10px;
+  font-weight: var(--weight-light);
+  color: var(--color-smoke-3);
+  letter-spacing: 0.26em;
+  text-transform: uppercase;
+  animation: splash-rise 0.8s ease 0.7s both;
+}
+
+/* ── ANIMACIÓN RISE ── */
+
+@keyframes splash-rise {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ── PROGRESO DE CARGA ── */
+
+.splash-progress {
+  position: absolute;
+  bottom: 72px;
+  left: 40px;
+  right: 40px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-md);
+  animation: splash-rise 0.8s ease 1s both;
+}
+
+.progress-label {
+  font-family: var(--font-ui);
+  font-size: 10px;
+  font-weight: var(--weight-light);
+  color: var(--color-smoke-3);
+  letter-spacing: 0.1em;
+}

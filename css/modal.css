@@ -1,0 +1,270 @@
+/* ═══════════════════════════════════════════
+   FOLLOWER — modal.css
+   Modales: config inicial, selección de modo,
+   sugerencias de cuidado, alertas
+   ═══════════════════════════════════════════ */
+
+/* ── OVERLAY ── */
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(6, 10, 16, 0.88);
+  display: flex;
+  align-items: flex-end;
+  z-index: var(--z-modal);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--transition-slow);
+}
+
+.modal-overlay.visible {
+  opacity: 1;
+  pointer-events: all;
+}
+
+.modal-overlay.hidden {
+  display: none !important;
+}
+
+/* ── MODAL BASE ── */
+
+.modal {
+  background: var(--color-night-3);
+  border-radius: var(--radius-2xl) var(--radius-2xl) 0 0;
+  padding: var(--space-xl) var(--space-xl) var(--space-3xl);
+  width: 100%;
+  border-top: 0.5px solid var(--color-border);
+  transform: translateY(100%);
+  transition: transform var(--transition-spring);
+}
+
+.modal-overlay.visible .modal {
+  transform: translateY(0);
+}
+
+/* ── HANDLE ── */
+
+.modal-handle {
+  width: 34px;
+  height: 3px;
+  background: var(--color-border);
+  border-radius: 3px;
+  margin: 0 auto var(--space-xl);
+}
+
+/* ── TÍTULOS ── */
+
+.modal-title {
+  font-family: var(--font-display);
+  font-size: 24px;
+  font-weight: 400;
+  color: var(--color-ice);
+  margin-bottom: var(--space-xs);
+  line-height: 1.2;
+}
+
+.modal-subtitle {
+  font-family: var(--font-ui);
+  font-size: 11px;
+  font-weight: var(--weight-light);
+  color: var(--color-smoke-3);
+  letter-spacing: 0.05em;
+  margin-bottom: var(--space-xl);
+}
+
+/* ── MODAL CONFIG — idioma + mood ── */
+
+#modal-config .modal {
+  padding-bottom: 40px;
+}
+
+/* ── MODAL MODE — libre / recorrido ── */
+
+#modal-mode .modal {
+  padding-bottom: 40px;
+}
+
+/* ── CARE CARD — sugerencia de cuidado ── */
+
+.care-card {
+  position: absolute;
+  bottom: 120px;
+  left: var(--space-lg);
+  right: var(--space-lg);
+  z-index: var(--z-card);
+  background: rgba(10, 16, 24, 0.92);
+  border: 0.5px solid var(--color-border);
+  border-radius: var(--radius-xl);
+  padding: var(--space-lg) 18px;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  animation: card-rise 0.6s cubic-bezier(0.34, 1.2, 0.64, 1) both;
+}
+
+.care-card.hidden {
+  display: none !important;
+}
+
+@keyframes card-rise {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.care-card-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: var(--space-xs);
+}
+
+.care-card-title {
+  font-family: var(--font-display);
+  font-size: 17px;
+  color: var(--color-ice);
+  line-height: 1.2;
+}
+
+.care-card-badge {
+  font-family: var(--font-ui);
+  font-size: 9px;
+  font-weight: var(--weight-regular);
+  color: #633806;
+  background: var(--color-gold);
+  padding: 3px 9px;
+  border-radius: var(--radius-pill);
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+}
+
+.care-card-meta {
+  font-family: var(--font-ui);
+  font-size: 10px;
+  font-weight: var(--weight-light);
+  color: var(--color-smoke-3);
+  letter-spacing: 0.05em;
+  margin-bottom: var(--space-md);
+}
+
+.care-card-text {
+  font-family: var(--font-ui);
+  font-size: 12px;
+  font-weight: var(--weight-thin);
+  color: var(--color-smoke);
+  line-height: 1.6;
+  margin-bottom: var(--space-md);
+}
+
+.care-actions {
+  display: flex;
+  gap: var(--space-sm);
+}
+
+.btn-care-primary {
+  flex: 1;
+  padding: 9px;
+  background: var(--color-gold);
+  border: none;
+  border-radius: var(--radius-pill);
+  font-family: var(--font-ui);
+  font-size: 12px;
+  font-weight: var(--weight-regular);
+  color: #633806;
+  cursor: pointer;
+  letter-spacing: 0.04em;
+  transition: opacity var(--transition-fast);
+}
+.btn-care-primary:hover { opacity: 0.88; }
+
+.btn-care-secondary {
+  flex: 1;
+  padding: 9px;
+  background: transparent;
+  border: 0.5px solid var(--color-border);
+  border-radius: var(--radius-pill);
+  font-family: var(--font-ui);
+  font-size: 12px;
+  font-weight: var(--weight-light);
+  color: var(--color-smoke);
+  cursor: pointer;
+  letter-spacing: 0.04em;
+  transition: border-color var(--transition-fast);
+}
+.btn-care-secondary:hover { border-color: var(--color-smoke-2); }
+
+/* ── ALERTA DE LLUVIA ── */
+
+.care-card.rain {
+  border-color: rgba(26, 82, 118, 0.4);
+}
+
+.care-card.rain .care-card-badge {
+  background: var(--color-systole);
+  color: var(--color-ice);
+}
+
+.care-card.rain .btn-care-primary {
+  background: var(--color-systole);
+  color: var(--color-ice);
+}
+
+/* ── MODAL RECORRIDOS ── */
+
+.routes-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  margin-bottom: var(--space-xl);
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.route-card {
+  display: flex;
+  align-items: center;
+  gap: var(--space-lg);
+  padding: var(--space-md) var(--space-lg);
+  border-radius: var(--radius-lg);
+  border: 0.5px solid var(--color-border);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+.route-card:hover { border-color: var(--color-smoke-2); }
+.route-card.active {
+  border-color: var(--color-diastole);
+  background: rgba(192, 57, 43, 0.06);
+}
+
+.route-icon { font-size: 24px; flex-shrink: 0; }
+
+.route-info { flex: 1; }
+
+.route-name {
+  font-family: var(--font-ui);
+  font-size: 14px;
+  font-weight: var(--weight-regular);
+  color: var(--color-ice);
+  margin-bottom: 3px;
+}
+
+.route-meta {
+  font-family: var(--font-ui);
+  font-size: 11px;
+  font-weight: var(--weight-light);
+  color: var(--color-smoke-3);
+  letter-spacing: 0.03em;
+}
+
+.route-mood {
+  font-family: var(--font-ui);
+  font-size: 10px;
+  font-weight: var(--weight-light);
+  color: var(--color-diastole);
+  letter-spacing: 0.06em;
+}

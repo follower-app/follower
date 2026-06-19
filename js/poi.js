@@ -87,13 +87,18 @@ const POI = (() => {
   async function fetchPOIsFromOSM(lat, lng, radiusKm) {
     const radius = radiusKm * 1000; // metros
     const query  = `
-      [out:json][timeout:25];
+      [out:json][timeout:30];
       (
         node["historic"](around:${radius},${lat},${lng});
-        node["tourism"~"museum|attraction|artwork|viewpoint|gallery"](around:${radius},${lat},${lng});
-        node["amenity"~"place_of_worship|fountain"](around:${radius},${lat},${lng});
+        node["tourism"~"museum|attraction|artwork|viewpoint|gallery|yes"](around:${radius},${lat},${lng});
+        node["amenity"~"place_of_worship|fountain|theatre|cinema|library|arts_centre"](around:${radius},${lat},${lng});
+        node["leisure"~"park|garden"](around:${radius},${lat},${lng});
+        node["man_made"~"monument|memorial|statue"](around:${radius},${lat},${lng});
+        node["building"~"cathedral|church|chapel|mosque|temple"](around:${radius},${lat},${lng});
         way["historic"](around:${radius},${lat},${lng});
         way["tourism"~"museum|attraction"](around:${radius},${lat},${lng});
+        way["building"~"cathedral|church|chapel"](around:${radius},${lat},${lng});
+        way["leisure"~"park|garden"](around:${radius},${lat},${lng});
       );
       out center;
     `;

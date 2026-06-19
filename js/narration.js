@@ -17,7 +17,7 @@ const Narration = (() => {
   /* ── CONFIGURACIÓN ── */
   const CONFIG = {
     API_URL:     'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent',
-    API_TIMEOUT: 8000,
+    API_TIMEOUT: 15000,
   };
 
   /* ── PROMPTS POR MOOD ── */
@@ -108,7 +108,7 @@ Take a moment to observe the details — every stone, every arch, has a story to
             parts: [{ text: prompt }]
           }],
           generationConfig: {
-            maxOutputTokens: 400,
+            maxOutputTokens: 280,
             temperature:     0.8
           }
         })

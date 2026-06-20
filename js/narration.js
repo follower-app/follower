@@ -224,20 +224,41 @@ Take a moment to observe the details — every stone, every arch, has a story to
     startWaves();
     startProgressBar();
 
-    // 1. Cache primero
-    let text = await loadFromCache(poi.id, mood, lang, topic);
+    const totalId = (typeof Debug !== 'undefined')
+      ? Debug.metricStart('narration', 'narración total (hasta texto listo)')
+      : null;
 
-    // 2. Gemini API si no hay cache
+    // 1. Cache primero
+    const cacheId = (typeof Debug !== 'undefined')
+      ? Debug.metricStart('narration', 'cache lookup')
+      : null;
+    let text = await loadFromCache(poi.id, mood, lang, topic);
+    if (cacheId) Debug.metricEnd(cacheId, text ? 'hit' : 'miss');
+
+    // 2. Claude API (vía Cloudflare Worker) si no hay cache
+    let source = text ? 'cache' : null;
     if (!text && !AppState.offline) {
       const prompt = buildPrompt(poi, mood, lang, topic);
+      const apiId = (typeof Debug !== 'undefined')
+        ? Debug.metricStart('narration', 'Claude Worker call')
+        : null;
       text = await callClaude(prompt);
-      if (text) await saveToCache(poi.id, mood, lang, topic, text);
+      if (apiId) Debug.metricEnd(apiId, text ? 'ok' : 'error');
+      if (text) {
+        await saveToCache(poi.id, mood, lang, topic, text);
+        source = 'api';
+      }
     }
 
     // 3. Fallback genérico (DA-6)
     if (!text) {
       const fallbacks = FALLBACK_TEXTS[lang] || FALLBACK_TEXTS.es;
       text = fallbacks(poi);
+      source = 'fallback';
+    }
+
+    if (totalId) {
+      Debug.metricEnd(totalId, source || 'ok', { poi: poi.name, mood, lang, topic });
     }
 
     updateNarrationUI(text);

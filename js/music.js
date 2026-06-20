@@ -52,12 +52,18 @@ const Music = (() => {
 
   /* ── CARGAR AUDIO ── */
   async function loadTrack(url) {
+    const dbgId = (typeof Debug !== 'undefined')
+      ? Debug.metricStart('music', 'cargar track')
+      : null;
     try {
-      const res    = await fetch(url);
-      const buffer = await res.arrayBuffer();
-      return await _context.decodeAudioData(buffer);
+      const res     = await fetch(url);
+      const buffer  = await res.arrayBuffer();
+      const decoded = await _context.decodeAudioData(buffer);
+      if (dbgId) Debug.metricEnd(dbgId, 'ok', { url });
+      return decoded;
     } catch (e) {
       console.warn('Music: no se pudo cargar el track:', url);
+      if (dbgId) Debug.metricEnd(dbgId, 'error', { url, message: e.message });
       return null;
     }
   }

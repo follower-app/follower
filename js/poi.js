@@ -106,32 +106,47 @@ const POI = (() => {
     const url = 'https://lz4.overpass-api.de/api/interpreter';
     console.log(`POI: fetching lat=${lat} lng=${lng} radius=${radius}m`);
 
-    const res = await fetch(url, {
-      method: 'POST',
-      body:   `data=${encodeURIComponent(query)}`
-    });
+    const dbgId = (typeof Debug !== 'undefined')
+      ? Debug.metricStart('poi', 'Overpass fetch')
+      : null;
 
-    console.log(`POI: Overpass respondió status=${res.status}`);
+    try {
+      const res = await fetch(url, {
+        method: 'POST',
+        body:   `data=${encodeURIComponent(query)}`
+      });
 
-    if (!res.ok) {
-      const errText = await res.text();
-      console.warn(`POI: Overpass API error ${res.status} — ${errText.slice(0, 200)}`);
-      throw new Error('Overpass API error');
+      console.log(`POI: Overpass respondió status=${res.status}`);
+
+      if (!res.ok) {
+        const errText = await res.text();
+        console.warn(`POI: Overpass API error ${res.status} — ${errText.slice(0, 200)}`);
+        if (dbgId) Debug.metricEnd(dbgId, 'error', { httpStatus: res.status });
+        throw new Error('Overpass API error');
+      }
+
+      const data     = await res.json();
+      const elements = data.elements || [];
+      console.log(`POI: Overpass devolvió ${elements.length} elementos crudos`);
+
+      const withName = elements.filter(el => el.tags?.name);
+      console.log(`POI: ${withName.length} elementos tienen nombre`);
+
+      const normalized = withName
+        .map(el => normalizePOI(el))
+        .filter(Boolean);
+      console.log(`POI: ${normalized.length} POIs normalizados correctamente`);
+
+      if (dbgId) {
+        Debug.metricEnd(dbgId, 'ok', { raw: elements.length, normalizados: normalized.length, radiusKm });
+      }
+
+      return normalized;
+
+    } catch (e) {
+      if (dbgId) Debug.metricEnd(dbgId, 'error', { message: e.message });
+      throw e;
     }
-
-    const data     = await res.json();
-    const elements = data.elements || [];
-    console.log(`POI: Overpass devolvió ${elements.length} elementos crudos`);
-
-    const withName = elements.filter(el => el.tags?.name);
-    console.log(`POI: ${withName.length} elementos tienen nombre`);
-
-    const normalized = withName
-      .map(el => normalizePOI(el))
-      .filter(Boolean);
-    console.log(`POI: ${normalized.length} POIs normalizados correctamente`);
-
-    return normalized;
   }
 
   /* ── NORMALIZAR ELEMENTO OSM → POI ── */
@@ -200,7 +215,11 @@ const POI = (() => {
     }
 
     // Fallback: cargar desde IndexedDB
+    const dbgId = (typeof Debug !== 'undefined')
+      ? Debug.metricStart('poi', 'cache IndexedDB load')
+      : null;
     const cached = await loadPOIsFromDB();
+    if (dbgId) Debug.metricEnd(dbgId, 'fallback', { count: cached.length });
     console.log(`POI: cache IndexedDB tiene ${cached.length} POIs`);
     if (cached.length > 0) {
       _pois = cached;

@@ -42,7 +42,7 @@ follower/
 │   ├── weather.js          → OpenWeatherMap vía Worker, lluvia, cache 30min
 │   ├── care.js             → checkCareContext, 4 prioridades, cooldown
 │   ├── routes.js           → 5 recorridos Roma, Leaflet polyline, picker
-│   └── debug.js            → panel debug flotante (Estado/Buscar POI/Logs/Tiempos)
+│   └── debug.js            → panel debug flotante + métricas con historial (DA-12), export .txt
 │
 ├── cloudflare/
 │   └── worker.js           → proxy Claude API + OpenWeatherMap (referencia, no afecta deploy)
@@ -136,6 +136,26 @@ Cloudflare Worker (followernarration.jaimeand.workers.dev)
     ├── /narration → agrega CLAUDE_API_KEY → Claude API
     └── /weather    → agrega OPENWEATHER_API_KEY → OpenWeatherMap
 ```
+
+### DA-12 — Métricas de tiempo con id único, no por label fijo
+
+`Debug.metricStart(category, label)` devuelve un id único
+(`category|label|timestamp|random`); `Debug.metricEnd(id, status, meta)`
+cierra esa medición específica. Evita que dos operaciones concurrentes del
+mismo tipo (ej. dos narraciones activándose casi al mismo tiempo) se pisen
+entre sí. El historial completo vive en un arreglo, no en un objeto que se
+sobreescribe, y se persiste en `localStorage` (`follower_debug_log`) para
+sobrevivir recargas de página durante pruebas en campo.
+
+```js
+const id = Debug.metricStart('narration', 'Claude Worker call');
+// ... operación async ...
+Debug.metricEnd(id, 'ok', { poi: poi.name });
+```
+
+Toda instrumentación en `poi.js`, `narration.js` y `music.js` queda detrás de
+`typeof Debug !== 'undefined'` — si `debug.js` se quita antes de v1.0 (DT-8),
+ningún archivo se rompe.
 
 ---
 

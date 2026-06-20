@@ -283,5 +283,107 @@ locales (que ya no existen tras la migración a Cloudflare).
 
 ---
 
+## Sesión 5 — Junio 2026
+
+### Contexto
+Sesión enfocada en logging de producción: se pidió un log de errores/estados
+exportable a `.txt`, con foco en los tiempos de carga reales de POIs, música y
+narración — la base de la experiencia cinematográfica. Antes de tocar código se
+hizo una verificación cruzada completa entre `debug.js` y el resto del repo
+(siguiendo la Regla de Oro), que reveló que la tab "Tiempos" del panel solo
+medía los botones manuales de debug (`forceLoadPOIs`, `testNarration`), nunca
+el flujo real de la app — durante una caminata real no se registraba ningún
+tiempo.
+
+### Cambios realizados
+
+**Sistema de métricas con historial (`debug.js`)**
+- Reemplazado `timeStart()`/`timeEnd()` (objeto que se sobreescribía, sin
+  historial, colisionaba si dos mediciones compartían label) por
+  `metricStart(category, label)` / `metricEnd(id, status, meta)` — cada
+  llamada devuelve un id único, así que dos narraciones o cargas de POI
+  simultáneas no se pisan entre sí
+- Tab "Tiempos" ahora muestra promedio/min/max/conteo agrupado por tipo de
+  medición, más las últimas 12 mediciones individuales con su status
+  (ok/error/cache/fallback/timeout)
+- Persistencia en `localStorage` (`follower_debug_log`) — logs y métricas
+  sobreviven si Safari mata la pestaña en segundo plano durante prueba en campo
+- Nuevo botón "📤 Exportar .txt" en tabs Logs y Tiempos — arma un reporte
+  legible (resumen + detalle cronológico + logs) vía `Blob` + descarga
+- Simplificados `forceLoadPOIs()` y `testNarration()` — ya no aproximan
+  tiempos con `setTimeout`; la medición real ahora vive en los archivos
+  instrumentados, sin importar si el trigger fue manual o real
+
+**Instrumentación del flujo real**
+- `poi.js` — mide el fetch a Overpass (`fetchPOIsFromOSM`) por separado del
+  fallback a cache IndexedDB en `loadPOIs`
+- `narration.js` — mide cache lookup (hit/miss), llamada al Worker de Claude
+  (ok/error), y el tiempo total desde `trigger()` hasta texto listo para
+  `Voice.speak()` — el número que más afecta la experiencia percibida
+- `music.js` — mide `loadTrack()` (fetch + `decodeAudioData`) por mood
+- Toda la instrumentación queda detrás de `typeof Debug !== 'undefined'` — si
+  `debug.js` se quita antes de v1.0 (DT-8), nada se rompe
+
+### Decisión arquitectural — DA-12: Métricas con id único, no por label
+
+Medir con un label fijo como key (`_dbgTimings['narración'] = ms`) revienta en
+cuanto hay dos operaciones concurrentes del mismo tipo — exactamente lo que
+puede pasar caminando por Cali, si se activa un POI nuevo antes de que termine
+de narrar el anterior. Solución: cada `metricStart()` devuelve un id propio
+(`category|label|timestamp|random`), y `metricEnd(id, status, meta)` cierra
+esa medición específica. El historial completo queda en un arreglo, no en un
+objeto que se sobreescribe.
+
+### Hallazgos de seguridad y consistencia
+
+**Hallazgo — `keys.js` con secreto residual pese a DT-7 "resuelto"**
+- La Sesión 4 marcó DT-7 (remover keys del repo) como resuelto, pero nunca se
+  verificó el contenido real del archivo. `keys.js` seguía con
+  `openWeatherMap` y un campo `gemini` con un valor con formato de key de
+  OpenAI (`sk-proj-...`), mal etiquetado
+- `index.html` ya no carga `keys.js` con `<script>`, así que el archivo estaba
+  muerto en código pero seguía siendo un secreto en texto plano en disco
+- Fix: `keys.js` vaciado (`openWeatherMap: ''`, `gemini: ''`), estructura
+  conservada por si algo lo importa por error
+- DT-7 ahora sí resuelto de verdad
+
+**BUG-012 — Mirrors de Overpass inconsistentes entre archivos**
+- BUG-009 (Sesión 4) migró `poi.js` y `weather.js` a `lz4.overpass-api.de`,
+  pero `care.js` (`findNearbyRestPlace`) y `routes.js` (`loadRoutePOIs`)
+  seguían apuntando a `overpass-api.de` sin mirror — el mismo dominio
+  confirmado caído en Sesión 4
+- `care.js` fallaba en silencio (tiene `.catch()`) así que no se notaba en UI,
+  solo dejaba de sugerir lugares de descanso cuando el mirror viejo no
+  respondía
+- Fix: ambos migrados a `lz4.overpass-api.de` — los 4 archivos del proyecto
+  que llaman a Overpass quedan en el mismo mirror
+
+### Deuda técnica actualizada
+
+| ID | Descripción | Prioridad |
+|----|-------------|-----------|
+| DT-1 | Logo SVG final + iconos PWA (404 actual en manifest) | Alta |
+| DT-2 | Archivos de música por mood (4 MP3) | Alta |
+| DT-3 | sw.js — service worker (siempre último) | Alta |
+| DT-4 | Pantalla resumen del paseo | Media |
+| DT-5 | Más ciudades en routes.js | Baja |
+| DT-8 | `debug.js` debe quitarse o deshabilitarse antes de v1.0 — incluye limpiar `localStorage['follower_debug_log']` | Media |
+| DT-9 | Verificar historial de git por si la key vieja de `keys.js` quedó expuesta antes del `.gitignore`; rotar en el proveedor si aplica | Media |
+| ~~DT-6~~ | ~~Backend proxy para API keys~~ — **Resuelto** vía Cloudflare Worker | — |
+| ~~DT-7~~ | ~~Remover keys del repo~~ — **Resuelto de verdad esta vez**, `keys.js` vacío y verificado | — |
+
+### Próxima sesión — v0.6 (continuación)
+
+1. Probar el flujo completo en iPhone con el nuevo sistema de métricas activo
+2. Exportar el `.txt` desde una caminata real en Cali y revisar tiempos reales
+   de POIs/narración/música
+3. Confirmar si el total de "narración hasta texto listo" está dentro de un
+   rango aceptable para la experiencia cinematográfica, o si el timeout de
+   15s necesita ajuste
+4. Resolver DT-9 (verificar/rotar key residual)
+5. Seguir con DT-1 (íconos PWA) y DT-2 (música por mood)
+
+---
+
 *Follower — Bitácora v0.5 | Junio 2026*
 

@@ -214,7 +214,7 @@ PWA                         — instalable
 | `css/modal.css` | Modales, care card, route picker |
 | `css/explore.css` | Mapa, pins POI, card pequeña |
 | `css/poi.css` | Pantalla POI expandida |
-| `js/keys.js` | Solo OpenWeatherMap legacy si aplica — LOCAL ONLY, .gitignore (Claude y clima vía Worker) |
+| `js/keys.js` | Vacío — LOCAL ONLY, .gitignore. Claude y clima vía Worker, no se carga en index.html |
 | `js/config.js` | Idioma, mood, preferencias, localStorage |
 | `js/app.js` | AppState, navigateTo(), setPhase(), init |
 | `js/gps.js` | Leaflet, watchPosition, Haversine, Nominatim |
@@ -225,7 +225,7 @@ PWA                         — instalable
 | `js/weather.js` | OpenWeatherMap vía Worker, lluvia, cache 30min |
 | `js/care.js` | checkCareContext, 4 prioridades, cooldown |
 | `js/routes.js` | 5 recorridos Roma, Leaflet polyline, picker |
-| `js/debug.js` | Panel debug flotante — Estado/Buscar POI/Logs/Tiempos |
+| `js/debug.js` | Panel debug flotante — Estado/Buscar POI/Logs/Tiempos, métricas con historial persistente (DA-12), export .txt |
 | `docs/contexto_maestro.md` | Alma del producto, principios, pregunta rectora |
 | `docs/producto.md` | Producto, usuarios, principios |
 | `docs/arquitectura.md` | Decisiones DA-1 a DA-10 |

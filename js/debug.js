@@ -9,10 +9,13 @@
 const Debug = (() => {
 
   /* ── ESTADO DEL PANEL ── */
-  let _visible   = true;
-  let _logs      = [];       // historial de eventos
-  let _timers    = {};       // timers para medir tiempos
-  const MAX_LOGS = 40;
+  let _visible       = true;
+  let _logs          = [];       // historial de eventos
+  let _metrics       = [];       // historial de mediciones de tiempo
+  let _metricStarts  = {};       // mediciones en curso { id: { t, category, label } }
+  const MAX_LOGS      = 80;
+  const MAX_METRICS   = 150;
+  const STORAGE_KEY   = 'follower_debug_log';
 
   /* ── INYECTAR ESTILOS ── */
   function injectStyles() {
@@ -272,19 +275,65 @@ const Debug = (() => {
       .dbg-timing-ms.med  { color: #f39c12; }
       .dbg-timing-ms.slow { color: #c0392b; }
 
-      #dbg-clear-btn {
+      .dbg-actions-row {
+        display: flex;
+        gap: 6px;
         margin-top: 8px;
-        width: 100%;
+      }
+
+      #dbg-clear-btn {
+        flex: 1;
         background: rgba(255,255,255,0.05);
         color: #4a5568;
         border: none;
         border-radius: 6px;
-        padding: 6px;
+        padding: 7px;
         font-family: 'Inter', monospace;
         font-size: 10px;
         cursor: pointer;
         letter-spacing: 0.08em;
       }
+
+      #dbg-export-btn {
+        flex: 1;
+        background: rgba(46,204,113,0.14);
+        color: #2ecc71;
+        border: 1px solid rgba(46,204,113,0.3);
+        border-radius: 6px;
+        padding: 7px;
+        font-family: 'Inter', monospace;
+        font-size: 10px;
+        font-weight: 600;
+        cursor: pointer;
+        letter-spacing: 0.08em;
+      }
+
+      /* ── RESUMEN DE TIEMPOS POR CATEGORÍA ── */
+      .dbg-timing-group {
+        padding: 6px 0;
+        border-bottom: 1px solid rgba(255,255,255,0.04);
+      }
+
+      .dbg-timing-group-top {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+
+      .dbg-timing-group-sub {
+        font-size: 9px;
+        color: #4a5568;
+        margin-top: 2px;
+      }
+
+      .dbg-section-label {
+        font-size: 9px;
+        color: #4a5568;
+        text-transform: uppercase;
+        letter-spacing: 0.12em;
+        margin: 10px 0 6px;
+      }
+      .dbg-section-label:first-child { margin-top: 0; }
 
       /* ancho máximo en desktop / chrome browser */
       @media (min-width: 480px) {
@@ -535,6 +584,9 @@ const Debug = (() => {
     if (_logs.length === 0) {
       return `<div style="color:#4a5568; font-size:11px; padding:12px 0; text-align:center;">
         Sin logs aún — los eventos aparecerán aquí
+      </div>
+      <div class="dbg-actions-row">
+        <button id="dbg-export-btn" onclick="Debug.exportLog()">📤 Exportar .txt</button>
       </div>`;
     }
 
@@ -546,58 +598,236 @@ const Debug = (() => {
       </div>
     `).join('');
 
-    return items + `<button id="dbg-clear-btn" onclick="Debug.clearLogs()">Limpiar logs</button>`;
+    return items + `
+      <div class="dbg-actions-row">
+        <button id="dbg-export-btn" onclick="Debug.exportLog()">📤 Exportar .txt</button>
+        <button id="dbg-clear-btn" onclick="Debug.clearLogs()">Limpiar logs</button>
+      </div>
+    `;
   }
 
   /* ── RENDER TIMING ── */
   function renderTiming() {
-    const t = window._dbgTimings || {};
-    const keys = Object.keys(t);
-
-    if (keys.length === 0) {
+    if (_metrics.length === 0) {
       return `<div style="color:#4a5568; font-size:11px; padding:12px 0; text-align:center;">
-        Sin tiempos registrados aún — activa una narración
+        Sin tiempos registrados aún — explora, narra o carga POIs y se irán llenando
+      </div>
+      <div class="dbg-actions-row">
+        <button id="dbg-export-btn" onclick="Debug.exportLog()">📤 Exportar .txt</button>
       </div>`;
     }
 
-    const rows = keys.map(k => {
-      const ms  = t[k];
-      const cls = ms < 2000 ? 'fast' : ms < 6000 ? 'med' : 'slow';
+    // Agrupar por categoría + label
+    const groups = {};
+    _metrics.forEach(m => {
+      const key = `${m.category}|${m.label}`;
+      (groups[key] = groups[key] || []).push(m);
+    });
+
+    const summaryRows = Object.entries(groups).map(([key, items]) => {
+      const [category, label] = key.split('|');
+      const times    = items.map(i => i.ms);
+      const avg      = Math.round(times.reduce((a, b) => a + b, 0) / times.length);
+      const min      = Math.min(...times);
+      const max      = Math.max(...times);
+      const cls      = avg < 2000 ? 'fast' : avg < 6000 ? 'med' : 'slow';
+      const statusCounts = {};
+      items.forEach(i => { statusCounts[i.status] = (statusCounts[i.status] || 0) + 1; });
+      const statusStr = Object.entries(statusCounts).map(([s, c]) => `${s}: ${c}`).join(' · ');
+
       return `
-        <div class="dbg-timing-row">
-          <span class="dbg-timing-label">${k}</span>
-          <span class="dbg-timing-ms ${cls}">${ms}ms</span>
+        <div class="dbg-timing-group">
+          <div class="dbg-timing-group-top">
+            <span class="dbg-timing-label">[${category}] ${label}</span>
+            <span class="dbg-timing-ms ${cls}">${avg}ms avg</span>
+          </div>
+          <div class="dbg-timing-group-sub">
+            ${items.length} mediciones · min ${min}ms · max ${max}ms · ${statusStr}
+          </div>
         </div>
       `;
     }).join('');
 
-    return rows + `<button id="dbg-clear-btn" onclick="Debug.clearTimings()">Limpiar tiempos</button>`;
+    // Últimas 12 mediciones individuales, más recientes primero
+    const recentRows = [..._metrics].reverse().slice(0, 12).map(m => {
+      const cls = m.ms < 2000 ? 'fast' : m.ms < 6000 ? 'med' : 'slow';
+      return `
+        <div class="dbg-timing-row">
+          <span class="dbg-timing-label">${m.time} · [${m.category}] ${m.label} · ${m.status}</span>
+          <span class="dbg-timing-ms ${cls}">${m.ms}ms</span>
+        </div>
+      `;
+    }).join('');
+
+    return `
+      <div class="dbg-section-label">Promedios por medición</div>
+      ${summaryRows}
+      <div class="dbg-section-label">Últimas mediciones</div>
+      ${recentRows}
+      <div class="dbg-actions-row">
+        <button id="dbg-export-btn" onclick="Debug.exportLog()">📤 Exportar .txt</button>
+        <button id="dbg-clear-btn" onclick="Debug.clearTimings()">Limpiar tiempos</button>
+      </div>
+    `;
+  }
+
+  /* ── HELPERS DE TIEMPO/PERSISTENCIA ── */
+  function nowTimeString() {
+    const now = new Date();
+    return `${now.getHours().toString().padStart(2,'0')}:${now.getMinutes().toString().padStart(2,'0')}:${now.getSeconds().toString().padStart(2,'0')}`;
+  }
+
+  function metaToString(meta) {
+    if (!meta) return '';
+    try {
+      return Object.entries(meta).map(([k, v]) => `${k}=${v}`).join(' ');
+    } catch (e) {
+      return '';
+    }
+  }
+
+  function persistState() {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({
+        logs:    _logs,
+        metrics: _metrics,
+        savedAt: Date.now()
+      }));
+    } catch (e) {
+      // localStorage lleno o no disponible — no romper la app por esto
+    }
+  }
+
+  function loadPersistedState() {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (!saved) return;
+      const parsed = JSON.parse(saved);
+      if (Array.isArray(parsed.logs))    _logs    = parsed.logs.slice(-MAX_LOGS);
+      if (Array.isArray(parsed.metrics)) _metrics = parsed.metrics.slice(-MAX_METRICS);
+    } catch (e) {
+      // Datos corruptos de una sesión anterior — arrancar limpio
+    }
   }
 
   /* ── LOGGING PÚBLICO ── */
   function log(type, msg) {
-    const now  = new Date();
-    const time = `${now.getHours().toString().padStart(2,'0')}:${now.getMinutes().toString().padStart(2,'0')}:${now.getSeconds().toString().padStart(2,'0')}`;
-    _logs.push({ type, msg, time });
+    _logs.push({ type, msg, time: nowTimeString(), ts: Date.now() });
     if (_logs.length > MAX_LOGS) _logs.shift();
+    persistState();
 
     // Si estamos en tab logs, re-renderizar
     if (_currentTab === 'logs') renderTab('logs');
   }
 
-  /* ── TIMERS PÚBLICOS ── */
-  function timeStart(label) {
-    _timers[label] = performance.now();
+  /* ── MÉTRICAS DE TIEMPO — historial, no se sobreescriben ── */
+  function metricStart(category, label) {
+    const id = `${category}|${label}|${Date.now()}|${Math.random().toString(36).slice(2, 8)}`;
+    _metricStarts[id] = { t: performance.now(), category, label };
+    return id;
   }
 
-  function timeEnd(label) {
-    if (!_timers[label]) return;
-    const ms = Math.round(performance.now() - _timers[label]);
-    if (!window._dbgTimings) window._dbgTimings = {};
-    window._dbgTimings[label] = ms;
-    log('api', `${label}: ${ms}ms`);
-    delete _timers[label];
+  function metricEnd(id, status = 'ok', meta = null) {
+    const start = _metricStarts[id];
+    if (!start) return null;
+
+    const ms = Math.round(performance.now() - start.t);
+    const record = {
+      category: start.category,
+      label:    start.label,
+      ms,
+      status,
+      meta,
+      time:     nowTimeString(),
+      ts:       Date.now()
+    };
+
+    _metrics.push(record);
+    if (_metrics.length > MAX_METRICS) _metrics.shift();
+    delete _metricStarts[id];
+
+    const metaStr = meta ? ' · ' + metaToString(meta) : '';
+    log(start.category, `${start.label}: ${ms}ms [${status}]${metaStr}`);
+
+    persistState();
     if (_currentTab === 'timing') renderTab('timing');
+    return record;
+  }
+
+  /* ── EXPORTAR REPORTE A .TXT ── */
+  function exportLog() {
+    const now   = new Date();
+    const stamp = now.toISOString().replace('T', ' ').slice(0, 19);
+    const lines = [];
+
+    lines.push('═'.repeat(50));
+    lines.push('FOLLOWER — REPORTE DE DEBUG');
+    lines.push(`Exportado: ${stamp}`);
+    lines.push(`User Agent: ${navigator.userAgent}`);
+    lines.push('═'.repeat(50));
+    lines.push('');
+
+    lines.push('RESUMEN DE TIEMPOS POR MEDICIÓN');
+    lines.push('─'.repeat(50));
+    if (_metrics.length === 0) {
+      lines.push('Sin mediciones registradas.');
+    } else {
+      const groups = {};
+      _metrics.forEach(m => {
+        const key = `${m.category}|${m.label}`;
+        (groups[key] = groups[key] || []).push(m);
+      });
+      Object.entries(groups).forEach(([key, items]) => {
+        const [category, label] = key.split('|');
+        const times = items.map(i => i.ms);
+        const avg   = Math.round(times.reduce((a, b) => a + b, 0) / times.length);
+        const statusCounts = {};
+        items.forEach(i => { statusCounts[i.status] = (statusCounts[i.status] || 0) + 1; });
+        const statusStr = Object.entries(statusCounts).map(([s, c]) => `${s}: ${c}`).join(' · ');
+        lines.push(`[${category}] ${label}`);
+        lines.push(`  mediciones: ${items.length} · promedio: ${avg}ms · min: ${Math.min(...times)}ms · max: ${Math.max(...times)}ms`);
+        lines.push(`  estados: ${statusStr}`);
+        lines.push('');
+      });
+    }
+
+    lines.push('DETALLE CRONOLÓGICO DE TIEMPOS');
+    lines.push('─'.repeat(50));
+    if (_metrics.length === 0) {
+      lines.push('(sin datos)');
+    } else {
+      _metrics.forEach(m => {
+        const metaStr = m.meta ? ' · ' + metaToString(m.meta) : '';
+        lines.push(`${m.time}  [${m.category}] ${m.label} — ${m.ms}ms — ${m.status}${metaStr}`);
+      });
+    }
+    lines.push('');
+
+    lines.push('LOGS / EVENTOS');
+    lines.push('─'.repeat(50));
+    if (_logs.length === 0) {
+      lines.push('(sin logs)');
+    } else {
+      _logs.forEach(l => lines.push(`${l.time}  [${l.type}] ${l.msg}`));
+    }
+    lines.push('');
+    lines.push('═'.repeat(50));
+    lines.push('Fin del reporte');
+
+    const text     = lines.join('\n');
+    const blob     = new Blob([text], { type: 'text/plain;charset=utf-8' });
+    const url      = URL.createObjectURL(blob);
+    const filename = `follower-debug-${now.toISOString().slice(0, 19).replace(/[:T]/g, '-')}.txt`;
+    const a        = document.createElement('a');
+
+    a.href     = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+
+    log('info', `Exportado reporte: ${filename}`);
   }
 
   /* ── ACCIONES RÁPIDAS ── */
@@ -611,10 +841,7 @@ const Debug = (() => {
     navigateTo('explore');
 
     if (typeof Narration !== 'undefined') {
-      timeStart('narración Gemini');
-      const originalTrigger = Narration.trigger;
       Narration.trigger(poi, AppState.mood, AppState.lang);
-      timeEnd('narración Gemini');
     }
 
     // Mostrar card
@@ -643,14 +870,9 @@ const Debug = (() => {
       log('error', 'GPS no disponible para cargar POIs');
       return;
     }
-    timeStart('carga POIs Overpass');
-    // Llamar internamente a loadPOIs del módulo POI no es público,
-    // así que disparamos detectNearby con _pois = [] trick
     if (typeof POI !== 'undefined') {
       POI.detectNearby(AppState.gps.lat, AppState.gps.lng, 80, 300);
     }
-    // Timer se cierra cuando llegan los POIs — aproximación
-    setTimeout(() => timeEnd('carga POIs Overpass'), 100);
     log('poi', `GPS: ${AppState.gps.lat.toFixed(4)}, ${AppState.gps.lng.toFixed(4)}`);
   }
 
@@ -667,22 +889,12 @@ const Debug = (() => {
     };
 
     log('api', 'Iniciando test de narración...');
-    timeStart('narración completa');
 
     if (typeof Narration !== 'undefined') {
       Narration.trigger(testPOI, AppState.mood, AppState.lang);
+    } else {
+      log('error', 'Narration no está cargado');
     }
-
-    // El timer se mide hasta que voice empieza — aproximación con timeout
-    setTimeout(() => {
-      if (typeof Narration !== 'undefined' && Narration.isNarrating()) {
-        timeEnd('narración completa');
-        log('voice', 'Voz iniciada correctamente');
-      } else {
-        timeEnd('narración completa');
-        log('error', 'Narración no inició — revisar consola');
-      }
-    }, 3000);
   }
 
   function clearCache() {
@@ -692,11 +904,13 @@ const Debug = (() => {
 
   function clearLogs() {
     _logs = [];
+    persistState();
     renderTab('logs');
   }
 
   function clearTimings() {
-    window._dbgTimings = {};
+    _metrics = [];
+    persistState();
     renderTab('timing');
   }
 
@@ -770,6 +984,7 @@ const Debug = (() => {
 
   /* ── INIT ── */
   function init() {
+    loadPersistedState();
     injectStyles();
     createPanel();
     interceptConsole();
@@ -778,6 +993,9 @@ const Debug = (() => {
     // Log inicial
     log('info', `Follower Debug v0.5 iniciado`);
     log('info', `User Agent: ${navigator.userAgent.slice(0, 60)}...`);
+    if (_metrics.length > 0) {
+      log('info', `${_metrics.length} mediciones restauradas de la sesión anterior`);
+    }
 
     // Verificar que el Worker de Cloudflare responda
     setTimeout(checkWorker, 500);
@@ -793,8 +1011,9 @@ const Debug = (() => {
   /* ── API PÚBLICA ── */
   return {
     log,
-    timeStart,
-    timeEnd,
+    metricStart,
+    metricEnd,
+    exportLog,
     switchTab,
     activatePOI,
     flyToPOI,

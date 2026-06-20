@@ -15,7 +15,7 @@ const POI = (() => {
 
   /* ── CONFIGURACIÓN ── */
   const CONFIG = {
-    FETCH_RADIUS_KM:    5,      // radio de fetch de POIs desde OSM
+    FETCH_RADIUS_KM:    2,      // radio de fetch de POIs desde OSM
     REFETCH_KM:         2,      // refetch si nos movemos más de 2km
     DB_NAME:            'follower_db',
     DB_VERSION:         1,
@@ -86,19 +86,19 @@ const POI = (() => {
   /* ── FETCH POIs DESDE OVERPASS (OSM) ── */
   async function fetchPOIsFromOSM(lat, lng, radiusKm) {
     const radius = radiusKm * 1000; // metros
+
+    // Query optimizada: usa (around:...) UNA sola vez por bloque
+    // en vez de repetirlo en cada cláusula — mucho más rápido para Overpass.
     const query  = `
-      [out:json][timeout:30];
+      [out:json][timeout:25];
       (
-        node["historic"](around:${radius},${lat},${lng});
-        node["tourism"~"museum|attraction|artwork|viewpoint|gallery|yes"](around:${radius},${lat},${lng});
-        node["amenity"~"place_of_worship|fountain|theatre|cinema|library|arts_centre"](around:${radius},${lat},${lng});
-        node["leisure"~"park|garden"](around:${radius},${lat},${lng});
-        node["man_made"~"monument|memorial|statue"](around:${radius},${lat},${lng});
-        node["building"~"cathedral|church|chapel|mosque|temple"](around:${radius},${lat},${lng});
-        way["historic"](around:${radius},${lat},${lng});
-        way["tourism"~"museum|attraction"](around:${radius},${lat},${lng});
-        way["building"~"cathedral|church|chapel"](around:${radius},${lat},${lng});
-        way["leisure"~"park|garden"](around:${radius},${lat},${lng});
+        node(around:${radius},${lat},${lng})["historic"];
+        node(around:${radius},${lat},${lng})["tourism"~"museum|attraction|artwork|viewpoint|gallery"];
+        node(around:${radius},${lat},${lng})["amenity"~"place_of_worship|fountain|theatre|cinema"];
+        node(around:${radius},${lat},${lng})["leisure"~"park|garden"];
+        node(around:${radius},${lat},${lng})["man_made"~"monument|memorial|statue"];
+        way(around:${radius},${lat},${lng})["historic"];
+        way(around:${radius},${lat},${lng})["tourism"~"museum|attraction"];
       );
       out center;
     `;

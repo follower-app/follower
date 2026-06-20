@@ -103,21 +103,35 @@ const POI = (() => {
       out center;
     `;
 
-    const url = 'https://overpass-api.de/api/interpreter';
+    const url = 'https://lz4.overpass-api.de/api/interpreter';
+    console.log(`POI: fetching lat=${lat} lng=${lng} radius=${radius}m`);
+
     const res = await fetch(url, {
       method: 'POST',
       body:   `data=${encodeURIComponent(query)}`
     });
 
-    if (!res.ok) throw new Error('Overpass API error');
+    console.log(`POI: Overpass respondió status=${res.status}`);
+
+    if (!res.ok) {
+      const errText = await res.text();
+      console.warn(`POI: Overpass API error ${res.status} — ${errText.slice(0, 200)}`);
+      throw new Error('Overpass API error');
+    }
 
     const data     = await res.json();
     const elements = data.elements || [];
+    console.log(`POI: Overpass devolvió ${elements.length} elementos crudos`);
 
-    return elements
-      .filter(el => el.tags?.name)
+    const withName = elements.filter(el => el.tags?.name);
+    console.log(`POI: ${withName.length} elementos tienen nombre`);
+
+    const normalized = withName
       .map(el => normalizePOI(el))
       .filter(Boolean);
+    console.log(`POI: ${normalized.length} POIs normalizados correctamente`);
+
+    return normalized;
   }
 
   /* ── NORMALIZAR ELEMENTO OSM → POI ── */
@@ -173,15 +187,21 @@ const POI = (() => {
           await savePOIsToDB(fresh);
           _lastFetchPos = { lat, lng };
           renderAllMarkers();
+          console.log(`POI: ${fresh.length} POIs cargados y renderizados`);
           return;
+        } else {
+          console.warn('POI: Overpass respondió OK pero 0 POIs normalizados — revisar query/zona');
         }
       } catch (e) {
-        console.warn('POI: error fetching desde OSM, usando cache');
+        console.warn('POI: error fetching desde OSM, usando cache —', e.message);
       }
+    } else {
+      console.log('POI: AppState.offline=true, saltando fetch a OSM');
     }
 
     // Fallback: cargar desde IndexedDB
     const cached = await loadPOIsFromDB();
+    console.log(`POI: cache IndexedDB tiene ${cached.length} POIs`);
     if (cached.length > 0) {
       _pois = cached;
       renderAllMarkers();

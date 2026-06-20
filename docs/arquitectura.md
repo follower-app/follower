@@ -1,6 +1,6 @@
-# 🏗️ Follower — Arquitectura v0.4
+# 🏗️ Follower — Arquitectura v0.5
 
-> Junio 2026 — Código base completo
+> Junio 2026 — Migración a Cloudflare Worker (DT-6 resuelto anticipadamente)
 
 ---
 
@@ -31,17 +31,21 @@ follower/
 │   └── poi.css             → héroe, player, narración, acciones
 │
 ├── js/
-│   ├── keys.js             → API keys LOCAL ONLY (.gitignore)
+│   ├── keys.js             → API keys LOCAL ONLY (.gitignore) — vacío salvo legacy
 │   ├── config.js           → idioma, mood, mode, volúmenes, localStorage
 │   ├── app.js              → AppState, navigateTo(), setPhase(), init
 │   ├── gps.js              → Leaflet, watchPosition, Haversine, Nominatim
-│   ├── poi.js              → Overpass OSM, IndexedDB, detectPOI, renderExpanded
-│   ├── narration.js        → Claude API, prompts×4moods×2langs, fallback
+│   ├── poi.js              → Overpass OSM (lz4 mirror), IndexedDB, detectPOI, renderExpanded
+│   ├── narration.js        → Claude API vía Worker, prompts×4moods×2langs, fallback
 │   ├── voice.js            → Web Speech API, 12 idiomas BCP-47
 │   ├── music.js            → Web Audio API, fadeMusic, dip/restore
-│   ├── weather.js          → OpenWeatherMap, lluvia, cache 30min
+│   ├── weather.js          → OpenWeatherMap vía Worker, lluvia, cache 30min
 │   ├── care.js             → checkCareContext, 4 prioridades, cooldown
-│   └── routes.js           → 5 recorridos Roma, Leaflet polyline, picker
+│   ├── routes.js           → 5 recorridos Roma, Leaflet polyline, picker
+│   └── debug.js            → panel debug flotante (Estado/Buscar POI/Logs/Tiempos)
+│
+├── cloudflare/
+│   └── worker.js           → proxy Claude API + OpenWeatherMap (referencia, no afecta deploy)
 │
 ├── assets/
 │   ├── logo.svg            → pendiente
@@ -100,7 +104,7 @@ Capa 4 — Cache API  → música, assets
 ### DA-6 — Narración con fallback obligatorio
 ```
 1. Cache IndexedDB (key: poiId_mood_lang_topic)
-2. Claude API (timeout 8s)
+2. Claude API vía Cloudflare Worker (timeout 15s)
 3. Texto genérico con datos OSM
 → Nunca error visible al usuario
 ```
@@ -116,6 +120,22 @@ Orden obligatorio: archivos → commit → push → esperar → sw.js → commit
 
 ### DA-10 — CSS variables en main.css
 Todos los colores en `:root`. Nunca hardcoded en otros archivos CSS o JS.
+
+### DA-11 — Cloudflare Worker como proxy de API keys
+Repo es público (requisito de GitHub Pages gratis). Keys de Claude y OpenWeatherMap
+nunca viven en código del repo — viven como Secrets en Cloudflare, invisibles.
+`narration.js` y `weather.js` llaman al Worker, nunca directo a los proveedores.
+Resuelve DT-6 antes de lo planeado, por necesidad: probar en celular vía GitHub
+Pages exponía las keys directamente, causando revocación automática (pasó con
+Gemini y casi con OpenAI).
+
+```
+App (GitHub Pages, pública)
+    ↓ fetch sin key visible
+Cloudflare Worker (followernarration.jaimeand.workers.dev)
+    ├── /narration → agrega CLAUDE_API_KEY → Claude API
+    └── /weather    → agrega OPENWEATHER_API_KEY → OpenWeatherMap
+```
 
 ---
 
@@ -150,19 +170,20 @@ GPS tick (cada 3s)
 
 | API | Endpoint | Auth | Fallback |
 |-----|----------|------|---------|
-| Claude API | `api.anthropic.com/v1/messages` | `KEYS.claude` | Cache + texto genérico |
-| Overpass OSM | `overpass-api.de/api/interpreter` | Ninguna | IndexedDB |
+| Claude API | `followernarration.jaimeand.workers.dev/narration` (proxy) | Secret en Worker | Cache + texto genérico |
+| Overpass OSM | `lz4.overpass-api.de/api/interpreter` | Ninguna | IndexedDB |
 | Nominatim | `nominatim.openstreetmap.org/reverse` | Ninguna | IP fallback |
-| OpenWeatherMap | `api.openweathermap.org/data/2.5/weather` | `KEYS.openWeatherMap` | localStorage 2h |
+| OpenWeatherMap | `followernarration.jaimeand.workers.dev/weather` (proxy) | Secret en Worker | localStorage 2h |
 | ipapi.co | `ipapi.co/json/` | Ninguna | cityName = 'Tu ciudad' |
 
 ---
 
 ## Gestión de API Keys
 
-- **`js/keys.js`** — archivo local, en `.gitignore`, nunca sube a GitHub
-- Para piloto: keys en `keys.js` local
-- Para producción: migrar a backend proxy (Cloudflare Workers / Vercel Functions)
+- **Claude y OpenWeatherMap** — keys como Secrets en Cloudflare Worker, nunca en el repo (DA-11)
+- **`js/keys.js`** — local, en `.gitignore`, queda vacío o sin uso real; nunca sube a GitHub
+- Repo es público (GitHub Pages gratis) por lo que ninguna key puede vivir en código versionado
+- Worker gratis (100k requests/día), sin tarjeta de crédito requerida
 
 ---
 
@@ -175,8 +196,8 @@ GPS tick (cada 3s)
 | DT-3 | sw.js — service worker | Alta (último) |
 | DT-4 | Pantalla resumen del paseo | Media |
 | DT-5 | Más ciudades en routes.js | Baja |
-| DT-6 | Backend proxy para API keys | Baja (post-piloto) |
+| ~~DT-6~~ | ~~Backend proxy para API keys~~ — **Resuelto** vía Cloudflare Worker (DA-11) | — |
 
 ---
 
-*Follower — Arquitectura v0.4 | Junio 2026*
+*Follower — Arquitectura v0.5 | Junio 2026*

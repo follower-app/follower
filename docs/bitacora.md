@@ -1,4 +1,4 @@
-# 📓 Follower — Bitácora v0.4
+# 📓 Follower — Bitácora v0.5
 
 > Registro cronológico de decisiones, cambios y aprendizajes.
 
@@ -160,4 +160,128 @@ Se escribieron todos los archivos del proyecto:
 4. Probar narración con Gemini API
 5. Verificar música por mood
 6. Documentar nuevos bugs encontrados
+
+---
+
+## Sesión 4 — Junio 2026
+
+### Contexto
+Sesión larga de debugging con tres problemas reportados al inicio: narración no carga,
+POIs de Cali incompletos, interfaz muy oscura. Se construyó panel de debug (`debug.js`)
+para diagnosticar en tiempo real en dispositivo — decisión clave que aceleró todo el resto.
+
+### Bugs encontrados y resueltos
+
+**BUG-004 — Query Overpass demasiado restrictiva**
+- Causa: solo 3 categorías de tags (`historic`, `tourism`, `amenity` limitado) — Cali usa
+  muchos POIs etiquetados como `leisure`, `man_made`, `building=cathedral/chapel`
+- Fix: query ampliada a 7-10 cláusulas según iteración
+- Archivo: `js/poi.js`
+
+**BUG-005 — Mapa demasiado oscuro**
+- Causa: `filter: brightness(0.5) saturate(0.4) hue-rotate(180deg)` en `.leaflet-tile`
+- Fix: `brightness(0.78) saturate(0.6)`, removido hue-rotate (colores irreales)
+- Archivo: `css/main.css`
+
+**BUG-006 — typo `btnModeFreee`**
+- Causa: triple `e` en el id del botón Modo Libre — nunca respondía al click
+- Fix: `btnModeFree`
+- Archivo: `index.html`
+
+**BUG-007 — Nominatim devolvía 400**
+- Causa: parámetro `lng` en vez de `lon` (Nominatim usa convención distinta a otras APIs)
+- Fix: `?lat=${lat}&lon=${lng}`
+- Archivo: `js/gps.js`
+
+**BUG-008 — Overpass: timeout 72s + rate limit 429**
+- Causa raíz real de "0 POIs cargados": la query usaba `["tag"](around:...)` repetido
+  en cada cláusula, forzando a Overpass a recalcular el filtro espacial 10 veces.
+  Confirmado con prueba directa en consola: timeout tras 72s, más rate limit 429
+  por pruebas repetidas en poco tiempo
+- Fix: sintaxis `(around:...)["tag"]` (filtro espacial primero), radio 5km→2km,
+  cláusulas reducidas de 10 a 7, timeout interno 30s→25s
+- Resultado confirmado: 44 elementos crudos → 31 POIs normalizados y renderizados
+- Archivo: `js/poi.js`
+
+**BUG-009 — Mirrors de Overpass caídos**
+- `overpass-api.de` y `overpass.kumi.systems` no respondían (probado directo en
+  Safari iPhone — "server stopped responding")
+- `lz4.overpass-api.de` confirmado funcionando — mirror oficial en uso desde entonces
+- Archivos: `js/poi.js`, `js/weather.js` (findNearbyRefuge tenía el mismo dominio caído)
+
+**BUG-010 — Falso positivo de offline en Chrome desktop**
+- Causa: Network throttling de DevTools quedó en "Offline", `navigator.onLine` lo
+  heredaba y `AppState.offline = true` bloqueaba todo fetch a Overpass
+- No es bug de código — diagnóstico documentado para no repetir la confusión
+
+**BUG-011 — Race condition en Web Speech API**
+- Causa: `setTimeout` de 100ms en `voice.js` capturaba `_utterance` por referencia
+  global; si se activaba un POI nuevo antes de que disparara, `stop()` ya había
+  puesto `_utterance = null`, causando `TypeError` y "Voice: interrupted"
+- Fix: capturar `_utterance` en variable local antes del `setTimeout`
+- Archivo: `js/voice.js`
+
+### Decisión arquitectural — DA-11: Cloudflare Worker
+
+Problema raíz descubierto: motor de narración cambió tres veces por bugs externos
+fuera de control del proyecto:
+
+1. **Gemini 1.5 Flash** — Google AI Studio empezó a emitir keys en formato `AQ.`
+   en vez del clásico `AIzaSy...`. Bug confirmado masivo en foro oficial de
+   desarrolladores de Google, sin fecha de resolución. El endpoint REST clásico
+   (`generativelanguage.googleapis.com`) no soporta el nuevo formato → 401 persistente
+2. **OpenAI gpt-4o-mini** — requiere método de pago activo desde el primer request,
+   sin capa gratuita real para la API (a diferencia de ChatGPT web) → 401 persistente
+3. **Claude API (claude-haiku-4-5)** — funcionando, ya se pagaba de todas formas
+
+Problema paralelo: el repo es público (requisito de GitHub Pages gratis), así que
+cualquier key en `keys.js`, si se sube para probar en celular, es detectada y
+revocada automáticamente por el proveedor (pasó con Gemini).
+
+**Solución:** Cloudflare Worker (`followernarration.jaimeand.workers.dev`) como proxy.
+Dos rutas: `POST /narration` (Claude) y `GET /weather` (OpenWeatherMap). Las keys
+viven como Secrets en Cloudflare, invisibles en cualquier código del repo. Gratis,
+sin tarjeta, 100k requests/día de capa gratuita. Resuelve DT-6 antes de lo planeado.
+
+### Costos actualizados
+- Modelo: `claude-haiku-4-5-20251001` (más económico que Sonnet, suficiente para
+  narraciones de 3 párrafos)
+- Mantiene el presupuesto original de $1-5/mes para el piloto
+
+### `debug.js` — panel de debugging en producción
+Herramienta clave de esta sesión. Overlay flotante con 4 tabs:
+- **Estado** — GPS, conectividad, estado del Worker, POIs cargados, fase, mood
+- **Buscar POI** — lista/búsqueda de POIs cargados, activar narración manual sin
+  necesidad de estar físicamente cerca
+- **Logs** — captura automática de `console.warn`/`console.error`, más eventos
+  internos de GPS/POI/narración
+- **Tiempos** — mide duración real de llamadas a la API de narración
+
+Decisión de diseño: el panel hace ping real al Worker en vez de revisar keys
+locales (que ya no existen tras la migración a Cloudflare).
+
+### Deuda técnica actualizada
+
+| ID | Descripción | Prioridad |
+|----|-------------|-----------|
+| DT-1 | Logo SVG final + iconos PWA (404 actual en manifest) | Alta |
+| DT-2 | Archivos de música por mood (4 MP3) | Alta |
+| DT-3 | sw.js — service worker (siempre último) | Alta |
+| DT-4 | Pantalla resumen del paseo | Media |
+| DT-5 | Más ciudades en routes.js | Baja |
+| ~~DT-6~~ | ~~Backend proxy para API keys~~ — **Resuelto** vía Cloudflare Worker | — |
+| ~~DT-7~~ | ~~Remover keys del repo~~ — **Resuelto**, `keys.js` ya no contiene secretos reales | — |
+| DT-8 | `debug.js` debe quitarse o deshabilitarse antes de v1.0 (solo para desarrollo) | Media |
+
+### Próxima sesión — v0.6
+
+1. Confirmar narración con Claude vía Worker funcionando consistentemente en iPhone
+2. Resolver DT-1 (íconos PWA) y DT-2 (música por mood) — bloquean experiencia completa
+3. Probar integración completa: GPS → POI → narración → voz → música en un solo flujo
+4. Evaluar si la query Overpass de 2km es suficiente para recorridos reales o necesita ajuste
+5. Considerar restringir CORS del Worker a dominio exacto en vez de `*` antes de v1.0
+
+---
+
+*Follower — Bitácora v0.5 | Junio 2026*
 

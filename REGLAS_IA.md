@@ -116,11 +116,15 @@ El color del botón central del bottom bar refleja SIEMPRE el estado actual.
 
 ## Regla de Narración AI
 
-- Motor actual: **Gemini 1.5 Flash** (gratuito para piloto)
+- Motor actual: **Claude API (claude-haiku-4-5)** vía Cloudflare Worker — key nunca expuesta en el repo
+- Endpoint: `https://followernarration.jaimeand.workers.dev/narration`
 - El prompt siempre incluye: `poi.name`, `poi.description`, `AppState.cityName`, `mood`, `lang`, `topic`
 - La narración tiene máximo **3 minutos** — concisa, cinematográfica
-- Flujo: cache IndexedDB → Gemini API (timeout 8s) → fallback genérico
+- Flujo: cache IndexedDB → Claude API vía Worker (timeout 15s) → fallback genérico
 - Nunca mostrar error al usuario — la experiencia no se rompe
+- Histórico: se probó Gemini 1.5 Flash (abandonado por bug de Google AI Studio emitiendo
+  keys en formato `AQ.` incompatible con el endpoint REST), y OpenAI gpt-4o-mini
+  (abandonado por requerir billing activo desde el primer request)
 
 ---
 
@@ -130,7 +134,7 @@ El color del botón central del bottom bar refleja SIEMPRE el estado actual.
 |-------|-------------|
 | Indicador offline | Discreto en el top pill — nunca modal de error intrusivo |
 | Fallback narración | Siempre hay texto de fallback — nunca silencio ni error visible |
-| Timeout API | Gemini API máximo 8 segundos — si falla, usar cache |
+| Timeout API | Claude API (vía Worker) máximo 15 segundos — si falla, usar cache |
 | IndexedDB | POIs y narraciones en IndexedDB — nunca solo en memoria |
 | sw.js | NUNCA commitear antes que los archivos que cachea |
 
@@ -172,13 +176,14 @@ design: cambio visual o de interfaz
 
 ```
 HTML + CSS + JS Vanilla     — sin frameworks
-Leaflet.js                  — mapas OpenStreetMap
-Gemini 1.5 Flash            — narración AI (gratuito para piloto)
+Leaflet.js                  — mapas OpenStreetMap (mirror lz4.overpass-api.de)
+Claude API (Haiku)          — narración AI, vía Cloudflare Worker proxy
 Web Speech API              — síntesis de voz nativa (12 idiomas)
-OpenWeatherMap API          — clima en tiempo real
+OpenWeatherMap API          — clima en tiempo real, vía Cloudflare Worker proxy
 Web Audio API               — música por mood nativa
 IndexedDB                   — cache offline
-GitHub Pages                — hosting
+GitHub Pages                — hosting (repo público)
+Cloudflare Workers          — proxy de API keys (gratis, sin tarjeta)
 PWA                         — instalable
 ```
 
@@ -189,9 +194,10 @@ PWA                         — instalable
 ## Contexto del Proyecto
 
 - **App:** [follower-app.github.io/follower](https://follower-app.github.io/follower)
-- **Repo:** [github.com/follower-app/follower](https://github.com/follower-app/follower)
-- **Estado actual:** v0.4 — código base completo, keys configuradas, iniciando pruebas
-- **Próximo hito:** v0.5 — pruebas en iPhone, debugging
+- **Repo:** [github.com/follower-app/follower](https://github.com/follower-app/follower) (público)
+- **Worker:** [followernarration.jaimeand.workers.dev](https://followernarration.jaimeand.workers.dev) — proxy de Claude API y OpenWeatherMap
+- **Estado actual:** v0.5 — debugging activo, POIs/narración/clima funcionando vía Worker, panel debug.js integrado
+- **Próximo hito:** v0.6 — música por mood (DT-2), íconos PWA (DT-1), pruebas integración completa en iPhone
 
 ---
 
@@ -208,17 +214,18 @@ PWA                         — instalable
 | `css/modal.css` | Modales, care card, route picker |
 | `css/explore.css` | Mapa, pins POI, card pequeña |
 | `css/poi.css` | Pantalla POI expandida |
-| `js/keys.js` | API keys — LOCAL ONLY, en .gitignore |
+| `js/keys.js` | Solo OpenWeatherMap legacy si aplica — LOCAL ONLY, .gitignore (Claude y clima vía Worker) |
 | `js/config.js` | Idioma, mood, preferencias, localStorage |
 | `js/app.js` | AppState, navigateTo(), setPhase(), init |
 | `js/gps.js` | Leaflet, watchPosition, Haversine, Nominatim |
-| `js/poi.js` | Overpass OSM, IndexedDB, detectPOI |
-| `js/narration.js` | Gemini API, prompts × 4 moods × 2 langs |
+| `js/poi.js` | Overpass OSM (lz4 mirror), IndexedDB, detectPOI |
+| `js/narration.js` | Claude API vía Worker, prompts × 4 moods × 2 langs |
 | `js/voice.js` | Web Speech API, 12 idiomas BCP-47 |
 | `js/music.js` | Web Audio API, fadeMusic, dip/restore |
-| `js/weather.js` | OpenWeatherMap, lluvia, cache 30min |
+| `js/weather.js` | OpenWeatherMap vía Worker, lluvia, cache 30min |
 | `js/care.js` | checkCareContext, 4 prioridades, cooldown |
 | `js/routes.js` | 5 recorridos Roma, Leaflet polyline, picker |
+| `js/debug.js` | Panel debug flotante — Estado/Buscar POI/Logs/Tiempos |
 | `docs/contexto_maestro.md` | Alma del producto, principios, pregunta rectora |
 | `docs/producto.md` | Producto, usuarios, principios |
 | `docs/arquitectura.md` | Decisiones DA-1 a DA-10 |

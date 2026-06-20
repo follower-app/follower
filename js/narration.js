@@ -1,6 +1,6 @@
 /* ═══════════════════════════════════════════
    FOLLOWER — narration.js
-   OpenAI gpt-4o-mini (económico) para piloto.
+   Gemini 1.5 Flash (gratuito) para piloto.
    Mismos prompts por mood e idioma.
    DA-3: trigger() función única.
    ═══════════════════════════════════════════ */
@@ -16,8 +16,8 @@ const Narration = (() => {
 
   /* ── CONFIGURACIÓN ── */
   const CONFIG = {
-    API_URL:     'https://api.openai.com/v1/chat/completions',
-    API_MODEL:   'gpt-4o-mini',
+    API_URL:     'https://followernarration.jaimeand.workers.dev/narration',
+    API_MODEL:   'claude-haiku-4-5-20251001',
     API_TIMEOUT: 15000,
   };
 
@@ -90,8 +90,8 @@ Take a moment to observe the details — every stone, every arch, has a story to
     return langPrompt(poi, topic);
   }
 
-  /* ── LLAMAR OPENAI API ── */
-  async function callOpenAI(prompt) {
+  /* ── LLAMAR CLAUDE API (vía Cloudflare Worker — key oculta) ── */
+  async function callClaude(prompt) {
     const controller = new AbortController();
     const timeout    = setTimeout(() => controller.abort(), CONFIG.API_TIMEOUT);
 
@@ -100,13 +100,11 @@ Take a moment to observe the details — every stone, every arch, has a story to
         method:  'POST',
         signal:  controller.signal,
         headers: {
-          'Content-Type':  'application/json',
-          'Authorization': `Bearer ${KEYS.openai}`
+          'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          model:       CONFIG.API_MODEL,
-          max_tokens:  300,
-          temperature: 0.8,
+          model:      CONFIG.API_MODEL,
+          max_tokens: 350,
           messages: [
             { role: 'user', content: prompt }
           ]
@@ -115,17 +113,18 @@ Take a moment to observe the details — every stone, every arch, has a story to
 
       clearTimeout(timeout);
 
-      if (!res.ok) throw new Error(`OpenAI API error ${res.status}`);
+      if (!res.ok) throw new Error(`Claude API error ${res.status}`);
 
       const data = await res.json();
-      return data.choices?.[0]?.message?.content || null;
+      const textBlock = data.content?.find(b => b.type === 'text');
+      return textBlock?.text || null;
 
     } catch (e) {
       clearTimeout(timeout);
       if (e.name === 'AbortError') {
-        console.warn('Narration: timeout de OpenAI API');
+        console.warn('Narration: timeout de Claude API');
       } else {
-        console.warn('Narration: error de OpenAI API:', e.message);
+        console.warn('Narration: error de Claude API:', e.message);
       }
       return null;
     }
@@ -231,7 +230,7 @@ Take a moment to observe the details — every stone, every arch, has a story to
     // 2. Gemini API si no hay cache
     if (!text && !AppState.offline) {
       const prompt = buildPrompt(poi, mood, lang, topic);
-      text = await callOpenAI(prompt);
+      text = await callClaude(prompt);
       if (text) await saveToCache(poi.id, mood, lang, topic, text);
     }
 

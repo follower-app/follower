@@ -14,8 +14,7 @@ const Weather = (() => {
 
   /* ── CONFIGURACIÓN ── */
   const CONFIG = {
-    API_KEY:        KEYS.openWeatherMap, // reemplazar con .env
-    API_URL:        'https://api.openweathermap.org/data/2.5/weather',
+    API_URL:        'https://followernarration.jaimeand.workers.dev/weather',
     CACHE_MS:       30 * 60 * 1000,  // 30 minutos
     CHECK_INTERVAL: 10 * 60 * 1000,  // chequear cada 10 min
     RAIN_CODES:     [2, 3, 5],        // grupos de condición: tormenta, llovizna, lluvia
@@ -45,7 +44,7 @@ const Weather = (() => {
     }
 
     try {
-      const url = `${CONFIG.API_URL}?lat=${lat}&lon=${lng}&appid=${CONFIG.API_KEY}&units=metric`;
+      const url = `${CONFIG.API_URL}?lat=${lat}&lon=${lng}`;
       const res = await fetch(url);
 
       if (!res.ok) throw new Error(`Weather API error ${res.status}`);
@@ -171,7 +170,7 @@ const Weather = (() => {
       out 3;
     `;
 
-    fetch('https://overpass-api.de/api/interpreter', {
+    fetch('https://lz4.overpass-api.de/api/interpreter', {
       method: 'POST',
       body:   `data=${encodeURIComponent(query)}`
     })

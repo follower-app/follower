@@ -1,6 +1,6 @@
 /* ═══════════════════════════════════════════
    FOLLOWER — narration.js
-   Gemini 1.5 Flash (gratuito) para piloto.
+   OpenAI gpt-4o-mini (económico) para piloto.
    Mismos prompts por mood e idioma.
    DA-3: trigger() función única.
    ═══════════════════════════════════════════ */
@@ -16,7 +16,8 @@ const Narration = (() => {
 
   /* ── CONFIGURACIÓN ── */
   const CONFIG = {
-    API_URL:     'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent',
+    API_URL:     'https://api.openai.com/v1/chat/completions',
+    API_MODEL:   'gpt-4o-mini',
     API_TIMEOUT: 15000,
   };
 
@@ -89,44 +90,42 @@ Take a moment to observe the details — every stone, every arch, has a story to
     return langPrompt(poi, topic);
   }
 
-  /* ── LLAMAR GEMINI API ── */
-  async function callGemini(prompt) {
+  /* ── LLAMAR OPENAI API ── */
+  async function callOpenAI(prompt) {
     const controller = new AbortController();
     const timeout    = setTimeout(() => controller.abort(), CONFIG.API_TIMEOUT);
 
     try {
-      const url = `${CONFIG.API_URL}?key=${KEYS.gemini}`;
-
-      const res = await fetch(url, {
+      const res = await fetch(CONFIG.API_URL, {
         method:  'POST',
         signal:  controller.signal,
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type':  'application/json',
+          'Authorization': `Bearer ${KEYS.openai}`
         },
         body: JSON.stringify({
-          contents: [{
-            parts: [{ text: prompt }]
-          }],
-          generationConfig: {
-            maxOutputTokens: 280,
-            temperature:     0.8
-          }
+          model:       CONFIG.API_MODEL,
+          max_tokens:  300,
+          temperature: 0.8,
+          messages: [
+            { role: 'user', content: prompt }
+          ]
         })
       });
 
       clearTimeout(timeout);
 
-      if (!res.ok) throw new Error(`Gemini API error ${res.status}`);
+      if (!res.ok) throw new Error(`OpenAI API error ${res.status}`);
 
       const data = await res.json();
-      return data.candidates?.[0]?.content?.parts?.[0]?.text || null;
+      return data.choices?.[0]?.message?.content || null;
 
     } catch (e) {
       clearTimeout(timeout);
       if (e.name === 'AbortError') {
-        console.warn('Narration: timeout de Gemini API');
+        console.warn('Narration: timeout de OpenAI API');
       } else {
-        console.warn('Narration: error de Gemini API:', e.message);
+        console.warn('Narration: error de OpenAI API:', e.message);
       }
       return null;
     }
@@ -232,7 +231,7 @@ Take a moment to observe the details — every stone, every arch, has a story to
     // 2. Gemini API si no hay cache
     if (!text && !AppState.offline) {
       const prompt = buildPrompt(poi, mood, lang, topic);
-      text = await callGemini(prompt);
+      text = await callOpenAI(prompt);
       if (text) await saveToCache(poi.id, mood, lang, topic, text);
     }
 

@@ -159,7 +159,7 @@ const Care = (() => {
       out 3;
     `;
 
-    fetch('https://overpass-api.de/api/interpreter', {
+    fetch('https://lz4.overpass-api.de/api/interpreter', {
       method: 'POST',
       body:   `data=${encodeURIComponent(query)}`
     })

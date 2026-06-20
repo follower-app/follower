@@ -118,7 +118,7 @@ const GPS = (() => {
     if (AppState.offline) return;
 
     try {
-      const url  = `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lng=${lng}&format=json`;
+      const url  = `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json`;
       const res  = await fetch(url);
       const data = await res.json();
 

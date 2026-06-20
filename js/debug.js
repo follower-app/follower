@@ -385,11 +385,12 @@ const Debug = (() => {
 
     const poiClass = poiCount > 0 ? 'ok' : 'warn';
 
-    const keysOk = typeof KEYS !== 'undefined'
-      && KEYS.gemini
-      && KEYS.gemini !== 'TU_API_KEY_GEMINI';
-    const keysClass = keysOk ? 'ok' : 'error';
-    const keysVal   = keysOk ? 'Keys OK' : '⚠️ Placeholder!';
+    const workerClass = window._dbgWorkerStatus === 'ok' ? 'ok'
+                       : window._dbgWorkerStatus === 'checking' ? 'warn'
+                       : 'error';
+    const workerVal   = window._dbgWorkerStatus === 'ok' ? 'Worker OK'
+                       : window._dbgWorkerStatus === 'checking' ? 'Verificando...'
+                       : '⚠️ Sin verificar';
 
     return `
       <div class="dbg-grid">
@@ -406,8 +407,8 @@ const Debug = (() => {
           <div class="dbg-cell-value ${offlineClass}">${offlineVal}</div>
         </div>
         <div class="dbg-cell">
-          <div class="dbg-cell-label">API Keys</div>
-          <div class="dbg-cell-value ${keysClass}">${keysVal}</div>
+          <div class="dbg-cell-label">Cloudflare Worker</div>
+          <div class="dbg-cell-value ${workerClass}">${workerVal}</div>
         </div>
         <div class="dbg-cell">
           <div class="dbg-cell-label">POIs cargados</div>
@@ -451,6 +452,9 @@ const Debug = (() => {
         </button>
         <button class="dbg-poi-action map" onclick="Debug.testNarration()">
           🎙️ Test narración
+        </button>
+        <button class="dbg-poi-action map" onclick="Debug.checkWorker()">
+          ☁️ Verificar Worker
         </button>
         <button class="dbg-poi-action map" onclick="Debug.clearCache()">
           🗑️ Limpiar cache
@@ -740,6 +744,30 @@ const Debug = (() => {
     }, 3000);
   }
 
+  /* ── VERIFICAR WORKER DE CLOUDFLARE ── */
+  async function checkWorker() {
+    window._dbgWorkerStatus = 'checking';
+    if (_currentTab === 'status') renderTab('status');
+
+    try {
+      // Ping liviano a /weather sin lat/lon — esperamos 400, lo que confirma que el Worker responde
+      const url = (typeof Narration !== 'undefined' && Narration._configUrl)
+        ? Narration._configUrl.replace('/narration', '/weather')
+        : 'https://followernarration.jaimeand.workers.dev/weather';
+
+      const res = await fetch(url);
+      // Cualquier respuesta del servidor (200, 400, etc) confirma que el Worker está vivo
+      window._dbgWorkerStatus = res.status ? 'ok' : 'error';
+      log('info', `Worker Cloudflare: respondió status=${res.status}`);
+
+    } catch (e) {
+      window._dbgWorkerStatus = 'error';
+      log('error', `Worker Cloudflare inaccesible: ${e.message}`);
+    }
+
+    if (_currentTab === 'status') renderTab('status');
+  }
+
   /* ── INIT ── */
   function init() {
     injectStyles();
@@ -748,22 +776,11 @@ const Debug = (() => {
     patchGPS();
 
     // Log inicial
-    log('info', `Follower Debug v0.4 iniciado`);
+    log('info', `Follower Debug v0.5 iniciado`);
     log('info', `User Agent: ${navigator.userAgent.slice(0, 60)}...`);
 
-    // Verificar keys al inicio
-    setTimeout(() => {
-      if (typeof KEYS !== 'undefined') {
-        if (KEYS.gemini === 'TU_API_KEY_GEMINI') {
-          log('error', '⚠️ KEYS.gemini es placeholder — narración no funcionará');
-        } else {
-          log('info', '✓ KEYS.gemini configurada');
-        }
-        if (KEYS.openWeatherMap === 'TU_API_KEY_OPENWEATHERMAP') {
-          log('error', '⚠️ KEYS.openWeatherMap es placeholder');
-        }
-      }
-    }, 500);
+    // Verificar que el Worker de Cloudflare responda
+    setTimeout(checkWorker, 500);
   }
 
   // Auto-init cuando el DOM esté listo
@@ -783,6 +800,7 @@ const Debug = (() => {
     flyToPOI,
     forceLoadPOIs,
     testNarration,
+    checkWorker,
     clearCache,
     clearLogs,
     clearTimings

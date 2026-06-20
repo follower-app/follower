@@ -114,8 +114,12 @@ const Voice = (() => {
     };
 
     // Workaround Chrome — a veces se congela sin este timeout
+    // Capturamos la referencia local para evitar race condition
+    // si speak() se llama de nuevo (y stop() limpia _utterance) antes de los 100ms
+    const utteranceToSpeak = _utterance;
     setTimeout(() => {
-      window.speechSynthesis.speak(_utterance);
+      if (!utteranceToSpeak) return;
+      window.speechSynthesis.speak(utteranceToSpeak);
     }, 100);
 
     _isSpeaking = true;

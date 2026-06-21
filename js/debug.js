@@ -54,6 +54,7 @@ const Debug = (() => {
         display: flex;
         flex-direction: column;
         backdrop-filter: blur(12px);
+        overflow-x: hidden;
       }
 
       #dbg-panel.hidden { display: none; }
@@ -155,7 +156,14 @@ const Debug = (() => {
       .dbg-log-type.error   { background: rgba(192,57,43,0.4);  color: #e74c3c; }
       .dbg-log-type.info    { background: rgba(255,255,255,0.1); color: #c8d4e0; }
 
-      .dbg-log-msg { color: #c8d4e0; font-size: 11px; }
+      .dbg-log-msg {
+        color: #c8d4e0;
+        font-size: 11px;
+        flex: 1;
+        min-width: 0;
+        overflow-wrap: break-word;
+        word-break: break-word;
+      }
 
       /* ── SECCIÓN SEARCH ── */
       #dbg-search-wrap {

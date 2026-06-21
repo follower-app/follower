@@ -12,6 +12,7 @@ const POI = (() => {
   let _markers      = {};       // marcadores Leaflet { poi.id: marker }
   let _lastFetchPos = null;     // última posición donde se hicieron fetch
   let _db           = null;     // instancia IndexedDB
+  let _isFetchingPOIs = false;  // candado: evita fetches solapados a Overpass (BUG concurrencia)
 
   /* ── CONFIGURACIÓN ── */
   const CONFIG = {
@@ -193,37 +194,47 @@ const POI = (() => {
 
   /* ── CARGAR POIs — con fallback a cache ── */
   async function loadPOIs(lat, lng) {
-    // Intentar desde OSM si hay conexión
-    if (!AppState.offline) {
-      try {
-        const fresh = await fetchPOIsFromOSM(lat, lng, CONFIG.FETCH_RADIUS_KM);
-        if (fresh.length > 0) {
-          _pois = fresh;
-          await savePOIsToDB(fresh);
-          _lastFetchPos = { lat, lng };
-          renderAllMarkers();
-          console.log(`POI: ${fresh.length} POIs cargados y renderizados`);
-          return;
-        } else {
-          console.warn('POI: Overpass respondió OK pero 0 POIs normalizados — revisar query/zona');
-        }
-      } catch (e) {
-        console.warn('POI: error fetching desde OSM, usando cache —', e.message);
-      }
-    } else {
-      console.log('POI: AppState.offline=true, saltando fetch a OSM');
+    if (_isFetchingPOIs) {
+      console.log('POI: fetch ya en curso, ignorando solicitud duplicada');
+      return;
     }
+    _isFetchingPOIs = true;
 
-    // Fallback: cargar desde IndexedDB
-    const dbgId = (typeof Debug !== 'undefined')
-      ? Debug.metricStart('poi', 'cache IndexedDB load')
-      : null;
-    const cached = await loadPOIsFromDB();
-    if (dbgId) Debug.metricEnd(dbgId, 'fallback', { count: cached.length });
-    console.log(`POI: cache IndexedDB tiene ${cached.length} POIs`);
-    if (cached.length > 0) {
-      _pois = cached;
-      renderAllMarkers();
+    try {
+      // Intentar desde OSM si hay conexión
+      if (!AppState.offline) {
+        try {
+          const fresh = await fetchPOIsFromOSM(lat, lng, CONFIG.FETCH_RADIUS_KM);
+          if (fresh.length > 0) {
+            _pois = fresh;
+            await savePOIsToDB(fresh);
+            _lastFetchPos = { lat, lng };
+            renderAllMarkers();
+            console.log(`POI: ${fresh.length} POIs cargados y renderizados`);
+            return;
+          } else {
+            console.warn('POI: Overpass respondió OK pero 0 POIs normalizados — revisar query/zona');
+          }
+        } catch (e) {
+          console.warn('POI: error fetching desde OSM, usando cache —', e.message);
+        }
+      } else {
+        console.log('POI: AppState.offline=true, saltando fetch a OSM');
+      }
+
+      // Fallback: cargar desde IndexedDB
+      const dbgId = (typeof Debug !== 'undefined')
+        ? Debug.metricStart('poi', 'cache IndexedDB load')
+        : null;
+      const cached = await loadPOIsFromDB();
+      if (dbgId) Debug.metricEnd(dbgId, 'fallback', { count: cached.length });
+      console.log(`POI: cache IndexedDB tiene ${cached.length} POIs`);
+      if (cached.length > 0) {
+        _pois = cached;
+        renderAllMarkers();
+      }
+    } finally {
+      _isFetchingPOIs = false;
     }
   }
 

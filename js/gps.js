@@ -43,8 +43,9 @@ const GPS = (() => {
       maxZoom:         CONFIG.MAP_ZOOM_MAX
     });
 
-    // Tiles CartoDB Dark Matter — DA-13: oscuridad real en vez de filtro simulado
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+    // Tiles CartoDB Positron — DA-13 revisado: Dark Matter resultó ilegible
+    // con luz de sol directa en pruebas reales en iPhone; se pasa a estilo claro
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
       maxZoom:      CONFIG.MAP_ZOOM_MAX,
       attribution:  '',
       subdomains:   'abcd',

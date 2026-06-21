@@ -188,7 +188,7 @@ body.phase-alert    .top-pill-mood { color: var(--color-alert); }
 
 /* ── MAPA LEAFLET — override base ── */
 .leaflet-container {
-  background: var(--color-night) !important;
+  background: var(--color-cream) !important;
   font-family: var(--font-ui) !important;
 }
 

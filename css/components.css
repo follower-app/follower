@@ -449,6 +449,7 @@
   white-space: nowrap;
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
+  max-width: calc(100vw - 32px);
 }
 
 .top-pill-city {
@@ -457,12 +458,17 @@
   font-weight: var(--weight-regular);
   color: var(--color-ice);
   letter-spacing: 0.04em;
+  flex-shrink: 0;
+  max-width: 45%;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .top-pill-divider {
   width: 1px;
   height: 12px;
   background: var(--color-border);
+  flex-shrink: 0;
 }
 
 .top-pill-mood {
@@ -472,6 +478,9 @@
   color: var(--color-diastole);
   letter-spacing: 0.06em;
   transition: color var(--transition-base);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* Indicador offline */

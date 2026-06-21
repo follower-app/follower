@@ -43,9 +43,10 @@ const GPS = (() => {
       maxZoom:         CONFIG.MAP_ZOOM_MAX
     });
 
-    // Tiles CartoDB Positron — DA-13 revisado: Dark Matter resultó ilegible
-    // con luz de sol directa en pruebas reales en iPhone; se pasa a estilo claro
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+    // Tiles CartoDB Voyager — DA-13 revisado otra vez: Positron resultó
+    // demasiado minimalista (sin parques/agua/etiquetas suficientes).
+    // Voyager da color + info manteniendo legibilidad, más cerca de Google Maps
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
       maxZoom:      CONFIG.MAP_ZOOM_MAX,
       attribution:  '',
       subdomains:   'abcd',

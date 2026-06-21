@@ -249,7 +249,7 @@ function initConfigModal() {
 
 /* ── EVENT LISTENERS — MODE MODAL ── */
 function initModeModal() {
-  const btnFree = document.getElementById('btnModeFreee');
+  const btnFree = document.getElementById('btnModeFree');
   if (btnFree) {
     btnFree.addEventListener('click', () => {
       Config.setMode('free');

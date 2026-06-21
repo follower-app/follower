@@ -43,10 +43,12 @@ const GPS = (() => {
       maxZoom:         CONFIG.MAP_ZOOM_MAX
     });
 
-    // Tiles OpenStreetMap
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      maxZoom:     CONFIG.MAP_ZOOM_MAX,
-      attribution: ''
+    // Tiles CartoDB Dark Matter — DA-13: oscuridad real en vez de filtro simulado
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+      maxZoom:      CONFIG.MAP_ZOOM_MAX,
+      attribution:  '',
+      subdomains:   'abcd',
+      detectRetina: true
     }).addTo(_map);
 
     // Marcador del usuario — círculo azul sístole

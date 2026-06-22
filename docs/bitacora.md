@@ -641,5 +641,136 @@ BUG-001 al BUG-019 resueltos (ver entradas anteriores de bitácora)
 
 ---
 
+## Sesión 7 — Junio 2026
+
+### Contexto
+Sesión enfocada en dos objetivos: (1) terminar de cerrar bugs del
+simulador encontrados en iPhone, y (2) construir el sistema unificado
+de métricas de experiencia — el rediseño del panel de debug para que
+sirva como herramienta real de toma de decisiones de producto, no solo
+como inspector técnico.
+
+### Análisis previo al código
+
+Se trazó el orden real del pipeline completo de experiencia:
+```
+watchPosition → onPosition → throttle 5000ms → detectNearby
+  → activatePOI → setPhase('diastole') → Narration.trigger()
+    → cache / Claude Worker → Voice.speak()
+      → Music.dipForNarration() → callback onEnd
+        → Music.restoreAfterNarration() → setPhase('systole')
+```
+
+Se identificaron 3 capas de métricas necesarias para responder si
+Follower funciona como experiencia cinematográfica:
+- **Capa 1:** ¿El pipeline llega a dispararse? (POIs, embudo, primera narración)
+- **Capa 2:** ¿La narración llega a tiempo? (lag texto→voz, duración hablada)
+- **Capa 3:** ¿El ritmo es cinematográfico? (sístole/diástole, intervalos, silencios)
+
+Se encontró que el sistema existente cubría bien la **salud técnica**
+(¿llega la respuesta de Overpass?, ¿responde el Worker?) pero casi nada
+de la **experiencia real** — `voice.js` sin ninguna instrumentación, ritmo
+sístole/diástole solo en variables locales del simulador, sin embudo
+POI→narración, sin tiempo hasta primera narración.
+
+### Cambios realizados
+
+**Instrumentación de `js/voice.js` — Capa 2**
+- `lag texto→voz`: `metricStart` antes del `setTimeout` de 100ms,
+  `metricEnd` en `onstart` — mide el tiempo real entre texto listo y
+  arranque de voz (incluye el workaround de Chrome + delays de iOS)
+- `duración narración hablada`: `metricStart` en `onstart`,
+  `metricEnd` en `onend` — con `chars: text.length` en meta para
+  correlacionar longitud de texto con duración
+- Errores de síntesis: `onerror` ahora registra en el log exportable
+  (antes solo `console.warn`, invisible en reportes de campo)
+- "Web Speech API no disponible" también registrado en log
+
+**Instrumentación de `js/app.js` — Capa 3**
+- `AppState` gana 7 campos nuevos: `_phaseStart`, `_msTotalSystole`,
+  `_msTotalDiastole`, `_lastNarrationTs`, `_narrationCount`,
+  `_sessionStart`, `_firstNarrationTs`
+- `setPhase()` acumula ms en cada transición de fase y detecta silencios
+  de más de 5 minutos con log automático
+- `initExplore()` marca `_sessionStart` — base para "tiempo hasta primera
+  narración"
+
+**Instrumentación de `js/narration.js` — Capa 1 + 3**
+- Tiempo hasta primera narración (desde `_sessionStart`) logueado en
+  el primer `trigger()`
+- Intervalo entre narraciones consecutivas logueado en cada `trigger()`
+- `_narrationCount++` y `_lastNarrationTs` actualizados en cada narración
+
+**Instrumentación de `js/poi.js` — Capa 1**
+- `detectNearby()` registra en cada chequeo: POIs cargados, POIs en
+  radio cercano, km caminados — base del embudo POI check → narración
+
+**Dashboard de Experiencia en `js/debug.js`**
+- Tab "Estado" completamente rediseñado en 3 secciones visuales:
+  Capa 1 Pipeline, Capa 2 Narración en tiempo, Capa 3 Ritmo
+- Capa 3 incluye sístole/diástole en tiempo real (acumula la fase
+  actual que aún no cerró en AppState, no solo el histórico)
+- Botón "Exportar" movido al tab Estado — accesible en cualquier momento
+- Colores de log: agregados `music`, `narration`, `warn`
+- Eliminado `patchGPS()` — código muerto desde fix de `flyToPOI()`
+
+**Exportador unificado en `js/debug.js`**
+- Nueva sección "Análisis de Experiencia Cinematográfica" al inicio del
+  reporte, antes del resumen técnico de tiempos:
+  - Capa 1: narraciones, km por narración, tasa narración/chequeo de POI,
+    tiempo hasta primera narración
+  - Capa 2: cache hits/misses, Worker avg, lag texto→voz avg, duración
+    voz avg, errores de síntesis
+  - Capa 3: tiempo total de sesión, % sístole/diástole, intervalo entre
+    narraciones avg, silencios >5min
+  - **Veredicto automático**: diagnóstico de la sesión basado en los datos
+    (crítico / densidad baja / poco diástole / activo)
+
+**Conexión real de `js/debug-sim.js` con el sistema de métricas**
+- Eliminados: `_phaseAccum`, `_lastPhase`, `_lastPhaseTs`,
+  `_narrationsTriggered`, `startBackgroundTracking()` — duplicaban
+  estado que ahora vive correctamente en `AppState`
+- Todo leído directamente de `AppState._msTotalSystole`,
+  `_msTotalDiastole`, `_narrationCount`, `_phaseStart` — misma fuente
+  que el dashboard de `debug.js`
+- Resultado: simulador y sesión de campo real muestran los mismos
+  números porque comparten una sola fuente de verdad
+
+### Hallazgo de producto
+
+Los botones `btnBookmark` y `btnShare` del splash (`index.html` líneas
+298-299) están en el HTML como emojis (`🔖` y `📤`) sin ningún listener
+ni lógica implementada. Son botones huérfanos de una versión anterior del
+diseño. Decisión pendiente: quitar, ocultar o implementar.
+
+### Deuda técnica actualizada
+
+| ID | Descripción | Prioridad |
+|----|-------------|-----------|
+| DT-1 | Logo SVG final + iconos PWA | Alta |
+| DT-2 | Archivos de música por mood (4 MP3) | Alta |
+| DT-3 | sw.js — service worker | Alta (último) |
+| DT-4 | Pantalla resumen del paseo | Media |
+| DT-5 | Más ciudades en routes.js | Baja |
+| DT-8 | `debug.js` + `debug-sim.js` deshabilitados antes de v1.0 | Media |
+| DT-9 | Revocar key OpenAI expuesta (commits `a249fee8`–`a303f110`) | Alta |
+| DT-10 | Error IndexedDB `"connection is closing"` — no confirmado si BUG-014 lo resolvió | Media |
+| DT-11 | Worker 400 en arranque de sesión — sin diagnosticar | Baja |
+| DT-12 | Atribución CARTO/OSM no visible | Baja |
+| DT-13 | Botones `btnBookmark`/`btnShare` huérfanos en splash | Baja |
+
+### Próxima sesión
+
+1. Probar simulador + dashboard de experiencia en iPhone con el
+   sistema unificado — confirmar que los números de sístole/diástole
+   y narraciones son consistentes entre tab Simular y tab Estado
+2. Exportar un reporte completo post-simulación y revisar el veredicto
+   automático — validar que las 3 capas de análisis tienen sentido
+3. Confirmar BUG-014 (candado) en campo — los 429 deben haber desaparecido
+4. DT-9 — revocar key OpenAI (pendiente hace varias sesiones)
+5. DT-2 — música por mood (necesaria para validar BUG-018 en campo)
+
+---
+
 *Follower — Bitácora v0.5 | Junio 2026*
 

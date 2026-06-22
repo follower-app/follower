@@ -148,6 +148,16 @@ entre sí. El historial completo vive en un arreglo, no en un objeto que se
 sobreescribe, y se persiste en `localStorage` (`follower_debug_log`) para
 sobrevivir recargas de página durante pruebas en campo.
 
+Categorías instrumentadas:
+- `poi` — Overpass fetch, cache IndexedDB load, chequeos detectNearby
+- `narration` — cache lookup, Claude Worker call, narración total
+- `voice` — lag texto→voz, duración narración hablada, errores de síntesis
+- `music` — cargar track
+
+El estado de la experiencia cinematográfica (sístole/diástole, primera
+narración, intervalos) vive en `AppState` (ver DA-16), no en `_metrics`,
+porque son acumulados de sesión, no mediciones discretas con duración.
+
 ### DA-13 — CartoDB Voyager como proveedor de tiles del mapa
 
 Se iteró en vivo contra capturas reales de campo: el filtro
@@ -198,6 +208,31 @@ posición en un array hardcodeado (`['status','search','logs','timing']`) —
 se hubiera roto en silencio con cualquier tab agregada dinámicamente. Se
 corrigió a matching por atributo `data-tab`, que escala a cualquier
 cantidad de tabs.
+
+### DA-16 — Estado de experiencia en AppState, no en métricas de tiempo
+
+Las métricas discretas (duración de un fetch, lag de voz) viven en
+`_metrics` de `debug.js`. El estado de la experiencia cinematográfica —
+que es acumulado a lo largo de toda la sesión — vive en `AppState`:
+
+```javascript
+AppState._phaseStart        // timestamp inicio de la fase actual
+AppState._msTotalSystole    // ms acumulados en sístole (caminando)
+AppState._msTotalDiastole   // ms acumulados en diástole (narrando)
+AppState._lastNarrationTs   // timestamp de la última narración
+AppState._narrationCount    // total de narraciones en la sesión
+AppState._sessionStart      // timestamp de inicio de sesión (initExplore)
+AppState._firstNarrationTs  // timestamp de la primera narración
+```
+
+`setPhase()` en `app.js` es la única función que acumula los tiempos de
+fase — cualquier transición sístole/diástole pasa por ahí, tanto en GPS
+real como en el simulador (que entra por `GPS.simulatePosition()` → 
+`onPosition()` → `detectNearby()` → `activatePOI()` → `setPhase()`).
+
+Regla: `debug-sim.js` nunca calcula sus propios acumulados de experiencia
+— siempre lee de `AppState`. Esto garantiza que el dashboard muestre los
+mismos números en una sesión de campo real y en una sesión simulada.
 
 ```js
 const id = Debug.metricStart('narration', 'Claude Worker call');

@@ -36,7 +36,7 @@ Antes de proponer cualquier cambio técnico, verificar alineación con:
 
 - `docs/contexto_maestro.md` — alma del producto, pregunta rectora
 - `README.md` — visión, pantallas, flujo completo
-- `docs/arquitectura.md` — decisiones DA-1 a DA-15
+- `docs/arquitectura.md` — decisiones DA-1 a DA-16
 - `docs/bitacora.md` — historial, bugs resueltos, deuda técnica
 
 Preguntarse siempre:
@@ -196,8 +196,8 @@ PWA                         — instalable
 - **App:** [follower-app.github.io/follower](https://follower-app.github.io/follower)
 - **Repo:** [github.com/follower-app/follower](https://github.com/follower-app/follower) (público)
 - **Worker:** [followernarration.jaimeand.workers.dev](https://followernarration.jaimeand.workers.dev) — proxy de Claude API y OpenWeatherMap
-- **Estado actual:** v0.5 — debugging activo, candado de concurrencia en poi.js (BUG-014), mapa CartoDB Voyager (DA-13), simulador GPS (debug-sim.js) integrado
-- **Próximo hito:** v0.6 — probar simulador en campo, música por mood (DT-2), íconos PWA (DT-1)
+- **Estado actual:** v0.5 — sistema de métricas de experiencia completo (3 capas), dashboard unificado, simulador conectado a AppState
+- **Próximo hito:** v0.6 — música por mood (DT-2), íconos PWA (DT-1), prueba de campo con reporte de análisis de experiencia
 
 ---
 
@@ -216,20 +216,20 @@ PWA                         — instalable
 | `css/poi.css` | Pantalla POI expandida |
 | `js/keys.js` | Vacío — LOCAL ONLY, .gitignore. Claude y clima vía Worker, no se carga en index.html |
 | `js/config.js` | Idioma, mood, preferencias, localStorage |
-| `js/app.js` | AppState, navigateTo(), setPhase(), init |
+| `js/app.js` | AppState + 7 campos de métricas de experiencia, setPhase() acumula sístole/diástole, navigateTo(), initExplore() marca sessionStart |
 | `js/gps.js` | Leaflet, watchPosition, Haversine, Nominatim, simulatePosition() (DA-14) |
-| `js/poi.js` | Overpass OSM (lz4 mirror), IndexedDB, detectPOI, candado de concurrencia (BUG-014) |
-| `js/narration.js` | Claude API vía Worker, prompts × 4 moods × 2 langs |
-| `js/voice.js` | Web Speech API, 12 idiomas BCP-47 |
+| `js/poi.js` | Overpass OSM (lz4 mirror), IndexedDB, detectPOI, candado de concurrencia (BUG-014), embudo detectNearby instrumentado |
+| `js/narration.js` | Claude API vía Worker, prompts × 4 moods × 2 langs, dip de música (BUG-018), métricas primera narración + intervalos |
+| `js/voice.js` | Web Speech API, 12 idiomas BCP-47, métricas lag texto→voz + duración hablada (DA-16) |
 | `js/music.js` | Web Audio API, fadeMusic, dip/restore |
 | `js/weather.js` | OpenWeatherMap vía Worker, lluvia, cache 30min |
 | `js/care.js` | checkCareContext, 4 prioridades, cooldown |
 | `js/routes.js` | 5 recorridos Roma, Leaflet polyline, picker |
-| `js/debug.js` | Panel debug flotante — Estado/Buscar POI/Logs/Tiempos/Simular, métricas con historial persistente (DA-12), registro de tabs externas (DA-15), export .txt |
-| `js/debug-sim.js` | Simulador GPS — teletransportar/dibujar ruta, registrado como 5ta tab vía Debug.registerTab() |
+| `js/debug.js` | Dashboard de 3 capas de experiencia, métricas con historial (DA-12), exportador con análisis de experiencia + veredicto automático, registro de tabs externas (DA-15) |
+| `js/debug-sim.js` | Simulador GPS — teletransportar/dibujar ruta, métricas leídas de AppState (DA-16), registrado como 5ta tab vía Debug.registerTab() |
 | `docs/contexto_maestro.md` | Alma del producto, principios, pregunta rectora |
 | `docs/producto.md` | Producto, usuarios, principios |
-| `docs/arquitectura.md` | Decisiones DA-1 a DA-15 |
+| `docs/arquitectura.md` | Decisiones DA-1 a DA-16 |
 | `docs/bitacora.md` | Historial, bugs, deuda técnica |
 
 ---

@@ -541,5 +541,105 @@ información que Google Maps — no es una limitación de configuración nuestra
 
 ---
 
+## Sesión 6 — continuación (misma fecha)
+
+### Bugs adicionales encontrados y cerrados
+
+**BUG-018 — Music.dipForNarration() nunca se llamaba**
+- `dipForNarration()` y `restoreAfterNarration()` existían en `music.js`
+  y estaban exportadas, pero ningún módulo las invocaba — música y voz
+  competían en volumen durante toda la narración, arruinando la
+  experiencia cinematográfica
+- Descubierto al trazar el orden real del pipeline completo:
+  GPS → POI → narración → voz → música
+- Fix en `js/narration.js`: `Music.dipForNarration()` antes de
+  `Voice.speak()` (texto listo = música baja), `Music.restoreAfterNarration()`
+  en el callback de fin de voz (habló = música sube)
+- Impacto: bug de experiencia, no técnico — el pipeline funcionaba pero
+  la experiencia no se sentía cinematográfica
+
+**BUG-019 — GPS.flyTo() no existe, "Ver en el mapa" no hacía nada**
+- `flyToPOI()` en `debug.js` llamaba a `GPS.flyTo(poi.lat, poi.lng)` —
+  función que nunca fue implementada en `gps.js`
+- Fix en `js/debug.js`: reemplazado por `GPS.getMap().setView()` directo,
+  el mismo patrón que ya usa `jumpToCityResult()` en el simulador
+
+**Bugs del simulador (debug-sim.js) — encontrados en prueba en iPhone**
+- Input de ciudad no permitía escribir en iOS: el timer de auto-refresh
+  (500ms) regeneraba el `innerHTML` completo del panel mientras el usuario
+  escribía, cerrando el teclado virtual. Fix: `_cityQuery` preserva el
+  valor entre re-renders; `refreshTabIfActive()` detecta si el input
+  tiene foco y solo actualiza las stats numéricas sin tocar el input;
+  listeners adjuntados con `addEventListener` post-render en vez de
+  `onkeydown` inline
+- Resultados de búsqueda desaparecían en milisegundos: el timer de 500ms
+  borraba los resultados incluso cuando el input no tenía foco (ej. al
+  hacer clic en "Buscar", el foco pasa al botón, no al input). Fix:
+  `_renderCityResultsInDOM()` restaura los resultados después de cada
+  re-render del panel
+- Teletransporte y mapa no funcionaban al iniciar: `GPS.getMap()` devuelve
+  `null` hasta que `onPosition()` corre por primera vez —
+  `ensureMapClickListener()` y `GPS.stop()` se llamaban antes de que el
+  mapa existiera. Fix: `teleportTo()` solo llama `GPS.stop()` si el mapa
+  ya existe; `ensureMapClickListener()` se mueve a después de
+  `simulatePosition()`; `setView()` después de `teleportTo()` en
+  `jumpToCityResult()`
+
+### Estado de pendientes al cierre de sesión
+
+**Bugs de código — todos cerrados:**
+BUG-001 al BUG-019 resueltos (ver entradas anteriores de bitácora)
+
+**Pendiente de verificación en campo (no confirmado en iPhone):**
+- Simulador end-to-end: búsqueda de ciudad → teletransporte → dibujar
+  ruta → caminar. Los bugs de UI están corregidos pero no probados en
+  dispositivo real post-fix
+- BUG-014 (candado de concurrencia): no confirmado que eliminó los 429
+  en uso real. Requiere nueva prueba de campo con el log exportado
+
+**Deuda técnica abierta:**
+
+| ID | Descripción | Prioridad |
+|----|-------------|-----------|
+| DT-1 | Logo SVG final + iconos PWA | Alta |
+| DT-2 | Archivos de música por mood (4 MP3) | Alta |
+| DT-3 | sw.js — service worker | Alta (último) |
+| DT-4 | Pantalla resumen del paseo | Media |
+| DT-5 | Más ciudades en routes.js | Baja |
+| DT-8 | `debug.js` + `debug-sim.js` deshabilitados antes de v1.0 | Media |
+| DT-9 | Revocar key OpenAI expuesta (commits `a249fee8`–`a303f110`) | Alta |
+| DT-10 | Error IndexedDB `"connection is closing"` — no confirmado si BUG-014 lo resolvió | Media |
+| DT-11 | Worker 400 en arranque de sesión — sin diagnosticar | Baja |
+| DT-12 | Atribución CARTO/OSM no visible | Baja |
+
+**Pendiente de implementar (próximas sesiones):**
+- Instrumentación completa del pipeline de experiencia (ver análisis
+  de capas en esta sesión): voz (`voice.js` sin ninguna métrica),
+  dip de música, tiempo hasta primera narración, ritmo sístole/diástole
+  en el sistema real (no solo en debug-sim.js local), intervalo entre
+  narraciones, % de chequeos de POI que terminan en narración
+- Botones `btnBookmark` y `btnShare` en splash — huérfanos, sin lógica
+  implementada ni listeners. Decisión pendiente: quitar, ocultar o
+  implementar (Share via Web Share API sería sencillo)
+- Panel de debug unificado: hoy `debug.js` y `debug-sim.js` comparten
+  estado de forma implícita. El simulador trackea sístole/diástole y
+  narraciones localmente, no en el sistema de métricas real. Pendiente
+  consolidar en un sistema donde el simulador alimenta las mismas
+  métricas que una sesión de campo real
+
+### Próxima sesión
+
+1. Probar simulador completo en iPhone (post-fixes de UI)
+2. Nueva prueba de campo (o simulada) con log exportado — confirmar
+   que BUG-014 eliminó los 429 y que las narraciones se disparan
+3. Confirmar si BUG-018 (dip de música) se siente en la experiencia
+   real — requiere que DT-2 (MP3 reales) esté resuelto primero, o
+   probar con un archivo de audio válido
+4. DT-9 — revocar key OpenAI (acción en el proveedor)
+5. Decidir qué instrumentar primero en `voice.js` para cubrir la
+   Capa 2 del análisis de experiencia
+
+---
+
 *Follower — Bitácora v0.5 | Junio 2026*
 

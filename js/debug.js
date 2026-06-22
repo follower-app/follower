@@ -149,12 +149,15 @@ const Debug = (() => {
         text-transform: uppercase;
       }
 
-      .dbg-log-type.gps     { background: rgba(26,82,118,0.5);  color: #5dade2; }
-      .dbg-log-type.poi     { background: rgba(39,174,96,0.3);  color: #2ecc71; }
-      .dbg-log-type.api     { background: rgba(243,156,18,0.3); color: #f39c12; }
-      .dbg-log-type.voice   { background: rgba(155,89,182,0.3); color: #bb8fce; }
-      .dbg-log-type.error   { background: rgba(192,57,43,0.4);  color: #e74c3c; }
-      .dbg-log-type.info    { background: rgba(255,255,255,0.1); color: #c8d4e0; }
+      .dbg-log-type.gps        { background: rgba(26,82,118,0.5);  color: #5dade2; }
+      .dbg-log-type.poi        { background: rgba(39,174,96,0.3);  color: #2ecc71; }
+      .dbg-log-type.api        { background: rgba(243,156,18,0.3); color: #f39c12; }
+      .dbg-log-type.voice      { background: rgba(155,89,182,0.3); color: #bb8fce; }
+      .dbg-log-type.music      { background: rgba(52,152,219,0.3); color: #85c1e9; }
+      .dbg-log-type.narration  { background: rgba(192,57,43,0.3);  color: #e74c3c; }
+      .dbg-log-type.warn       { background: rgba(243,156,18,0.4); color: #f39c12; }
+      .dbg-log-type.error      { background: rgba(192,57,43,0.4);  color: #e74c3c; }
+      .dbg-log-type.info       { background: rgba(255,255,255,0.1); color: #c8d4e0; }
 
       .dbg-log-msg {
         color: #c8d4e0;
@@ -519,97 +522,178 @@ const Debug = (() => {
     if (tab === 'search') bindSearchListeners();
   }
 
-  /* ── RENDER STATUS ── */
+  /* ── RENDER STATUS — Dashboard de Experiencia ── */
   function renderStatus() {
-    const s = typeof AppState !== 'undefined' ? AppState : {};
-    const gps    = s.gps;
-    const poiCount = typeof POI !== 'undefined' ? POI.getPOIs().length : '?';
+    const s   = typeof AppState !== 'undefined' ? AppState : {};
+    const gps = s.gps;
+    const now = performance.now();
 
-    const gpsClass = gps ? 'ok' : 'error';
-    const gpsVal   = gps
-      ? `${gps.lat.toFixed(5)}, ${gps.lng.toFixed(5)}`
-      : 'Sin señal';
-    const accVal   = gps ? `±${Math.round(gps.accuracy || 0)}m` : '—';
+    // ── Capa 1: ¿El pipeline llega a dispararse? ──
+    const poiCount   = typeof POI !== 'undefined' ? POI.getPOIs().length : 0;
+    const poiClass   = poiCount > 0 ? 'ok' : 'warn';
+    const inFlight   = getInFlightCount('poi');
+    const kmWalked   = (s.kmWalked || 0).toFixed(2);
+    const narCount   = s._narrationCount || 0;
+    const kmPerNar   = narCount > 0 ? (s.kmWalked / narCount).toFixed(2) : '—';
 
-    const offlineClass = s.offline ? 'error' : 'ok';
-    const offlineVal   = s.offline ? 'OFFLINE' : 'Online';
+    let timeToFirst = '—';
+    if (s._firstNarrationTs !== null && s._sessionStart !== null) {
+      timeToFirst = Math.round((s._firstNarrationTs - s._sessionStart) / 1000) + 's';
+    } else if (s._sessionStart !== null) {
+      timeToFirst = '⏳ esperando...';
+    }
 
-    const poiClass = poiCount > 0 ? 'ok' : 'warn';
+    // ── Capa 2: ¿La narración llega a tiempo? ──
+    const isNarrating = typeof Narration !== 'undefined' && Narration.isNarrating();
+    const isSpeaking  = typeof Voice !== 'undefined' && Voice.isSpeaking();
 
-    const workerClass = window._dbgWorkerStatus === 'ok' ? 'ok'
-                       : window._dbgWorkerStatus === 'checking' ? 'warn'
-                       : 'error';
-    const workerVal   = window._dbgWorkerStatus === 'ok' ? 'Worker OK'
-                       : window._dbgWorkerStatus === 'checking' ? 'Verificando...'
-                       : '⚠️ Sin verificar';
+    // Promedios de voice desde _metrics
+    const voiceLagMetrics = _metrics.filter(m => m.category === 'voice' && m.label === 'lag texto→voz' && m.status === 'ok');
+    const voiceDurMetrics = _metrics.filter(m => m.category === 'voice' && m.label === 'duración narración hablada' && m.status === 'ok');
+    const voiceLagAvg  = voiceLagMetrics.length
+      ? Math.round(voiceLagMetrics.reduce((a, b) => a + b.ms, 0) / voiceLagMetrics.length) + 'ms'
+      : '—';
+    const voiceDurAvg  = voiceDurMetrics.length
+      ? Math.round(voiceDurMetrics.reduce((a, b) => a + b.ms, 0) / voiceDurMetrics.length / 1000) + 's'
+      : '—';
+    const workerMetrics = _metrics.filter(m => m.category === 'narration' && m.label === 'Claude Worker call' && m.status === 'ok');
+    const workerAvg = workerMetrics.length
+      ? Math.round(workerMetrics.reduce((a, b) => a + b.ms, 0) / workerMetrics.length) + 'ms'
+      : '—';
+
+    // ── Capa 3: ¿El ritmo es cinematográfico? ──
+    // Acumular la fase actual (que aún no cerró en AppState)
+    let sistoleMs  = s._msTotalSystole  || 0;
+    let diastoleMs = s._msTotalDiastole || 0;
+    if (s._phaseStart !== null) {
+      const currentPhaseMs = now - s._phaseStart;
+      if (s.phase === 'systole')  sistoleMs  += currentPhaseMs;
+      if (s.phase === 'diastole') diastoleMs += currentPhaseMs;
+    }
+    const totalMs      = sistoleMs + diastoleMs || 1;
+    const sistolePct   = Math.round((sistoleMs  / totalMs) * 100);
+    const diastolePct  = Math.round((diastoleMs / totalMs) * 100);
+
+    let intervaloStr = '—';
+    if (s._lastNarrationTs !== null) {
+      const seg = Math.round((now - s._lastNarrationTs) / 1000);
+      intervaloStr = `hace ${seg}s`;
+    }
+
+    const workerClass = window._dbgWorkerStatus === 'ok'       ? 'ok'
+                      : window._dbgWorkerStatus === 'checking' ? 'warn'
+                      : 'error';
+    const workerVal   = window._dbgWorkerStatus === 'ok'       ? 'OK'
+                      : window._dbgWorkerStatus === 'checking' ? 'Verificando...'
+                      : 'Sin verificar';
 
     return `
+      <div class="dbg-section-label">🎬 Capa 1 — Pipeline</div>
       <div class="dbg-grid">
-        <div class="dbg-cell">
-          <div class="dbg-cell-label">GPS</div>
-          <div class="dbg-cell-value ${gpsClass}">${gpsVal}</div>
-        </div>
-        <div class="dbg-cell">
-          <div class="dbg-cell-label">Precisión GPS</div>
-          <div class="dbg-cell-value">${accVal}</div>
-        </div>
-        <div class="dbg-cell">
-          <div class="dbg-cell-label">Conectividad</div>
-          <div class="dbg-cell-value ${offlineClass}">${offlineVal}</div>
-        </div>
-        <div class="dbg-cell">
-          <div class="dbg-cell-label">Cloudflare Worker</div>
-          <div class="dbg-cell-value ${workerClass}">${workerVal}</div>
-        </div>
         <div class="dbg-cell">
           <div class="dbg-cell-label">POIs cargados</div>
           <div class="dbg-cell-value ${poiClass}">${poiCount}</div>
+        </div>
+        <div class="dbg-cell">
+          <div class="dbg-cell-label">Fetches en vuelo</div>
+          <div class="dbg-cell-value ${inFlight > 0 ? 'warn' : 'ok'}">${inFlight}</div>
+        </div>
+        <div class="dbg-cell">
+          <div class="dbg-cell-label">Narraciones</div>
+          <div class="dbg-cell-value ${narCount > 0 ? 'ok' : ''}">${narCount}</div>
+        </div>
+        <div class="dbg-cell">
+          <div class="dbg-cell-label">Km por narración</div>
+          <div class="dbg-cell-value">${kmPerNar}</div>
+        </div>
+        <div class="dbg-cell">
+          <div class="dbg-cell-label">Km caminados</div>
+          <div class="dbg-cell-value">${kmWalked}</div>
+        </div>
+        <div class="dbg-cell">
+          <div class="dbg-cell-label">Primera narración</div>
+          <div class="dbg-cell-value ${s._firstNarrationTs ? 'ok' : ''}">${timeToFirst}</div>
+        </div>
+      </div>
+
+      <div class="dbg-section-label">🎙️ Capa 2 — Narración en tiempo</div>
+      <div class="dbg-grid">
+        <div class="dbg-cell">
+          <div class="dbg-cell-label">Estado</div>
+          <div class="dbg-cell-value ${isNarrating ? 'ok' : ''}">
+            ${isNarrating ? '🔴 Narrando' : isSpeaking ? '🔊 Hablando' : 'En espera'}
+          </div>
+        </div>
+        <div class="dbg-cell">
+          <div class="dbg-cell-label">Worker Claude (avg)</div>
+          <div class="dbg-cell-value">${workerAvg}</div>
+        </div>
+        <div class="dbg-cell">
+          <div class="dbg-cell-label">Lag texto→voz (avg)</div>
+          <div class="dbg-cell-value">${voiceLagAvg}</div>
+        </div>
+        <div class="dbg-cell">
+          <div class="dbg-cell-label">Duración voz (avg)</div>
+          <div class="dbg-cell-value">${voiceDurAvg}</div>
+        </div>
+      </div>
+
+      <div class="dbg-section-label">💓 Capa 3 — Ritmo cinematográfico</div>
+      <div class="dbg-grid">
+        <div class="dbg-cell">
+          <div class="dbg-cell-label">Sístole (caminando)</div>
+          <div class="dbg-cell-value">${sistolePct}%</div>
+        </div>
+        <div class="dbg-cell">
+          <div class="dbg-cell-label">Diástole (narrando)</div>
+          <div class="dbg-cell-value ${diastolePct > 0 ? 'ok' : ''}">${diastolePct}%</div>
+        </div>
+        <div class="dbg-cell">
+          <div class="dbg-cell-label">Última narración</div>
+          <div class="dbg-cell-value">${intervaloStr}</div>
+        </div>
+        <div class="dbg-cell">
+          <div class="dbg-cell-label">Fase actual</div>
+          <div class="dbg-cell-value">${s.phase || '—'}</div>
+        </div>
+      </div>
+
+      <div class="dbg-section-label">⚙️ Sistema</div>
+      <div class="dbg-grid">
+        <div class="dbg-cell">
+          <div class="dbg-cell-label">GPS</div>
+          <div class="dbg-cell-value ${gps ? 'ok' : 'error'}">
+            ${gps ? `${gps.lat.toFixed(4)}, ${gps.lng.toFixed(4)}` : 'Sin señal'}
+          </div>
+        </div>
+        <div class="dbg-cell">
+          <div class="dbg-cell-label">Precisión</div>
+          <div class="dbg-cell-value">${gps ? `±${Math.round(gps.accuracy || 0)}m` : '—'}</div>
+        </div>
+        <div class="dbg-cell">
+          <div class="dbg-cell-label">Worker</div>
+          <div class="dbg-cell-value ${workerClass}">${workerVal}</div>
+        </div>
+        <div class="dbg-cell">
+          <div class="dbg-cell-label">Conectividad</div>
+          <div class="dbg-cell-value ${s.offline ? 'error' : 'ok'}">${s.offline ? 'OFFLINE' : 'Online'}</div>
         </div>
         <div class="dbg-cell">
           <div class="dbg-cell-label">POI activo</div>
           <div class="dbg-cell-value ${s.activePOI ? 'ok' : ''}">${s.activePOI?.name || '—'}</div>
         </div>
         <div class="dbg-cell">
-          <div class="dbg-cell-label">Fase</div>
-          <div class="dbg-cell-value">${s.phase || '—'}</div>
-        </div>
-        <div class="dbg-cell">
-          <div class="dbg-cell-label">Ciudad</div>
-          <div class="dbg-cell-value">${s.cityName || '—'}</div>
-        </div>
-        <div class="dbg-cell">
-          <div class="dbg-cell-label">Mood</div>
-          <div class="dbg-cell-value">${s.mood || '—'}</div>
-        </div>
-        <div class="dbg-cell">
-          <div class="dbg-cell-label">Idioma</div>
-          <div class="dbg-cell-value">${s.lang || '—'}</div>
-        </div>
-        <div class="dbg-cell">
-          <div class="dbg-cell-label">Narrando</div>
-          <div class="dbg-cell-value ${typeof Narration !== 'undefined' && Narration.isNarrating() ? 'ok' : ''}">
-            ${typeof Narration !== 'undefined' && Narration.isNarrating() ? '🔴 Sí' : 'No'}
-          </div>
-        </div>
-        <div class="dbg-cell">
-          <div class="dbg-cell-label">Pantalla</div>
-          <div class="dbg-cell-value">${s.screen || '—'}</div>
+          <div class="dbg-cell-label">Ciudad · Mood</div>
+          <div class="dbg-cell-value">${s.cityName || '—'} · ${s.mood || '—'}</div>
         </div>
       </div>
 
-      <div style="display:flex; gap:6px; flex-wrap:wrap;">
-        <button class="dbg-poi-action narrate" onclick="Debug.forceLoadPOIs()">
-          🔄 Recargar POIs
-        </button>
-        <button class="dbg-poi-action map" onclick="Debug.testNarration()">
-          🎙️ Test narración
-        </button>
-        <button class="dbg-poi-action map" onclick="Debug.checkWorker()">
-          ☁️ Verificar Worker
-        </button>
-        <button class="dbg-poi-action map" onclick="Debug.clearCache()">
-          🗑️ Limpiar cache
-        </button>
+      <div style="display:flex; gap:6px; flex-wrap:wrap; margin-top:4px;">
+        <button class="dbg-poi-action narrate" onclick="Debug.forceLoadPOIs()">🔄 POIs</button>
+        <button class="dbg-poi-action map" onclick="Debug.testNarration()">🎙️ Test</button>
+        <button class="dbg-poi-action map" onclick="Debug.checkWorker()">☁️ Worker</button>
+        <button class="dbg-poi-action map" onclick="Debug.clearCache()">🗑️ Cache</button>
+        <button class="dbg-poi-action narrate" onclick="Debug.exportLog()">📤 Exportar</button>
       </div>
     `;
   }
@@ -870,6 +954,8 @@ const Debug = (() => {
     const now   = new Date();
     const stamp = now.toISOString().replace('T', ' ').slice(0, 19);
     const lines = [];
+    const s     = typeof AppState !== 'undefined' ? AppState : {};
+    const perfNow = performance.now();
 
     lines.push('═'.repeat(50));
     lines.push('FOLLOWER — REPORTE DE DEBUG');
@@ -878,7 +964,102 @@ const Debug = (() => {
     lines.push('═'.repeat(50));
     lines.push('');
 
-    lines.push('RESUMEN DE TIEMPOS POR MEDICIÓN');
+    // ── ANÁLISIS DE EXPERIENCIA ──
+    lines.push('ANÁLISIS DE EXPERIENCIA CINEMATOGRÁFICA');
+    lines.push('─'.repeat(50));
+
+    // Capa 1
+    lines.push('[ Capa 1 — ¿El pipeline llega a dispararse? ]');
+    const narCount  = s._narrationCount || 0;
+    const kmWalked  = (s.kmWalked || 0).toFixed(2);
+    const kmPerNar  = narCount > 0 ? (s.kmWalked / narCount).toFixed(2) : 'n/a';
+    lines.push(`  Narraciones disparadas:  ${narCount}`);
+    lines.push(`  Km caminados:            ${kmWalked} km`);
+    lines.push(`  Km por narración:        ${kmPerNar} km`);
+    lines.push(`  POIs visitados:          ${s.poisVisited || 0}`);
+
+    if (s._firstNarrationTs !== null && s._sessionStart !== null) {
+      const secsToFirst = Math.round((s._firstNarrationTs - s._sessionStart) / 1000);
+      lines.push(`  Tiempo hasta 1ª narración: ${secsToFirst}s`);
+    } else {
+      lines.push(`  Tiempo hasta 1ª narración: no hubo narraciones en esta sesión`);
+    }
+
+    // Embudo POI check → narración desde los logs
+    const poiChecks = _logs.filter(l => l.msg.startsWith('POI check')).length;
+    lines.push(`  Chequeos de POI:         ${poiChecks}`);
+    lines.push(`  Tasa narración/chequeo:  ${poiChecks > 0 ? ((narCount / poiChecks) * 100).toFixed(1) + '%' : 'n/a'}`);
+    lines.push('');
+
+    // Capa 2
+    lines.push('[ Capa 2 — ¿La narración llega a tiempo? ]');
+    const workerOk = _metrics.filter(m => m.category === 'narration' && m.label === 'Claude Worker call' && m.status === 'ok');
+    const workerAvg = workerOk.length ? Math.round(workerOk.reduce((a, b) => a + b.ms, 0) / workerOk.length) : null;
+    const cacheHits = _metrics.filter(m => m.category === 'narration' && m.label === 'cache lookup' && m.status === 'hit').length;
+    const cacheMiss = _metrics.filter(m => m.category === 'narration' && m.label === 'cache lookup' && m.status === 'miss').length;
+    const voiceLagOk  = _metrics.filter(m => m.category === 'voice' && m.label === 'lag texto→voz' && m.status === 'ok');
+    const voiceDurOk  = _metrics.filter(m => m.category === 'voice' && m.label === 'duración narración hablada' && m.status === 'ok');
+    const voiceErrors = _metrics.filter(m => m.category === 'voice' && m.status === 'error').length;
+    const lagAvg  = voiceLagOk.length  ? Math.round(voiceLagOk.reduce((a, b)  => a + b.ms, 0) / voiceLagOk.length)  : null;
+    const durAvg  = voiceDurOk.length  ? Math.round(voiceDurOk.reduce((a, b)  => a + b.ms, 0) / voiceDurOk.length)  : null;
+
+    lines.push(`  Cache hits / misses:     ${cacheHits} / ${cacheMiss}`);
+    lines.push(`  Worker Claude (avg):     ${workerAvg !== null ? workerAvg + 'ms' : 'n/a'}`);
+    lines.push(`  Lag texto→voz (avg):     ${lagAvg  !== null ? lagAvg  + 'ms' : 'n/a'}`);
+    lines.push(`  Duración voz (avg):      ${durAvg  !== null ? Math.round(durAvg / 1000) + 's' : 'n/a'}`);
+    lines.push(`  Errores de síntesis:     ${voiceErrors}`);
+    lines.push('');
+
+    // Capa 3
+    lines.push('[ Capa 3 — ¿El ritmo es cinematográfico? ]');
+    let sistoleMs  = s._msTotalSystole  || 0;
+    let diastoleMs = s._msTotalDiastole || 0;
+    if (s._phaseStart !== null) {
+      const currentMs = perfNow - s._phaseStart;
+      if (s.phase === 'systole')  sistoleMs  += currentMs;
+      if (s.phase === 'diastole') diastoleMs += currentMs;
+    }
+    const totalMs   = sistoleMs + diastoleMs || 1;
+    const sPct      = Math.round((sistoleMs  / totalMs) * 100);
+    const dPct      = Math.round((diastoleMs / totalMs) * 100);
+    const totalMin  = Math.round(totalMs / 60000);
+
+    // Intervalos entre narraciones desde los logs
+    const intervalLogs = _logs.filter(l => l.msg.startsWith('Intervalo entre narraciones:'));
+    const intervalSegs = intervalLogs.map(l => {
+      const m = l.msg.match(/(\d+)s/);
+      return m ? parseInt(m[1]) : null;
+    }).filter(Boolean);
+    const avgInterval = intervalSegs.length
+      ? Math.round(intervalSegs.reduce((a, b) => a + b, 0) / intervalSegs.length)
+      : null;
+    const silenciosLargos = _logs.filter(l => l.msg.startsWith('Silencio largo:')).length;
+
+    lines.push(`  Tiempo total de sesión:  ${totalMin}min`);
+    lines.push(`  Tiempo en sístole:       ${sPct}% (${Math.round(sistoleMs / 60000)}min)`);
+    lines.push(`  Tiempo en diástole:      ${dPct}% (${Math.round(diastoleMs / 60000)}min)`);
+    lines.push(`  Intervalo entre nar.:    ${avgInterval !== null ? avgInterval + 's avg' : 'n/a'}`);
+    lines.push(`  Silencios > 5min:        ${silenciosLargos}`);
+    lines.push('');
+
+    // Veredicto automático
+    lines.push('[ Veredicto de sesión ]');
+    if (narCount === 0) {
+      lines.push('  ⚠️  CRÍTICO: cero narraciones en toda la sesión.');
+      lines.push('  Revisar: candado de poi.js, estado del Worker, radio de detección.');
+    } else if (kmPerNar !== 'n/a' && parseFloat(kmPerNar) > 1.5) {
+      lines.push(`  ⚠️  Densidad baja: una narración cada ${kmPerNar}km. La experiencia puede sentirse vacía.`);
+    } else if (dPct < 5) {
+      lines.push('  ⚠️  Muy poco tiempo en diástole. El pipeline funciona pero raramente narra.');
+    } else {
+      lines.push('  ✅  Pipeline activo. Revisar tiempos individuales para ajuste fino.');
+    }
+    lines.push('');
+    lines.push('═'.repeat(50));
+    lines.push('');
+
+    // ── RESUMEN TÉCNICO DE TIEMPOS ──
+    lines.push('RESUMEN TÉCNICO DE TIEMPOS');
     lines.push('─'.repeat(50));
     if (_metrics.length === 0) {
       lines.push('Sin mediciones registradas.');
@@ -1054,22 +1235,6 @@ const Debug = (() => {
     };
   }
 
-  /* ── PARCHE: exponer flyTo en GPS si no existe ── */
-  function patchGPS() {
-    // Se llama después de que GPS esté listo
-    setTimeout(() => {
-      if (typeof GPS !== 'undefined' && !GPS.flyTo) {
-        // GPS no expone flyTo — agregarlo vía hack del mapa Leaflet
-        GPS.flyTo = (lat, lng) => {
-          const mapEl = document.getElementById('map');
-          if (mapEl && mapEl._leaflet_map) {
-            mapEl._leaflet_map.flyTo([lat, lng], 18, { duration: 1.2 });
-          }
-        };
-      }
-    }, 3000);
-  }
-
   /* ── VERIFICAR WORKER DE CLOUDFLARE ── */
   async function checkWorker() {
     window._dbgWorkerStatus = 'checking';
@@ -1100,16 +1265,13 @@ const Debug = (() => {
     injectStyles();
     createPanel();
     interceptConsole();
-    patchGPS();
 
-    // Log inicial
     log('info', `Follower Debug v0.5 iniciado`);
     log('info', `User Agent: ${navigator.userAgent.slice(0, 60)}...`);
     if (_metrics.length > 0) {
       log('info', `${_metrics.length} mediciones restauradas de la sesión anterior`);
     }
 
-    // Verificar que el Worker de Cloudflare responda
     setTimeout(checkWorker, 500);
   }
 

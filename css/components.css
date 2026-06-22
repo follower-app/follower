@@ -550,9 +550,11 @@
   justify-content: space-between;
   background: linear-gradient(
     to top,
-    rgba(10, 16, 24, 0.98) 60%,
+    rgba(10, 16, 24, 0.55) 60%,
     rgba(10, 16, 24, 0) 100%
   );
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
 }
 
 .bottom-stat {

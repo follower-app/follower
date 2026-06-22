@@ -231,23 +231,10 @@
   transition: width 1s linear;
 }
 
-/* ── GRADIENTE SUPERIOR — status bar ── */
-
-#screen-explore::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 100px;
-  background: linear-gradient(
-    to bottom,
-    rgba(10, 16, 24, 0.9) 0%,
-    rgba(10, 16, 24, 0) 100%
-  );
-  z-index: var(--z-ui);
-  pointer-events: none;
-}
+/* ── GRADIENTE SUPERIOR — eliminado tras switch a mapa claro (Voyager).
+   Era para contraste sobre mapa oscuro; .top-pill y #dbg-toggle ya
+   tienen su propio fondo opaco, así que no hacía falta y se veía
+   como una mancha oscura sobre el mapa claro. ── */
 
 /* ── MODO RECORRIDO — línea de ruta en el mapa ── */
 

@@ -263,10 +263,15 @@ Take a moment to observe the details — every stone, every arch, has a story to
 
     updateNarrationUI(text);
 
+    // Bajar música antes de hablar — el texto ya está listo, es el momento exacto
+    if (typeof Music !== 'undefined') Music.dipForNarration();
+
     if (typeof Voice !== 'undefined') {
       Voice.speak(text, lang, () => {
         _isNarrating = false;
         stopWaves();
+        // Restaurar volumen de música al terminar de hablar
+        if (typeof Music !== 'undefined') Music.restoreAfterNarration();
         if (AppState.activePOI?.id === poi.id) {
           setPhase('systole');
         }

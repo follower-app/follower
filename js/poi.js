@@ -12,7 +12,6 @@ const POI = (() => {
   let _markers      = {};       // marcadores Leaflet { poi.id: marker }
   let _lastFetchPos = null;     // última posición donde se hicieron fetch
   let _db           = null;     // instancia IndexedDB
-  let _isFetchingPOIs = false;  // candado: evita fetches solapados a Overpass (BUG concurrencia)
 
   /* ── CONFIGURACIÓN ── */
   const CONFIG = {
@@ -194,47 +193,37 @@ const POI = (() => {
 
   /* ── CARGAR POIs — con fallback a cache ── */
   async function loadPOIs(lat, lng) {
-    if (_isFetchingPOIs) {
-      console.log('POI: fetch ya en curso, ignorando solicitud duplicada');
-      return;
-    }
-    _isFetchingPOIs = true;
-
-    try {
-      // Intentar desde OSM si hay conexión
-      if (!AppState.offline) {
-        try {
-          const fresh = await fetchPOIsFromOSM(lat, lng, CONFIG.FETCH_RADIUS_KM);
-          if (fresh.length > 0) {
-            _pois = fresh;
-            await savePOIsToDB(fresh);
-            _lastFetchPos = { lat, lng };
-            renderAllMarkers();
-            console.log(`POI: ${fresh.length} POIs cargados y renderizados`);
-            return;
-          } else {
-            console.warn('POI: Overpass respondió OK pero 0 POIs normalizados — revisar query/zona');
-          }
-        } catch (e) {
-          console.warn('POI: error fetching desde OSM, usando cache —', e.message);
+    // Intentar desde OSM si hay conexión
+    if (!AppState.offline) {
+      try {
+        const fresh = await fetchPOIsFromOSM(lat, lng, CONFIG.FETCH_RADIUS_KM);
+        if (fresh.length > 0) {
+          _pois = fresh;
+          await savePOIsToDB(fresh);
+          _lastFetchPos = { lat, lng };
+          renderAllMarkers();
+          console.log(`POI: ${fresh.length} POIs cargados y renderizados`);
+          return;
+        } else {
+          console.warn('POI: Overpass respondió OK pero 0 POIs normalizados — revisar query/zona');
         }
-      } else {
-        console.log('POI: AppState.offline=true, saltando fetch a OSM');
+      } catch (e) {
+        console.warn('POI: error fetching desde OSM, usando cache —', e.message);
       }
+    } else {
+      console.log('POI: AppState.offline=true, saltando fetch a OSM');
+    }
 
-      // Fallback: cargar desde IndexedDB
-      const dbgId = (typeof Debug !== 'undefined')
-        ? Debug.metricStart('poi', 'cache IndexedDB load')
-        : null;
-      const cached = await loadPOIsFromDB();
-      if (dbgId) Debug.metricEnd(dbgId, 'fallback', { count: cached.length });
-      console.log(`POI: cache IndexedDB tiene ${cached.length} POIs`);
-      if (cached.length > 0) {
-        _pois = cached;
-        renderAllMarkers();
-      }
-    } finally {
-      _isFetchingPOIs = false;
+    // Fallback: cargar desde IndexedDB
+    const dbgId = (typeof Debug !== 'undefined')
+      ? Debug.metricStart('poi', 'cache IndexedDB load')
+      : null;
+    const cached = await loadPOIsFromDB();
+    if (dbgId) Debug.metricEnd(dbgId, 'fallback', { count: cached.length });
+    console.log(`POI: cache IndexedDB tiene ${cached.length} POIs`);
+    if (cached.length > 0) {
+      _pois = cached;
+      renderAllMarkers();
     }
   }
 
@@ -249,9 +238,12 @@ const POI = (() => {
       const dist = GPS.distanceMeters(lat, lng, poi.lat, poi.lng);
       poi._distanceMeters = Math.round(dist);
 
-      if (dist < activeRadius && dist < closestDist) {
-        closestDist = dist;
-        closestPOI  = poi;
+      if (dist < activeRadius) {
+        if (typeof Debug !== 'undefined') Debug.trackExp('poi_detected');
+        if (dist < closestDist) {
+          closestDist = dist;
+          closestPOI  = poi;
+        }
       }
     });
 
@@ -260,11 +252,15 @@ const POI = (() => {
       poi => poi._distanceMeters <= nearbyRadius
     );
 
+    // Actualizar contador de historias en bottom bar
+    if (typeof updateHistCount === 'function') updateHistCount();
+
     // Actualizar marcadores en el mapa
     updateMarkersState();
 
     // Si hay un POI activo y no es el mismo que ya narrabamos
     if (closestPOI && closestPOI.id !== AppState.activePOI?.id) {
+      if (typeof Debug !== 'undefined') Debug.trackExp('poi_eligible');
       activatePOI(closestPOI);
     } else if (!closestPOI && AppState.activePOI) {
       // Nos alejamos del POI activo
@@ -276,6 +272,15 @@ const POI = (() => {
   function activatePOI(poi) {
     AppState.activePOI = poi;
     setPhase('diastole');
+
+    if (typeof Debug !== 'undefined') {
+      Debug.trackExp('poi_narrated', {
+        lat:     AppState.gps?.lat,
+        lng:     AppState.gps?.lng,
+        poiId:   poi.id,
+        poiName: poi.name,
+      });
+    }
 
     // Mostrar card pequeña
     showPOICard(poi);
@@ -307,26 +312,29 @@ const POI = (() => {
     }
   }
 
-  /* ── MOSTRAR CARD POI PEQUEÑA ── */
+  /* ── MOSTRAR INFO POI EN BOTTOM BAR ── */
   function showPOICard(poi) {
-    const card    = document.getElementById('poiCard');
-    const name    = document.getElementById('poiCardName');
-    const meta    = document.getElementById('poiCardMeta');
-    const text    = document.getElementById('poiCardText');
+    // Actualizar bottom bar — estado diástole
+    const barName = document.getElementById('barPoiName');
+    const barDist = document.getElementById('barPoiDist');
+    if (barName) barName.textContent = poi.name;
+    if (barDist) barDist.textContent = `a ${poi._distanceMeters || '?'}m`;
 
-    if (!card) return;
-
-    if (name)  name.textContent  = poi.name;
-    if (meta)  meta.textContent  = `${AppState.cityName} · a ${poi._distanceMeters}m`;
-    if (text)  text.textContent  = poi.description || 'Descubriendo la historia de este lugar...';
-
-    card.classList.remove('hidden');
+    // Ghost div — backward compat (oculto siempre)
+    const name = document.getElementById('poiCardName');
+    const meta = document.getElementById('poiCardMeta');
+    const text = document.getElementById('poiCardText');
+    if (name) name.textContent = poi.name;
+    if (meta) meta.textContent = `${AppState.cityName} · a ${poi._distanceMeters}m`;
+    if (text) text.textContent = poi.description || 'Descubriendo la historia de este lugar...';
   }
 
-  /* ── OCULTAR CARD POI ── */
+  /* ── LIMPIAR INFO POI EN BOTTOM BAR ── */
   function hidePOICard() {
-    const card = document.getElementById('poiCard');
-    if (card) card.classList.add('hidden');
+    const barName = document.getElementById('barPoiName');
+    const barDist = document.getElementById('barPoiDist');
+    if (barName) barName.textContent = '--';
+    if (barDist) barDist.textContent = '--';
   }
 
   /* ── RENDERIZAR TODOS LOS MARCADORES ── */
@@ -461,14 +469,7 @@ const POI = (() => {
 
   /* ── DETECTAR NEARBY — función pública principal ── */
   function detectNearby(lat, lng, activeRadius, nearbyRadius) {
-    // Embudo Capa 1 — cada chequeo queda registrado para análisis de densidad
-    if (typeof Debug !== 'undefined') {
-      const poisCercanos = _pois.filter(p => {
-        const d = GPS.distanceMeters(lat, lng, p.lat, p.lng);
-        return d < nearbyRadius;
-      }).length;
-      Debug.log('info', `POI check · cargados=${_pois.length} cercanos=${poisCercanos} km=${AppState.kmWalked?.toFixed(2) || '0.00'}`);
-    }
+    if (typeof Debug !== 'undefined') Debug.trackExp('poi_check');
 
     // Si no hay POIs o nos movimos mucho → refetch
     if (_pois.length === 0) {

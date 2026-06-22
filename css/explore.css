@@ -1,7 +1,7 @@
 /* ═══════════════════════════════════════════
    FOLLOWER — explore.css
-   Modo exploración: mapa, pins, card POI
-   pequeña, bottom bar, vol control
+   Pantalla de exploración: care strip, mapa,
+   bottom bar sólida, style selector
    ═══════════════════════════════════════════ */
 
 /* ── PANTALLA EXPLORACIÓN ── */
@@ -9,6 +9,57 @@
 #screen-explore {
   background: var(--color-night);
   position: relative;
+}
+
+/* ── CARE STRIP — contexto siempre visible arriba ── */
+
+.care-strip {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: var(--z-notch);
+  background: var(--color-night);
+  border-bottom: 1px solid var(--color-border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 var(--space-lg);
+  height: 32px;
+  gap: 0;
+}
+
+.cs-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: 1;
+  justify-content: center;
+}
+
+.cs-icon {
+  font-size: 11px;
+  line-height: 1;
+}
+
+.cs-val {
+  font-family: var(--font-ui);
+  font-size: 10px;
+  font-weight: var(--weight-regular);
+  color: var(--color-smoke-2);
+  letter-spacing: 0.04em;
+  transition: color var(--transition-base);
+}
+
+.cs-val.alert {
+  color: var(--color-gold);
+}
+
+.cs-sep {
+  width: 1px;
+  height: 12px;
+  background: var(--color-border);
+  flex-shrink: 0;
 }
 
 /* ── MAPA ── */
@@ -58,7 +109,7 @@
   100% { width: 60px; height: 60px; opacity: 0; }
 }
 
-/* ── POI MARKERS ── */
+/* ── HISTORIA MARKERS (ex POI markers) ── */
 
 .poi-marker-wrap {
   display: flex;
@@ -91,7 +142,6 @@
   line-height: 1;
 }
 
-/* Estados del pin */
 .poi-pin.active {
   background: var(--color-diastole);
   width: 38px;
@@ -99,19 +149,11 @@
   box-shadow: 0 3px 12px rgba(192, 57, 43, 0.5);
 }
 
-.poi-pin.nearby {
-  background: var(--color-systole);
-}
+.poi-pin.nearby { background: var(--color-systole); }
+.poi-pin.far    { background: var(--color-border); }
 
-.poi-pin.far {
-  background: var(--color-border);
-}
+.poi-pin.active .poi-pin-inner { font-size: 16px; }
 
-.poi-pin.active .poi-pin-inner {
-  font-size: 16px;
-}
-
-/* Label del pin */
 .poi-pin-label {
   margin-top: var(--space-xs);
   font-family: var(--font-ui);
@@ -130,100 +172,166 @@
   background: rgba(192, 57, 43, 0.85);
 }
 
-/* ── CARD POI PEQUEÑA — flota sobre el mapa ── */
+/* ── BOTTOM BAR SÓLIDA — sin gradiente, sin blur ── */
 
-.poi-card {
+.bottom-bar {
   position: absolute;
-  bottom: 120px;
-  left: var(--space-lg);
-  right: var(--space-lg);
-  z-index: var(--z-card);
-  background: rgba(10, 16, 24, 0.92);
-  border: 0.5px solid var(--color-border);
-  border-radius: var(--radius-xl);
-  padding: var(--space-lg) 18px;
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  animation: card-rise 0.6s cubic-bezier(0.34, 1.2, 0.64, 1) both;
-  cursor: pointer;
-  transition: transform var(--transition-fast);
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: var(--z-ui);
+  background: var(--color-night);
+  border-top: 1px solid var(--color-border);
 }
 
-.poi-card:hover {
-  transform: translateY(-2px);
-}
+/* ── ESTADO SÍSTOLE ── */
 
-.poi-card.hidden {
-  display: none !important;
-}
-
-.poi-card-top {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  margin-bottom: var(--space-xs);
-}
-
-.poi-card-name {
-  font-family: var(--font-display);
-  font-size: 18px;
-  color: var(--color-ice);
-  line-height: 1.2;
-}
-
-.poi-card-badge {
-  font-family: var(--font-ui);
-  font-size: 9px;
-  font-weight: var(--weight-regular);
-  color: #fff;
-  background: var(--color-diastole);
-  padding: 3px 9px;
-  border-radius: var(--radius-pill);
-  letter-spacing: 0.06em;
-  white-space: nowrap;
-}
-
-.poi-card-meta {
-  font-family: var(--font-ui);
-  font-size: 10px;
-  font-weight: var(--weight-light);
-  color: var(--color-smoke-3);
-  letter-spacing: 0.05em;
-  margin-bottom: var(--space-md);
-}
-
-.poi-card-text {
-  font-family: var(--font-ui);
-  font-size: 12px;
-  font-weight: var(--weight-thin);
-  color: var(--color-smoke);
-  line-height: 1.6;
-  margin-bottom: var(--space-md);
-
-  /* Limitar a 2 líneas */
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-
-/* ── AUDIO BAR dentro de poi-card ── */
-
-.audio-bar {
+.bar-systole {
   display: flex;
   align-items: center;
+  justify-content: space-between;
+  padding: 12px var(--space-xl) 28px;
   gap: var(--space-md);
 }
 
-.audio-progress {
+.bar-style-btn {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  background: rgba(26, 82, 118, 0.12);
+  border: 1px solid rgba(26, 82, 118, 0.35);
+  border-radius: var(--radius-pill);
+  padding: 6px 12px;
+  cursor: pointer;
+  transition: background var(--transition-fast);
+  flex-shrink: 0;
+}
+
+.bar-style-btn:active {
+  background: rgba(26, 82, 118, 0.24);
+  transform: scale(0.97);
+}
+
+.bar-style-name {
+  font-family: var(--font-ui);
+  font-size: 10px;
+  font-weight: var(--weight-regular);
+  color: #5dade2;
+  letter-spacing: 0.06em;
+}
+
+.bar-style-chevron {
+  color: var(--color-smoke-2);
+  flex-shrink: 0;
+}
+
+/* ── CORAZÓN-BRÚJULA ── */
+
+.bar-heart-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.heart-compass {
+  width: 52px;
+  height: 52px;
+  transition: transform 0.6s ease;
+  filter: drop-shadow(0 0 4px rgba(192, 57, 43, 0.15));
+}
+
+body.phase-diastole .heart-compass {
+  filter: drop-shadow(0 0 6px rgba(192, 57, 43, 0.35));
+}
+
+.bar-hist-count {
+  font-family: var(--font-ui);
+  font-size: 8px;
+  font-weight: var(--weight-light);
+  color: var(--color-smoke-2);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+/* ── KM DISPLAY ── */
+
+.bar-km-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  flex-shrink: 0;
+  min-width: 44px;
+}
+
+.bar-km-val {
+  font-family: var(--font-ui);
+  font-size: 20px;
+  font-weight: var(--weight-regular);
+  color: var(--color-ice);
+  line-height: 1;
+}
+
+.bar-km-lbl {
+  font-family: var(--font-ui);
+  font-size: 8px;
+  font-weight: var(--weight-light);
+  color: var(--color-smoke-2);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+/* ── ESTADO DIÁSTOLE — mini-player ── */
+
+.bar-diastole {
+  padding: 10px var(--space-xl) 28px;
+}
+
+.bar-poi-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 6px;
+  gap: var(--space-sm);
+}
+
+.bar-poi-name {
+  font-family: var(--font-display);
+  font-size: 17px;
+  color: var(--color-ice);
   flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.2;
+  cursor: pointer;
+}
+
+.bar-poi-name:active { opacity: 0.75; }
+
+.bar-poi-dist {
+  font-family: var(--font-ui);
+  font-size: 10px;
+  font-weight: var(--weight-light);
+  color: var(--color-smoke-2);
+  letter-spacing: 0.04em;
+  flex-shrink: 0;
+}
+
+.bar-progress {
   height: 2px;
   background: var(--color-border-2);
   border-radius: 2px;
   overflow: hidden;
+  margin-bottom: 10px;
 }
 
-.audio-progress-fill {
+.bar-progress-fill,
+#audioProgressFill {
   height: 100%;
   width: 0%;
   background: var(--color-diastole);
@@ -231,12 +339,153 @@
   transition: width 1s linear;
 }
 
-/* ── GRADIENTE SUPERIOR — eliminado tras switch a mapa claro (Voyager).
-   Era para contraste sobre mapa oscuro; .top-pill y #dbg-toggle ya
-   tienen su propio fondo opaco, así que no hacía falta y se veía
-   como una mancha oscura sobre el mapa claro. ── */
+.bar-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
 
-/* ── MODO RECORRIDO — línea de ruta en el mapa ── */
+.bar-ctrl-left {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+}
+
+.bar-style-lbl {
+  font-family: var(--font-ui);
+  font-size: 9px;
+  font-weight: var(--weight-light);
+  color: var(--color-smoke-2);
+  letter-spacing: 0.08em;
+}
+
+.bar-ctrl-right {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.btn-narr-pause,
+.btn-narr-stop {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: opacity var(--transition-fast), transform var(--transition-fast);
+}
+
+.btn-narr-pause {
+  background: rgba(26, 82, 118, 0.2);
+  border: 1px solid rgba(26, 82, 118, 0.45);
+}
+
+.btn-narr-stop {
+  background: rgba(192, 57, 43, 0.12);
+  border: 1px solid rgba(192, 57, 43, 0.4);
+}
+
+.btn-narr-pause:active,
+.btn-narr-stop:active {
+  opacity: 0.7;
+  transform: scale(0.93);
+}
+
+/* ── STYLE SELECTOR — bottom sheet sobre el mapa ── */
+
+.style-selector {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: var(--z-card);
+  background: var(--color-navy);
+  border-top: 0.5px solid var(--color-border);
+  border-radius: var(--radius-2xl) var(--radius-2xl) 0 0;
+  padding: var(--space-md) var(--space-xl) 48px;
+  animation: card-rise 0.38s cubic-bezier(0.34, 1.2, 0.64, 1) both;
+}
+
+.style-selector.hidden {
+  display: none !important;
+}
+
+@keyframes card-rise {
+  from { opacity: 0; transform: translateY(20px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.style-handle {
+  width: 34px;
+  height: 3px;
+  background: var(--color-border);
+  border-radius: 3px;
+  margin: 0 auto var(--space-lg);
+}
+
+.style-title {
+  font-family: var(--font-ui);
+  font-size: 9px;
+  font-weight: var(--weight-medium);
+  color: var(--color-smoke-3);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  margin-bottom: var(--space-lg);
+}
+
+.style-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.style-card {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  padding: var(--space-md) var(--space-lg);
+  border: 0.5px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  user-select: none;
+}
+
+.style-card:active {
+  background: rgba(26, 82, 118, 0.08);
+  transform: scale(0.99);
+}
+
+.style-card.active {
+  border-color: var(--color-systole);
+  background: rgba(26, 82, 118, 0.1);
+}
+
+.style-emoji {
+  font-size: 22px;
+  flex-shrink: 0;
+  line-height: 1;
+}
+
+.style-name {
+  font-family: var(--font-ui);
+  font-size: 14px;
+  font-weight: var(--weight-regular);
+  color: var(--color-ice);
+  margin-bottom: 2px;
+}
+
+.style-desc {
+  font-family: var(--font-ui);
+  font-size: 11px;
+  font-weight: var(--weight-light);
+  color: var(--color-smoke-2);
+  letter-spacing: 0.02em;
+}
+
+/* ── MODO RECORRIDO ── */
 
 .route-path {
   stroke: var(--color-gold);
@@ -246,11 +495,9 @@
   opacity: 0.7;
 }
 
-/* ── INDICADOR DE RECORRIDO ── */
-
 .route-indicator {
   position: absolute;
-  top: 100px;
+  top: 42px;
   left: 50%;
   transform: translateX(-50%);
   z-index: var(--z-ui);

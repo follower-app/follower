@@ -159,50 +159,28 @@
   <!-- ══════════════════════════════════════ -->
   <div id="screen-explore" class="screen hidden">
 
+    <!-- Care strip — contexto siempre visible arriba -->
+    <div class="care-strip" id="careStrip">
+      <div class="cs-item" id="csWeather">
+        <span class="cs-icon" id="csWeatherIcon">🌤️</span>
+        <span class="cs-val" id="csWeatherVal">--°</span>
+      </div>
+      <span class="cs-sep"></span>
+      <div class="cs-item" id="csSteps">
+        <span class="cs-icon">👣</span>
+        <span class="cs-val" id="csStepsVal">0 pasos</span>
+      </div>
+      <span class="cs-sep"></span>
+      <div class="cs-item" id="csBpm">
+        <span class="cs-icon">❤️</span>
+        <span class="cs-val" id="csBpmVal">-- bpm</span>
+      </div>
+    </div>
+
     <!-- Mapa Leaflet -->
     <div id="map"></div>
 
-    <!-- Top pill — ciudad + mood -->
-    <div class="top-pill" id="topPill">
-      <span class="top-pill-city" id="topCity">Cargando...</span>
-      <span class="top-pill-divider"></span>
-      <span class="top-pill-mood" id="topMood">🎬 épico</span>
-    </div>
-
-    <!-- Control de volumen -->
-    <div class="vol-control">
-      <span class="vol-icon">🎵</span>
-      <div class="vol-track">
-        <div class="vol-fill" id="volMusic"></div>
-      </div>
-      <span class="vol-icon">🎙️</span>
-    </div>
-
-    <!-- Card POI activo — oculta por defecto -->
-    <div class="poi-card hidden" id="poiCard">
-      <div class="poi-card-top">
-        <div class="poi-card-name" id="poiCardName"></div>
-        <div class="poi-card-badge" id="poiCardBadge">diástole</div>
-      </div>
-      <div class="poi-card-meta" id="poiCardMeta"></div>
-      <div class="poi-card-text" id="poiCardText"></div>
-      <div class="audio-bar">
-        <div class="audio-waves" id="audioWaves">
-          <div class="wave-bar"></div>
-          <div class="wave-bar"></div>
-          <div class="wave-bar"></div>
-          <div class="wave-bar"></div>
-          <div class="wave-bar"></div>
-          <div class="wave-bar"></div>
-          <div class="wave-bar"></div>
-        </div>
-        <div class="audio-progress">
-          <div class="audio-progress-fill" id="audioProgressFill"></div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Card sugerencia de cuidado — oculta por defecto -->
+    <!-- Care card — alertas de cuidado con acción -->
     <div class="care-card hidden" id="careCard">
       <div class="care-card-top">
         <div class="care-card-title" id="careTitle"></div>
@@ -216,22 +194,132 @@
       </div>
     </div>
 
-    <!-- Bottom bar -->
-    <div class="bottom-bar">
-      <div class="bottom-stat">
-        <div class="stat-value" id="statKm">0.0</div>
-        <div class="stat-label">km</div>
+    <!-- Style selector — bottom sheet sobre el mapa -->
+    <div class="style-selector hidden" id="styleSelector">
+      <div class="style-handle"></div>
+      <p class="style-title">Estilo de narrador</p>
+      <div class="style-list">
+        <div class="style-card active" data-style="storyteller" data-mood="epic">
+          <div class="style-emoji">🎭</div>
+          <div class="style-info">
+            <div class="style-name">Cuentero</div>
+            <div class="style-desc">Anécdotas, drama humano, historias de barrio</div>
+          </div>
+        </div>
+        <div class="style-card" data-style="historian" data-mood="epic">
+          <div class="style-emoji">📜</div>
+          <div class="style-info">
+            <div class="style-name">Historiador</div>
+            <div class="style-desc">Fechas, contexto, hechos verificables</div>
+          </div>
+        </div>
+        <div class="style-card" data-style="poet" data-mood="romantic">
+          <div class="style-emoji">🌊</div>
+          <div class="style-info">
+            <div class="style-name">Poeta</div>
+            <div class="style-desc">Sensorial, evocador, el lugar como se siente</div>
+          </div>
+        </div>
+        <div class="style-card" data-style="detective" data-mood="mystery">
+          <div class="style-emoji">🔍</div>
+          <div class="style-info">
+            <div class="style-name">Detective</div>
+            <div class="style-desc">Lo que no te cuentan, secretos, misterio</div>
+          </div>
+        </div>
       </div>
-      <div class="btn-center" id="btnCenter">
-        <svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round">
-          <path d="M12 2L12 6M12 18L12 22M2 12L6 12M18 12L22 12"/>
-          <circle cx="12" cy="12" r="4" fill="white" stroke="none"/>
-        </svg>
+    </div>
+
+    <!-- Bottom bar sólida — sin gradiente, sin blur -->
+    <div class="bottom-bar" id="bottomBar">
+
+      <!-- Estado sístole: estilo | corazón-brújula | km -->
+      <div class="bar-systole" id="barSystole">
+
+        <button class="bar-style-btn" id="btnStyleSelector">
+          <span class="bar-style-name" id="barStyleName">Cuentero</span>
+          <svg class="bar-style-chevron" width="8" height="6" viewBox="0 0 8 6" fill="none">
+            <path d="M1 1.5L4 4.5L7 1.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
+
+        <div class="bar-heart-wrap" id="btnCenter">
+          <svg class="heart-compass" id="heartCompass" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="50" cy="50" r="44" fill="none" stroke="#1e2d3d" stroke-width="1.5"/>
+            <line x1="50" y1="8"  x2="50" y2="17" stroke="#2d3e50" stroke-width="1.5" stroke-linecap="round"/>
+            <line x1="50" y1="83" x2="50" y2="92" stroke="#2d3e50" stroke-width="1"   stroke-linecap="round" opacity=".4"/>
+            <line x1="8"  y1="50" x2="17" y2="50" stroke="#2d3e50" stroke-width="1"   stroke-linecap="round" opacity=".4"/>
+            <line x1="83" y1="50" x2="92" y2="50" stroke="#2d3e50" stroke-width="1"   stroke-linecap="round" opacity=".4"/>
+            <text x="50"  y="7.5" text-anchor="middle" font-family="Inter,sans-serif" font-size="7" font-weight="700" fill="#c0392b">N</text>
+            <text x="50"  y="98"  text-anchor="middle" font-family="Inter,sans-serif" font-size="6" fill="#2d3e50" opacity=".5">S</text>
+            <text x="4.5" y="53"  text-anchor="middle" font-family="Inter,sans-serif" font-size="6" fill="#2d3e50" opacity=".5">O</text>
+            <text x="95.5" y="53" text-anchor="middle" font-family="Inter,sans-serif" font-size="6" fill="#2d3e50" opacity=".5">E</text>
+            <path d="M50,70 C50,70 21,51 21,31 C21,18 31,11 41,14 C46,16 49,22 50,27 C51,22 54,16 59,14 C69,11 79,18 79,31 C79,51 50,70 50,70 Z"
+              fill="none" stroke="#c8d4e0" stroke-width="2.2" stroke-linejoin="round"/>
+            <polygon points="50,11 46.5,43 50,38 53.5,43" fill="#c0392b"/>
+            <polygon points="50,68 46.5,43 50,48 53.5,43" fill="#c8d4e0" opacity=".25"/>
+            <circle cx="50" cy="43" r="4.5" fill="none" stroke="#c8d4e0" stroke-width="1.5"/>
+            <circle cx="50" cy="43" r="2" fill="#c8d4e0"/>
+          </svg>
+          <div class="bar-hist-count" id="barHistCount">-- historias</div>
+        </div>
+
+        <div class="bar-km-wrap">
+          <div class="bar-km-val" id="barKmVal">0.0</div>
+          <div class="bar-km-lbl">km</div>
+        </div>
+
       </div>
-      <div class="bottom-stat">
-        <div class="stat-value" id="statPOIs">0</div>
-        <div class="stat-label">POIs</div>
+
+      <!-- Estado diástole: mini-player -->
+      <div class="bar-diastole hidden" id="barDiastole">
+
+        <div class="bar-poi-header">
+          <div class="bar-poi-name" id="barPoiName">--</div>
+          <div class="bar-poi-dist" id="barPoiDist">--</div>
+        </div>
+
+        <div class="bar-progress">
+          <div class="bar-progress-fill" id="audioProgressFill"></div>
+        </div>
+
+        <div class="bar-controls">
+          <div class="bar-ctrl-left">
+            <div class="audio-waves" id="audioWaves">
+              <div class="wave-bar"></div>
+              <div class="wave-bar"></div>
+              <div class="wave-bar"></div>
+              <div class="wave-bar"></div>
+              <div class="wave-bar"></div>
+              <div class="wave-bar"></div>
+              <div class="wave-bar"></div>
+            </div>
+            <div class="bar-style-lbl" id="barStyleLbl">Cuentero</div>
+          </div>
+          <div class="bar-ctrl-right">
+            <button class="btn-narr-pause" id="btnPauseNarration" aria-label="Pausar narración">
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                <rect x="2.5" y="2" width="3.5" height="10" rx="1" fill="#5dade2"/>
+                <rect x="8"   y="2" width="3.5" height="10" rx="1" fill="#5dade2"/>
+              </svg>
+            </button>
+            <button class="btn-narr-stop" id="btnStopNarration" aria-label="Detener narración">
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                <rect x="2.5" y="2.5" width="9" height="9" rx="1.5" fill="#e74c3c"/>
+              </svg>
+            </button>
+          </div>
+        </div>
+
       </div>
+
+    </div>
+
+    <!-- Ghost #poiCard — IDs preservados para backward compat — no visible -->
+    <div id="poiCard" aria-hidden="true" style="display:none !important;">
+      <div id="poiCardName"></div>
+      <div id="poiCardMeta"></div>
+      <div id="poiCardText"></div>
     </div>
 
   </div>

@@ -21,6 +21,8 @@ const AppState = {
   poisVisited: 0,
   weather:     null,
   cityName:    '',
+  narrationStyle:      'storyteller',
+  narrationStyleLabel: 'Cuentero',
 
   // ── Métricas de ritmo cinematográfico ──
   _phaseStart:        null,   // timestamp (performance.now) del inicio de la fase actual
@@ -76,7 +78,7 @@ function setPhase(phase) {
   valid.forEach(p => document.body.classList.remove(`phase-${p}`));
   document.body.classList.add(`phase-${phase}`);
   AppState.phase = phase;
-  updateTopPillPhase(phase);
+  updateExplorePhase(phase);
 }
 
 /* ── MODALES ── */
@@ -97,30 +99,69 @@ function hideModal(modalId) {
   }, 500);
 }
 
-/* ── ACTUALIZAR TOP PILL ── */
-function updateTopPill() {
-  const cityEl = document.getElementById('topCity');
-  const moodEl = document.getElementById('topMood');
-  const pill   = document.querySelector('.top-pill');
-  if (cityEl) cityEl.textContent = AppState.cityName || 'Explorando...';
-  if (moodEl) moodEl.textContent = Config.getMoodLabel();
-  if (pill)   pill.classList.toggle('offline', AppState.offline);
+/* ── ACTUALIZAR CARE STRIP ── */
+function updateCareStrip() {
+  const weather = AppState.weather;
+  const iconEl  = document.getElementById('csWeatherIcon');
+  const valEl   = document.getElementById('csWeatherVal');
+
+  if (iconEl && valEl) {
+    if (weather) {
+      const icon = weather.temp >= 30 ? '☀️'
+                 : weather.temp <= 5  ? '🥶'
+                 : weather.description?.includes('rain') ? '🌧️'
+                 : '🌤️';
+      iconEl.textContent = icon;
+      valEl.textContent  = `${Math.round(weather.temp)}°`;
+      valEl.classList.toggle('alert', weather.temp >= 30 || weather.temp <= 5);
+    } else {
+      iconEl.textContent = '🌤️';
+      valEl.textContent  = '--°';
+      valEl.classList.remove('alert');
+    }
+  }
+
+  const stepsEl = document.getElementById('csStepsVal');
+  if (stepsEl) {
+    stepsEl.textContent = AppState.steps > 0
+      ? `${AppState.steps.toLocaleString()} pasos`
+      : '0 pasos';
+  }
+  // bpm — pendiente integración sensor
 }
 
-function updateTopPillPhase(phase) {
-  const moodEl = document.getElementById('topMood');
-  if (!moodEl) return;
-  if (phase === 'rest')  moodEl.textContent = '☕ descansando';
-  else if (phase === 'alert') moodEl.textContent = '🌧️ lluvia';
-  else moodEl.textContent = Config.getMoodLabel();
+/* ── ACTUALIZAR FASE EN BOTTOM BAR ── */
+function updateExplorePhase(phase) {
+  const barSys = document.getElementById('barSystole');
+  const barDia = document.getElementById('barDiastole');
+  if (!barSys || !barDia) return;
+
+  if (phase === 'diastole') {
+    barSys.classList.add('hidden');
+    barDia.classList.remove('hidden');
+  } else {
+    barSys.classList.remove('hidden');
+    barDia.classList.add('hidden');
+  }
+}
+
+/* ── ACTUALIZAR CONTADOR DE HISTORIAS ── */
+function updateHistCount() {
+  const el    = document.getElementById('barHistCount');
+  const count = AppState.nearbyPOIs?.length || 0;
+  if (el) {
+    el.textContent = count > 0
+      ? `${count} historia${count !== 1 ? 's' : ''} cerca`
+      : '-- historias';
+  }
 }
 
 /* ── ACTUALIZAR STATS ── */
 function updateStats() {
-  const kmEl   = document.getElementById('statKm');
-  const poisEl = document.getElementById('statPOIs');
-  if (kmEl)   kmEl.textContent   = AppState.kmWalked.toFixed(1);
-  if (poisEl) poisEl.textContent = AppState.poisVisited;
+  const kmEl = document.getElementById('barKmVal');
+  if (kmEl) kmEl.textContent = AppState.kmWalked.toFixed(1);
+  updateHistCount();
+  updateCareStrip();
 }
 
 /* ── CONECTIVIDAD ── */
@@ -215,7 +256,7 @@ function expandHeart(heart) {
 /* ── INICIALIZAR EXPLORACIÓN ── */
 function initExplore() {
   setPhase('systole');
-  updateTopPill();
+  updateCareStrip();
   updateStats();
 
   // Marcar inicio de sesión — base para "tiempo hasta primera narración"
@@ -310,37 +351,127 @@ function initModeModal() {
   }
 }
 
+/* ── STYLE SELECTOR ── */
+const STYLE_LABELS = {
+  storyteller: 'Cuentero',
+  historian:   'Historiador',
+  poet:        'Poeta',
+  detective:   'Detective',
+};
+
+function initStyleSelector() {
+  const selector  = document.getElementById('styleSelector');
+  const styleBtn  = document.getElementById('btnStyleSelector');
+  const styleCards = document.querySelectorAll('.style-card');
+
+  if (styleBtn && selector) {
+    styleBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      selector.classList.toggle('hidden');
+    });
+  }
+
+  // Cerrar al tocar el mapa
+  document.getElementById('map')?.addEventListener('click', () => {
+    selector?.classList.add('hidden');
+  });
+
+  styleCards.forEach(card => {
+    card.addEventListener('click', () => {
+      const style = card.dataset.style;
+      const mood  = card.dataset.mood || 'epic';
+
+      AppState.narrationStyle      = style;
+      AppState.narrationStyleLabel = STYLE_LABELS[style] || style;
+      AppState.mood                = mood;
+      Config.setMood(mood);
+
+      styleCards.forEach(c => c.classList.remove('active'));
+      card.classList.add('active');
+
+      const nameEl = document.getElementById('barStyleName');
+      const lblEl  = document.getElementById('barStyleLbl');
+      if (nameEl) nameEl.textContent = AppState.narrationStyleLabel;
+      if (lblEl)  lblEl.textContent  = AppState.narrationStyleLabel;
+
+      if (typeof Music !== 'undefined') Music.changeMood(mood);
+      selector?.classList.add('hidden');
+
+      if (typeof Debug !== 'undefined') {
+        Debug.log('info', `Estilo cambiado: ${AppState.narrationStyleLabel} · mood=${mood}`);
+      }
+    });
+  });
+}
+
 /* ── EVENT LISTENERS — EXPLORACIÓN ── */
 function initExploreListeners() {
-  const poiCard = document.getElementById('poiCard');
-  if (poiCard) {
-    poiCard.addEventListener('click', () => {
-      if (AppState.activePOI) {
-        navigateTo('poi');
-        if (typeof POI !== 'undefined') POI.renderExpanded(AppState.activePOI);
+  // Tap en nombre del POI en diástole → pantalla expandida
+  document.getElementById('barPoiName')?.addEventListener('click', () => {
+    if (AppState.activePOI) {
+      navigateTo('poi');
+      if (typeof POI !== 'undefined') POI.renderExpanded(AppState.activePOI);
+    }
+  });
+
+  // Volver desde POI expandido
+  document.getElementById('btnBackFromPOI')?.addEventListener('click', () => {
+    navigateTo('explore');
+  });
+
+  // Continuar narración desde pantalla POI
+  document.getElementById('btnContinueNarration')?.addEventListener('click', () => {
+    navigateTo('explore');
+    if (typeof Narration !== 'undefined') Narration.resume();
+  });
+
+  // Corazón-brújula — centrar mapa
+  document.getElementById('btnCenter')?.addEventListener('click', () => {
+    if (AppState.gps && typeof GPS !== 'undefined') GPS.centerMap();
+  });
+
+  // Pausar / reanudar narración
+  let _narrPaused = false;
+  const btnPause  = document.getElementById('btnPauseNarration');
+  if (btnPause) {
+    btnPause.addEventListener('click', () => {
+      if (typeof Narration === 'undefined') return;
+      if (_narrPaused) {
+        Narration.resume();
+        _narrPaused = false;
+        btnPause.innerHTML = `<svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+          <rect x="2.5" y="2" width="3.5" height="10" rx="1" fill="#5dade2"/>
+          <rect x="8"   y="2" width="3.5" height="10" rx="1" fill="#5dade2"/>
+        </svg>`;
+        btnPause.setAttribute('aria-label', 'Pausar narración');
+      } else {
+        Narration.pause();
+        _narrPaused = true;
+        btnPause.innerHTML = `<svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+          <polygon points="3,2 11,7 3,12" fill="#5dade2"/>
+        </svg>`;
+        btnPause.setAttribute('aria-label', 'Reanudar narración');
       }
     });
   }
 
-  const btnBack = document.getElementById('btnBackFromPOI');
-  if (btnBack) {
-    btnBack.addEventListener('click', () => navigateTo('explore'));
-  }
+  // Detener narración
+  document.getElementById('btnStopNarration')?.addEventListener('click', () => {
+    if (typeof Narration !== 'undefined') Narration.stop();
+    AppState.activePOI = null;
+    _narrPaused = false;
+    // Restaurar icono de pausa
+    if (btnPause) {
+      btnPause.innerHTML = `<svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+        <rect x="2.5" y="2" width="3.5" height="10" rx="1" fill="#5dade2"/>
+        <rect x="8"   y="2" width="3.5" height="10" rx="1" fill="#5dade2"/>
+      </svg>`;
+      btnPause.setAttribute('aria-label', 'Pausar narración');
+    }
+    setPhase('systole');
+  });
 
-  const btnContinue = document.getElementById('btnContinueNarration');
-  if (btnContinue) {
-    btnContinue.addEventListener('click', () => {
-      navigateTo('explore');
-      if (typeof Narration !== 'undefined') Narration.resume();
-    });
-  }
-
-  const btnCenter = document.getElementById('btnCenter');
-  if (btnCenter) {
-    btnCenter.addEventListener('click', () => {
-      if (AppState.gps && typeof GPS !== 'undefined') GPS.centerMap();
-    });
-  }
+  initStyleSelector();
 }
 
 /* ── INIT PRINCIPAL ── */

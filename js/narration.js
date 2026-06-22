@@ -290,6 +290,7 @@ Take a moment to observe the details — every stone, every arch, has a story to
       Voice.speak(text, lang, () => {
         _isNarrating = false;
         stopWaves();
+        if (typeof Debug !== 'undefined') Debug.trackExp('narration_completed');
         // Restaurar volumen de música al terminar de hablar
         if (typeof Music !== 'undefined') Music.restoreAfterNarration();
         if (AppState.activePOI?.id === poi.id) {
@@ -301,6 +302,9 @@ Take a moment to observe the details — every stone, every arch, has a story to
 
   /* ── STOP / PAUSE / RESUME ── */
   function stop() {
+    if (_isNarrating && typeof Debug !== 'undefined') {
+      Debug.trackExp('narration_interrupted');
+    }
     _isNarrating = false;
     _isPaused    = false;
     _currentPOI  = null;
@@ -322,7 +326,8 @@ Take a moment to observe the details — every stone, every arch, has a story to
 
   function getCurrentText() { return _currentText; }
   function isNarrating()    { return _isNarrating; }
+  function isPaused()       { return _isPaused; }
 
-  return { trigger, stop, pause, resume, getCurrentText, isNarrating };
+  return { trigger, stop, pause, resume, getCurrentText, isNarrating, isPaused };
 
 })();

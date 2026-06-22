@@ -25,6 +25,7 @@ const DebugSim = (() => {
   let _walkStartTs          = null;
   let _clickHandlerBound    = false;
   let _lastCityResults      = [];
+  let _narrationLayer       = null;   // L.LayerGroup de marcadores narrativos
 
   const NOMINATIM_SEARCH_URL = 'https://nominatim.openstreetmap.org/search';
 
@@ -47,8 +48,9 @@ const DebugSim = (() => {
      Lee el estado que ya pone switchTab() en el botón — sin esto,
      el timer de arriba pisaría el contenido de otras tabs. */
   function isSimTabActive() {
-    const btn = document.querySelector('.dbg-tab[data-tab="simular"]');
-    return !!(btn && btn.classList.contains('active'));
+    const btn   = document.querySelector('.dbg-tab[data-tab="simular"]');
+    const panel = document.getElementById('dbg-panel');
+    return !!(btn && btn.classList.contains('active') && panel && !panel.classList.contains('hidden'));
   }
 
   function refreshTabIfActive() {
@@ -65,6 +67,7 @@ const DebugSim = (() => {
 
     content.innerHTML = renderTabInner();
     bindCityInputListeners();
+    _updateNarrationMarkers();
 
     // Restaurar resultados de búsqueda si los había — el timer los habría borrado
     if (_lastCityResults.length > 0) _renderCityResultsInDOM();
@@ -376,6 +379,75 @@ const DebugSim = (() => {
     if (typeof initExplore === 'function') initExplore();
   }
 
+  /* ── TARJETA DE RITMO — resumen de experiencia para la tab Simular ── */
+  function _renderRhythmCard() {
+    if (typeof Debug === 'undefined') return '';
+    const exp = Debug.getExp();
+    if (!exp) return '';
+
+    const f  = exp.funnel;
+    if (f.pois_narrated === 0) return `
+      <div style="margin-top:12px; padding:10px; background:rgba(255,255,255,0.03); border-radius:8px; border:1px solid rgba(255,255,255,0.07);">
+        <div style="font-size:9px; color:#4a5568; text-transform:uppercase; letter-spacing:0.12em; margin-bottom:6px;">🎬 Ritmo del paseo</div>
+        <div style="font-size:10px; color:#4a5568; text-align:center; padding:6px 0;">Sin narraciones aún</div>
+        <div class="dbg-poi-btn-row" style="margin-top:6px;">
+          <button class="dbg-poi-action map" onclick="Debug.switchTab('exp'); return false;">Ver métricas completas →</button>
+        </div>
+      </div>
+    `;
+
+    // Calcular intervalos
+    const ts = exp.narrations.map(n => n.ts);
+    const intervals = [];
+    for (let i = 1; i < ts.length; i++) intervals.push(Math.round((ts[i] - ts[i-1]) / 1000));
+    const avgInt  = intervals.length ? Math.round(intervals.reduce((a,b)=>a+b,0)/intervals.length) : null;
+    const maxInt  = intervals.length ? Math.max(...intervals) : null;
+    const fmtSec  = (s) => s === null ? '—' : (s >= 60 ? `${Math.floor(s/60)}min ${s%60}s` : `${s}s`);
+
+    const s = typeof AppState !== 'undefined' ? AppState : {};
+    const kmWalked = s.kmWalked || 0;
+    const mPerNar  = f.pois_narrated > 0 ? Math.round((kmWalked * 1000) / f.pois_narrated) : null;
+
+    // Narration positions count
+    const withPos = exp.narrations.filter(n => n.lat && n.lng).length;
+
+    return `
+      <div style="margin-top:12px; padding:10px; background:rgba(255,255,255,0.03); border-radius:8px; border:1px solid rgba(255,255,255,0.07);">
+        <div style="font-size:9px; color:#4a5568; text-transform:uppercase; letter-spacing:0.12em; margin-bottom:6px;">🎬 Ritmo del paseo</div>
+        <div class="dbg-grid" style="gap:4px;">
+          <div class="dbg-cell">
+            <div class="dbg-cell-label">Narraciones</div>
+            <div class="dbg-cell-value ${f.pois_narrated > 0 ? 'ok' : ''}">${f.pois_narrated}</div>
+          </div>
+          <div class="dbg-cell">
+            <div class="dbg-cell-label">Completas</div>
+            <div class="dbg-cell-value ${f.narrations_completed > 0 ? 'ok' : ''}">${f.narrations_completed}</div>
+          </div>
+          <div class="dbg-cell">
+            <div class="dbg-cell-label">Tiempo medio</div>
+            <div class="dbg-cell-value">${fmtSec(avgInt)}</div>
+          </div>
+          <div class="dbg-cell">
+            <div class="dbg-cell-label">Mayor silencio</div>
+            <div class="dbg-cell-value ${maxInt !== null && maxInt > 300 ? 'warn' : ''}">${fmtSec(maxInt)}</div>
+          </div>
+          <div class="dbg-cell">
+            <div class="dbg-cell-label">Dist. media</div>
+            <div class="dbg-cell-value">${mPerNar !== null ? mPerNar + 'm' : '—'}</div>
+          </div>
+          <div class="dbg-cell">
+            <div class="dbg-cell-label">POIs detectados</div>
+            <div class="dbg-cell-value">${f.pois_detected}</div>
+          </div>
+        </div>
+        <div class="dbg-poi-btn-row" style="margin-top:6px;">
+          <button class="dbg-poi-action map" onclick="Debug.switchTab('exp'); return false;">Ver score completo →</button>
+          ${withPos > 0 ? `<button class="dbg-poi-action narrate" onclick="DebugSim.focusNarrationMap()">🗺️ Ver en mapa (${withPos})</button>` : ''}
+        </div>
+      </div>
+    `;
+  }
+
   /* ── RENDER ── */
   function renderTab() {
     ensureMapClickListener();
@@ -483,7 +555,61 @@ const DebugSim = (() => {
       <div class="dbg-poi-btn-row" style="margin-top:6px;">
         <button class="dbg-poi-action narrate" onclick="DebugSim.skipToFreeMode()">🚀 Saltar a Modo Libre</button>
       </div>
+
+      ${_renderRhythmCard()}
     `;
+  }
+
+  /* ── MARCADORES NARRATIVOS EN MAPA ── */
+  function _updateNarrationMarkers() {
+    const map = (typeof GPS !== 'undefined') ? GPS.getMap() : null;
+    if (!map || typeof Debug === 'undefined') return;
+
+    const exp = Debug.getExp();
+    if (!exp || !Array.isArray(exp.narrations)) return;
+
+    // Inicializar capa una sola vez
+    if (!_narrationLayer) {
+      _narrationLayer = L.layerGroup().addTo(map);
+    } else {
+      _narrationLayer.clearLayers();
+    }
+
+    exp.narrations.forEach((n, i) => {
+      if (!n.lat || !n.lng) return;
+      const color = n.completed   ? '#2ecc71'
+                  : n.interrupted ? '#f39c12'
+                  : '#c8d4e0';
+
+      L.circleMarker([n.lat, n.lng], {
+        radius:      6,
+        color:       color,
+        fillColor:   color,
+        fillOpacity: 0.85,
+        weight:      1.5,
+      })
+        .bindPopup(`<b>${n.poiName || 'POI'}</b><br>${n.completed ? '✅ Completa' : n.interrupted ? '⚠️ Interrumpida' : '⏳ En progreso'}`, { maxWidth: 160 })
+        .addTo(_narrationLayer);
+    });
+  }
+
+  /* ── ENFOCAR MAPA EN NARRACIONES ── */
+  function focusNarrationMap() {
+    const map = (typeof GPS !== 'undefined') ? GPS.getMap() : null;
+    if (!map || !_narrationLayer) return;
+
+    const exp = (typeof Debug !== 'undefined') ? Debug.getExp() : null;
+    if (!exp) return;
+
+    const withPos = exp.narrations.filter(n => n.lat && n.lng);
+    if (withPos.length === 0) return;
+
+    const latlngs = withPos.map(n => [n.lat, n.lng]);
+    try {
+      map.fitBounds(L.latLngBounds(latlngs), { padding: [30, 30], maxZoom: 17 });
+    } catch (e) {}
+
+    if (typeof navigateTo === 'function') navigateTo('explore');
   }
 
   init();
@@ -499,7 +625,8 @@ const DebugSim = (() => {
     pauseWalking,
     clearRoute,
     backToRealGPS,
-    skipToFreeMode
+    skipToFreeMode,
+    focusNarrationMap,
   };
 
 })();

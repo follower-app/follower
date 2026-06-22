@@ -238,16 +238,8 @@ const Weather = (() => {
 
     if (!weather) return;
 
-    // Actualizar top pill con temperatura si hay espacio
-    // (solo si no hay POI activo para no saturar)
-    if (!AppState.activePOI) {
-      const moodEl = document.getElementById('topMood');
-      if (moodEl && AppState.phase !== 'alert') {
-        // Mostrar temp discretamente
-        const label = Config.getMoodLabel();
-        moodEl.textContent = `${label} · ${weather.temp}°C`;
-      }
-    }
+    // Actualizar care strip con datos de clima
+    if (typeof updateCareStrip === 'function') updateCareStrip();
 
     // Alertar si llueve y no hemos alertado ya
     if (weather.isRaining && !_alertShown) {

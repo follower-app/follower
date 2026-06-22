@@ -13,6 +13,28 @@ const Debug = (() => {
   let _logs          = [];       // historial de eventos
   let _metrics       = [];       // historial de mediciones de tiempo
   let _metricStarts  = {};       // mediciones en curso { id: { t, category, label } }
+
+  /* ── ESTADO DE EXPERIENCIA ── */
+  let _exp = {
+    funnel: {
+      poi_checks:             0,
+      pois_detected:          0,
+      pois_eligible:          0,
+      pois_narrated:          0,
+      narrations_completed:   0,
+      narrations_interrupted: 0,
+    },
+    narrations: [],   // [{ts, lat, lng, poiId, poiName, completed, interrupted}]
+    music: {
+      activeSince:   null,   // performance.now() cuando empezó a sonar
+      totalActiveMs: 0,
+      dipStartTs:    null,
+      totalDipMs:    0,
+      dipCount:      0,
+      restoreCount:  0,
+    },
+  };
+
   const MAX_LOGS      = 80;
   const MAX_METRICS   = 150;
   const STORAGE_KEY   = 'follower_debug_log';
@@ -21,48 +43,40 @@ const Debug = (() => {
   function injectStyles() {
     const style = document.createElement('style');
     style.textContent = `
-      #dbg-toggle {
+      /* ── DEBUG BAR — barra fija de tabs, debajo del care strip ── */
+      #dbg-bar {
         position: fixed;
-        top: 12px;
-        right: 12px;
-        z-index: 9999;
-        background: rgba(192,57,43,0.92);
-        color: white;
-        border: none;
-        border-radius: 20px;
-        padding: 6px 14px;
-        font-family: 'Inter', monospace;
-        font-size: 11px;
-        font-weight: 600;
-        letter-spacing: 0.08em;
-        cursor: pointer;
-        backdrop-filter: blur(8px);
-      }
-
-      #dbg-panel {
-        position: fixed;
-        bottom: 0;
+        top: 32px;
         left: 0;
         right: 0;
-        z-index: 9998;
+        z-index: 9990;
+        background: rgba(8, 12, 20, 0.98);
+        border-bottom: 1px solid rgba(192,57,43,0.35);
+        display: flex;
+        flex-shrink: 0;
+      }
+
+      /* ── DEBUG PANEL — overlay sobre el mapa, oculto por defecto ── */
+      #dbg-panel {
+        position: fixed;
+        top: 64px;
+        left: 0;
+        right: 0;
+        z-index: 9989;
         background: rgba(8, 12, 20, 0.97);
-        border-top: 1px solid rgba(192,57,43,0.4);
+        border-bottom: 1px solid rgba(192,57,43,0.25);
         font-family: 'Inter', monospace;
         font-size: 11px;
         color: #c8d4e0;
-        max-height: 55vh;
-        display: flex;
-        flex-direction: column;
-        backdrop-filter: blur(12px);
+        max-height: 52vh;
+        overflow-y: auto;
         overflow-x: hidden;
       }
 
       #dbg-panel.hidden { display: none; }
 
       #dbg-tabs {
-        display: flex;
-        border-bottom: 1px solid rgba(255,255,255,0.07);
-        flex-shrink: 0;
+        display: contents;
       }
 
       .dbg-tab {
@@ -79,17 +93,16 @@ const Debug = (() => {
         background: none;
         font-family: 'Inter', monospace;
         transition: color 0.2s;
+        border-bottom: 2px solid transparent;
       }
 
-      .dbg-tab.active { color: #c0392b; border-bottom: 2px solid #c0392b; }
+      .dbg-tab.active { color: #c0392b; border-bottom-color: #c0392b; }
 
       #dbg-content {
-        overflow-y: auto;
-        flex: 1;
         padding: 8px;
       }
 
-      /* ── SECCIÓN STATUS ── */
+      /* ── CELDAS STATUS ── */
       .dbg-grid {
         display: grid;
         grid-template-columns: 1fr 1fr;
@@ -122,7 +135,7 @@ const Debug = (() => {
       .dbg-cell-value.warn  { color: #f39c12; }
       .dbg-cell-value.error { color: #c0392b; }
 
-      /* ── SECCIÓN LOGS ── */
+      /* ── LOGS ── */
       .dbg-log-item {
         padding: 4px 0;
         border-bottom: 1px solid rgba(255,255,255,0.04);
@@ -168,7 +181,7 @@ const Debug = (() => {
         word-break: break-word;
       }
 
-      /* ── SECCIÓN SEARCH ── */
+      /* ── SEARCH ── */
       #dbg-search-wrap {
         display: flex;
         gap: 6px;
@@ -187,9 +200,7 @@ const Debug = (() => {
         outline: none;
       }
 
-      #dbg-search-input:focus {
-        border-color: rgba(192,57,43,0.6);
-      }
+      #dbg-search-input:focus { border-color: rgba(192,57,43,0.6); }
 
       #dbg-search-btn {
         background: #c0392b;
@@ -203,11 +214,7 @@ const Debug = (() => {
         cursor: pointer;
       }
 
-      #dbg-search-results {
-        display: flex;
-        flex-direction: column;
-        gap: 4px;
-      }
+      #dbg-search-results { display: flex; flex-direction: column; gap: 4px; }
 
       .dbg-poi-result {
         background: rgba(255,255,255,0.04);
@@ -224,22 +231,10 @@ const Debug = (() => {
         border-color: rgba(192,57,43,0.4);
       }
 
-      .dbg-poi-name {
-        font-weight: 600;
-        color: #c8d4e0;
-        margin-bottom: 2px;
-      }
+      .dbg-poi-name { font-weight: 600; color: #c8d4e0; margin-bottom: 2px; }
+      .dbg-poi-meta { font-size: 10px; color: #4a5568; }
 
-      .dbg-poi-meta {
-        font-size: 10px;
-        color: #4a5568;
-      }
-
-      .dbg-poi-btn-row {
-        display: flex;
-        gap: 6px;
-        margin-top: 6px;
-      }
+      .dbg-poi-btn-row { display: flex; gap: 6px; margin-top: 6px; }
 
       .dbg-poi-action {
         font-size: 10px;
@@ -251,24 +246,11 @@ const Debug = (() => {
         font-family: 'Inter', monospace;
       }
 
-      .dbg-poi-action.narrate {
-        background: rgba(192,57,43,0.5);
-        color: white;
-      }
+      .dbg-poi-action.narrate { background: rgba(192,57,43,0.5); color: white; }
+      .dbg-poi-action.map     { background: rgba(26,82,118,0.5);  color: white; }
 
-      .dbg-poi-action.map {
-        background: rgba(26,82,118,0.5);
-        color: white;
-      }
-
-      /* ── CLASES GENÉRICAS REUSABLES (debug-sim.js y futuros tabs) ──
-         Mismo estilo visual que #dbg-search-*, pero por clase en vez
-         de ID para poder reusarse en más de un lugar del panel. ── */
-      .dbg-input-row {
-        display: flex;
-        gap: 6px;
-        margin-bottom: 8px;
-      }
+      /* ── CLASES REUSABLES (debug-sim.js) ── */
+      .dbg-input-row { display: flex; gap: 6px; margin-bottom: 8px; }
 
       .dbg-input {
         flex: 1;
@@ -282,9 +264,7 @@ const Debug = (() => {
         outline: none;
       }
 
-      .dbg-input:focus {
-        border-color: rgba(192,57,43,0.6);
-      }
+      .dbg-input:focus { border-color: rgba(192,57,43,0.6); }
 
       .dbg-btn {
         background: #c0392b;
@@ -313,9 +293,7 @@ const Debug = (() => {
         border-color: rgba(192,57,43,0.4);
       }
 
-      .dbg-slider-row {
-        margin: 10px 0;
-      }
+      .dbg-slider-row { margin: 10px 0; }
 
       .dbg-slider-label {
         display: flex;
@@ -325,12 +303,9 @@ const Debug = (() => {
         margin-bottom: 4px;
       }
 
-      .dbg-slider {
-        width: 100%;
-        accent-color: #c0392b;
-      }
+      .dbg-slider { width: 100%; accent-color: #c0392b; }
 
-      /* ── SECCIÓN TIMING ── */
+      /* ── TIMING ── */
       .dbg-timing-row {
         display: flex;
         justify-content: space-between;
@@ -346,11 +321,7 @@ const Debug = (() => {
         letter-spacing: 0.1em;
       }
 
-      .dbg-timing-ms {
-        font-weight: 700;
-        font-size: 13px;
-      }
-
+      .dbg-timing-ms { font-weight: 700; font-size: 13px; }
       .dbg-timing-ms.fast { color: #2ecc71; }
       .dbg-timing-ms.med  { color: #f39c12; }
       .dbg-timing-ms.slow { color: #c0392b; }
@@ -388,7 +359,6 @@ const Debug = (() => {
         letter-spacing: 0.08em;
       }
 
-      /* ── RESUMEN DE TIEMPOS POR CATEGORÍA ── */
       .dbg-timing-group {
         padding: 6px 0;
         border-bottom: 1px solid rgba(255,255,255,0.04);
@@ -400,11 +370,7 @@ const Debug = (() => {
         align-items: center;
       }
 
-      .dbg-timing-group-sub {
-        font-size: 9px;
-        color: #4a5568;
-        margin-top: 2px;
-      }
+      .dbg-timing-group-sub { font-size: 9px; color: #4a5568; margin-top: 2px; }
 
       .dbg-section-label {
         font-size: 9px;
@@ -415,15 +381,12 @@ const Debug = (() => {
       }
       .dbg-section-label:first-child { margin-top: 0; }
 
-      /* ancho máximo en desktop / chrome browser */
+      /* Desktop — centrar a 390px */
       @media (min-width: 480px) {
-        #dbg-panel {
+        #dbg-bar, #dbg-panel {
           left: 50%;
           transform: translateX(-50%);
           width: 390px;
-        }
-        #dbg-toggle {
-          right: calc(50% - 195px + 12px);
         }
       }
     `;
@@ -453,56 +416,66 @@ const Debug = (() => {
   }
 
   function createPanel() {
-    const btn = document.createElement('button');
-    btn.id        = 'dbg-toggle';
-    btn.textContent = '🐛 DEBUG';
-    btn.onclick   = togglePanel;
-    document.body.appendChild(btn);
+    // ── Barra de tabs fija ──
+    const bar = document.createElement('div');
+    bar.id = 'dbg-bar';
+    bar.innerHTML = `<div id="dbg-tabs">
+      <button class="dbg-tab" data-tab="status"  onclick="Debug.switchTab('status')">Estado</button>
+      <button class="dbg-tab" data-tab="search"  onclick="Debug.switchTab('search')">Buscar</button>
+      <button class="dbg-tab" data-tab="logs"    onclick="Debug.switchTab('logs')">Logs</button>
+      <button class="dbg-tab" data-tab="timing"  onclick="Debug.switchTab('timing')">Tiempos</button>
+      <button class="dbg-tab" data-tab="exp"     onclick="Debug.switchTab('exp')">🎬</button>
+    </div>`;
+    document.body.appendChild(bar);
 
+    // ── Panel de contenido (overlay, oculto por defecto) ──
     const panel = document.createElement('div');
     panel.id = 'dbg-panel';
-    panel.innerHTML = `
-      <div id="dbg-tabs">
-        <button class="dbg-tab active" data-tab="status" onclick="Debug.switchTab('status')">Estado</button>
-        <button class="dbg-tab" data-tab="search" onclick="Debug.switchTab('search')">Buscar POI</button>
-        <button class="dbg-tab" data-tab="logs" onclick="Debug.switchTab('logs')">Logs</button>
-        <button class="dbg-tab" data-tab="timing" onclick="Debug.switchTab('timing')">Tiempos</button>
-      </div>
-      <div id="dbg-content">
-        <!-- contenido dinámico -->
-      </div>
-    `;
+    panel.classList.add('hidden');
+    panel.innerHTML = `<div id="dbg-content"></div>`;
     document.body.appendChild(panel);
 
-    // Agregar botones de tabs registradas externamente antes de que
-    // el panel existiera (orden de carga de scripts no garantizado)
+    // Agregar tabs externas registradas antes de que el panel existiera
     Object.entries(_externalTabs).forEach(([name, t]) => _appendTabButton(name, t.label));
 
-    renderTab('status');
     startAutoRefresh();
   }
 
-  /* ── TOGGLE PANEL ── */
+  /* ── TOGGLE PANEL — ahora lo maneja switchTab ── */
   function togglePanel() {
     const panel = document.getElementById('dbg-panel');
-    _visible = !_visible;
-    panel.classList.toggle('hidden', !_visible);
-    document.getElementById('dbg-toggle').textContent = _visible ? '🐛 DEBUG' : '🐛';
+    if (panel) panel.classList.toggle('hidden');
   }
 
-  /* ── SWITCH TAB ── */
+  /* ── SWITCH TAB — tap en tab activa colapsa; tap en otra abre ── */
   function switchTab(tabName) {
+    const panel = document.getElementById('dbg-panel');
+    const isOpen   = panel && !panel.classList.contains('hidden');
+    const isSameTab = tabName === _currentTab;
+
+    // Tap en tab activa con panel abierto → colapsar
+    if (isSameTab && isOpen) {
+      panel.classList.add('hidden');
+      document.querySelectorAll('.dbg-tab').forEach(t => t.classList.remove('active'));
+      return;
+    }
+
+    // Tap en nueva tab o panel cerrado → abrir/actualizar
     document.querySelectorAll('.dbg-tab').forEach(t => {
       t.classList.toggle('active', t.dataset.tab === tabName);
     });
+
     renderTab(tabName);
+    if (panel) panel.classList.remove('hidden');
   }
 
   /* ── AUTO REFRESH — tab status ── */
   let _currentTab = 'status';
   function startAutoRefresh() {
     setInterval(() => {
-      if (_currentTab === 'status') renderTab('status');
+      const panel = document.getElementById('dbg-panel');
+      if (!panel || panel.classList.contains('hidden')) return;
+      if (_currentTab === 'status' || _currentTab === 'exp') renderTab(_currentTab);
     }, 1500);
   }
 
@@ -516,9 +489,9 @@ const Debug = (() => {
     else if (tab === 'search')  content.innerHTML = renderSearch();
     else if (tab === 'logs')    content.innerHTML = renderLogs();
     else if (tab === 'timing')  content.innerHTML = renderTiming();
+    else if (tab === 'exp')     content.innerHTML = renderExp();
     else if (_externalTabs[tab]) content.innerHTML = _externalTabs[tab].renderFn();
 
-    // Search necesita listeners
     if (tab === 'search') bindSearchListeners();
   }
 
@@ -877,6 +850,7 @@ const Debug = (() => {
       localStorage.setItem(STORAGE_KEY, JSON.stringify({
         logs:    _logs,
         metrics: _metrics,
+        exp:     _exp,
         savedAt: Date.now()
       }));
     } catch (e) {
@@ -891,6 +865,15 @@ const Debug = (() => {
       const parsed = JSON.parse(saved);
       if (Array.isArray(parsed.logs))    _logs    = parsed.logs.slice(-MAX_LOGS);
       if (Array.isArray(parsed.metrics)) _metrics = parsed.metrics.slice(-MAX_METRICS);
+      if (parsed.exp && typeof parsed.exp === 'object') {
+        if (parsed.exp.funnel)     Object.assign(_exp.funnel, parsed.exp.funnel);
+        if (Array.isArray(parsed.exp.narrations)) _exp.narrations = parsed.exp.narrations;
+        if (parsed.exp.music) {
+          Object.assign(_exp.music, parsed.exp.music);
+          _exp.music.activeSince = null;  // no restaurar timestamps de performance
+          _exp.music.dipStartTs  = null;
+        }
+      }
     } catch (e) {
       // Datos corruptos de una sesión anterior — arrancar limpio
     }
@@ -947,6 +930,315 @@ const Debug = (() => {
     return Object.values(_metricStarts)
       .filter(m => m.category === category)
       .length;
+  }
+
+  /* ── TRACK EXPERIENCE — entrada única desde módulos ── */
+  function trackExp(step, data) {
+    const perfNow = performance.now();
+    const f       = _exp.funnel;
+    const m       = _exp.music;
+
+    switch (step) {
+      case 'poi_check':
+        f.poi_checks++;
+        break;
+      case 'poi_detected':
+        f.pois_detected++;
+        break;
+      case 'poi_eligible':
+        f.pois_eligible++;
+        break;
+      case 'poi_narrated': {
+        f.pois_narrated++;
+        const d = data || {};
+        _exp.narrations.push({
+          ts:          Date.now(),
+          lat:         d.lat    || null,
+          lng:         d.lng    || null,
+          poiId:       d.poiId  || null,
+          poiName:     d.poiName || null,
+          completed:   false,
+          interrupted: false,
+        });
+        break;
+      }
+      case 'narration_completed': {
+        f.narrations_completed++;
+        const last = _exp.narrations[_exp.narrations.length - 1];
+        if (last && !last.completed && !last.interrupted) last.completed = true;
+        break;
+      }
+      case 'narration_interrupted': {
+        f.narrations_interrupted++;
+        const last = _exp.narrations[_exp.narrations.length - 1];
+        if (last && !last.completed && !last.interrupted) last.interrupted = true;
+        break;
+      }
+      case 'music_active':
+        if (m.activeSince === null) m.activeSince = perfNow;
+        break;
+      case 'music_stopped':
+        if (m.activeSince !== null) {
+          m.totalActiveMs += perfNow - m.activeSince;
+          m.activeSince = null;
+        }
+        break;
+      case 'music_dip_start':
+        m.dipCount++;
+        m.dipStartTs = perfNow;
+        break;
+      case 'music_dip_end':
+        m.restoreCount++;
+        if (m.dipStartTs !== null) {
+          m.totalDipMs += perfNow - m.dipStartTs;
+          m.dipStartTs = null;
+        }
+        break;
+    }
+
+    persistState();
+    if (_currentTab === 'exp') renderTab('exp');
+  }
+
+  function clearExpMetrics() {
+    _exp = {
+      funnel: {
+        poi_checks: 0, pois_detected: 0, pois_eligible: 0,
+        pois_narrated: 0, narrations_completed: 0, narrations_interrupted: 0,
+      },
+      narrations: [],
+      music: {
+        activeSince: null, totalActiveMs: 0,
+        dipStartTs: null, totalDipMs: 0,
+        dipCount: 0, restoreCount: 0,
+      },
+    };
+    persistState();
+    renderTab('exp');
+  }
+
+  function getExp() { return _exp; }
+
+  /* ── HELPERS DE EXPERIENCIA ── */
+  function _getNarrationIntervalsSec() {
+    const ts = _exp.narrations.map(n => n.ts);
+    if (ts.length < 2) return [];
+    const out = [];
+    for (let i = 1; i < ts.length; i++) {
+      out.push(Math.round((ts[i] - ts[i - 1]) / 1000));
+    }
+    return out;
+  }
+
+  function _getSessionDurationMs() {
+    const s       = typeof AppState !== 'undefined' ? AppState : {};
+    const perfNow = performance.now();
+    let totalMs   = (s._msTotalSystole || 0) + (s._msTotalDiastole || 0);
+    if (s._phaseStart !== null) totalMs += perfNow - s._phaseStart;
+    return totalMs;
+  }
+
+  function _computeCinematicScore() {
+    const f        = _exp.funnel;
+    const music    = _exp.music;
+    const intervals = _getNarrationIntervalsSec();
+    const perfNow  = performance.now();
+
+    if (f.pois_narrated === 0) return 0;
+
+    let score = 50;
+
+    // Completitud +20
+    const compRatio = f.narrations_completed / f.pois_narrated;
+    score += Math.round(compRatio * 20);
+
+    // Ritmo narrativo
+    if (intervals.length > 0) {
+      const avgInt = intervals.reduce((a, b) => a + b, 0) / intervals.length;
+      if      (avgInt >= 120 && avgInt <= 420) score += 15;  // 2-7min: sweet spot
+      else if (avgInt < 60)                   score -= 15;  // saturación
+      else if (avgInt > 600)                  score -= 10;  // muy esporádico
+
+      const criticals = intervals.filter(i => i > 600).length;
+      score -= criticals * 8;
+    }
+
+    // Presencia de música +10
+    let totalActiveMs = music.totalActiveMs;
+    if (music.activeSince !== null) totalActiveMs += perfNow - music.activeSince;
+    const sessionMs = _getSessionDurationMs();
+    if (sessionMs > 0) {
+      const musicPct = totalActiveMs / sessionMs;
+      if      (musicPct >= 0.7) score += 10;
+      else if (musicPct >= 0.4) score += 5;
+    }
+
+    // Penalización por interrupciones
+    const intRatio = f.narrations_interrupted / f.pois_narrated;
+    score -= Math.round(intRatio * 15);
+
+    return Math.max(0, Math.min(100, score));
+  }
+
+  /* ── RENDER EXP — tab de observabilidad de experiencia ── */
+  function renderExp() {
+    const f        = _exp.funnel;
+    const music    = _exp.music;
+    const perfNow  = performance.now();
+    const s        = typeof AppState !== 'undefined' ? AppState : {};
+
+    // Embudo
+    const fmtConv = (val, prev) => {
+      if (prev <= 0) return String(val);
+      const pct = Math.round((val / prev) * 100);
+      const cls = pct < 30 ? 'color:#c0392b' : pct < 60 ? 'color:#f39c12' : 'color:#2ecc71';
+      return `${val} <span style="${cls}; font-size:9px;">(${pct}%)</span>`;
+    };
+
+    const funnelHTML = `
+      <div class="dbg-timing-row">
+        <span class="dbg-timing-label">Chequeos POI</span>
+        <span style="font-size:12px; font-weight:600; color:#c8d4e0;">${f.poi_checks}</span>
+      </div>
+      <div class="dbg-timing-row" style="padding-left:10px;">
+        <span class="dbg-timing-label">↳ POIs detectados</span>
+        <span style="font-size:12px; font-weight:600; color:#c8d4e0;">${fmtConv(f.pois_detected, f.poi_checks)}</span>
+      </div>
+      <div class="dbg-timing-row" style="padding-left:10px;">
+        <span class="dbg-timing-label">↳ POIs elegibles</span>
+        <span style="font-size:12px; font-weight:600; color:#c8d4e0;">${fmtConv(f.pois_eligible, f.pois_detected)}</span>
+      </div>
+      <div class="dbg-timing-row" style="padding-left:10px;">
+        <span class="dbg-timing-label">↳ POIs narrados</span>
+        <span style="font-size:12px; font-weight:600; color:#c8d4e0;">${fmtConv(f.pois_narrated, f.pois_eligible)}</span>
+      </div>
+      <div class="dbg-timing-row" style="padding-left:20px;">
+        <span class="dbg-timing-label">↳ Narraciones completas</span>
+        <span style="font-size:12px; font-weight:600; color:#c8d4e0;">${fmtConv(f.narrations_completed, f.pois_narrated)}</span>
+      </div>
+      <div class="dbg-timing-row" style="padding-left:20px;">
+        <span class="dbg-timing-label">↳ Interrumpidas</span>
+        <span style="font-size:12px; font-weight:600; color:#c8d4e0;">${f.narrations_interrupted}</span>
+      </div>
+    `;
+
+    // Ritmo
+    const fmtSec = (s) => {
+      if (s === null) return '—';
+      if (s >= 3600) return `${Math.floor(s/3600)}h ${Math.floor((s%3600)/60)}min`;
+      if (s >= 60)   return `${Math.floor(s/60)}min ${s%60}s`;
+      return `${s}s`;
+    };
+    const intervals    = _getNarrationIntervalsSec();
+    const avgInt       = intervals.length ? Math.round(intervals.reduce((a, b) => a + b, 0) / intervals.length) : null;
+    const minInt       = intervals.length ? Math.min(...intervals) : null;
+    const maxInt       = intervals.length ? Math.max(...intervals) : null;
+    const longSilences = intervals.filter(i => i > 300).length;
+    const critSilences = intervals.filter(i => i > 600).length;
+    const saturations  = intervals.filter(i => i < 120).length;
+    const intPct       = f.pois_narrated > 0 ? Math.round((f.narrations_interrupted / f.pois_narrated) * 100) : 0;
+
+    // Música
+    let totalActiveMs = music.totalActiveMs;
+    if (music.activeSince !== null) totalActiveMs += perfNow - music.activeSince;
+    const sessionMs = _getSessionDurationMs();
+    const musicPct  = sessionMs > 0 ? Math.round((totalActiveMs / sessionMs) * 100) : 0;
+    let totalDipMs  = music.totalDipMs;
+    if (music.dipStartTs !== null) totalDipMs += perfNow - music.dipStartTs;
+    const dipPct = totalActiveMs > 0 ? Math.round((totalDipMs / totalActiveMs) * 100) : 0;
+
+    // Calidad de caminata
+    const kmWalked  = s.kmWalked || 0;
+    const sessionMin = Math.round(sessionMs / 60000);
+    const narPerHour = sessionMin > 0 ? ((f.pois_narrated / sessionMin) * 60).toFixed(1) : '—';
+    const mPerNar    = f.pois_narrated > 0 ? Math.round((kmWalked * 1000) / f.pois_narrated) : null;
+
+    // Score
+    const score      = _computeCinematicScore();
+    const scoreColor = score >= 70 ? '#2ecc71' : score >= 40 ? '#f39c12' : '#c0392b';
+    const scoreLabel = score >= 70 ? 'Buen ritmo cinematográfico'
+                     : score >= 40 ? 'Ritmo mejorable'
+                     : score > 0   ? 'Experiencia pobre — revisar pipeline'
+                     : 'Sin narraciones';
+
+    return `
+      <!-- Score -->
+      <div style="text-align:center; padding:10px 0 8px; border-bottom:1px solid rgba(255,255,255,0.07); margin-bottom:8px;">
+        <div style="font-size:9px; color:#4a5568; letter-spacing:0.12em; text-transform:uppercase; margin-bottom:4px;">🎬 Cinematic Score</div>
+        <div style="font-size:36px; font-weight:700; color:${scoreColor}; line-height:1;">${score}</div>
+        <div style="font-size:9px; color:#4a5568; margin-top:2px;">/ 100 — ${scoreLabel}</div>
+      </div>
+
+      <div class="dbg-section-label">Embudo narrativo</div>
+      ${funnelHTML}
+
+      <div class="dbg-section-label">Ritmo narrativo</div>
+      <div class="dbg-grid">
+        <div class="dbg-cell">
+          <div class="dbg-cell-label">Intervalo promedio</div>
+          <div class="dbg-cell-value">${fmtSec(avgInt)}</div>
+        </div>
+        <div class="dbg-cell">
+          <div class="dbg-cell-label">Intervalo mínimo</div>
+          <div class="dbg-cell-value ${minInt !== null && minInt < 120 ? 'warn' : ''}">${fmtSec(minInt)}</div>
+        </div>
+        <div class="dbg-cell">
+          <div class="dbg-cell-label">Mayor silencio</div>
+          <div class="dbg-cell-value ${maxInt !== null && maxInt > 300 ? 'warn' : ''}">${fmtSec(maxInt)}</div>
+        </div>
+        <div class="dbg-cell">
+          <div class="dbg-cell-label">Interrupciones</div>
+          <div class="dbg-cell-value ${intPct > 20 ? 'warn' : f.narrations_interrupted === 0 && f.pois_narrated > 0 ? 'ok' : ''}">${f.narrations_interrupted} (${intPct}%)</div>
+        </div>
+      </div>
+      ${longSilences > 0 ? `<div style="color:#f39c12; font-size:10px; padding:4px 0;">⚠️ ${longSilences} silencio${longSilences !== 1 ? 's' : ''} > 5min · ${critSilences} crítico${critSilences !== 1 ? 's' : ''} > 10min</div>` : ''}
+      ${saturations > 0 ? `<div style="color:#f39c12; font-size:10px; padding:4px 0;">⚠️ ${saturations} intervalo${saturations !== 1 ? 's' : ''} < 2min (posible saturación)</div>` : ''}
+
+      <div class="dbg-section-label">Calidad de caminata</div>
+      <div class="dbg-grid">
+        <div class="dbg-cell">
+          <div class="dbg-cell-label">Duración sesión</div>
+          <div class="dbg-cell-value">${sessionMin}min</div>
+        </div>
+        <div class="dbg-cell">
+          <div class="dbg-cell-label">Km caminados</div>
+          <div class="dbg-cell-value">${kmWalked.toFixed(2)}</div>
+        </div>
+        <div class="dbg-cell">
+          <div class="dbg-cell-label">Narraciones/hora</div>
+          <div class="dbg-cell-value">${narPerHour}</div>
+        </div>
+        <div class="dbg-cell">
+          <div class="dbg-cell-label">Metros/narración</div>
+          <div class="dbg-cell-value">${mPerNar !== null ? mPerNar + 'm' : '—'}</div>
+        </div>
+      </div>
+
+      <div class="dbg-section-label">Música</div>
+      <div class="dbg-grid">
+        <div class="dbg-cell">
+          <div class="dbg-cell-label">Presencia música</div>
+          <div class="dbg-cell-value ${musicPct >= 70 ? 'ok' : musicPct >= 40 ? 'warn' : 'error'}">${musicPct}%</div>
+        </div>
+        <div class="dbg-cell">
+          <div class="dbg-cell-label">Tiempo en dip</div>
+          <div class="dbg-cell-value">${dipPct}%</div>
+        </div>
+        <div class="dbg-cell">
+          <div class="dbg-cell-label">Dips</div>
+          <div class="dbg-cell-value">${music.dipCount}</div>
+        </div>
+        <div class="dbg-cell">
+          <div class="dbg-cell-label">Restores</div>
+          <div class="dbg-cell-value">${music.restoreCount}</div>
+        </div>
+      </div>
+
+      <div class="dbg-actions-row">
+        <button id="dbg-export-btn" onclick="Debug.exportLog()">📤 Exportar .txt</button>
+        <button id="dbg-clear-btn" onclick="Debug.clearExpMetrics()">Reset exp.</button>
+      </div>
+    `;
   }
 
   /* ── EXPORTAR REPORTE A .TXT ── */
@@ -1058,7 +1350,77 @@ const Debug = (() => {
     lines.push('═'.repeat(50));
     lines.push('');
 
-    // ── RESUMEN TÉCNICO DE TIEMPOS ──
+    // ── MÉTRICAS DE EXPERIENCIA (DETALLE AVANZADO) ──
+    lines.push('MÉTRICAS DE EXPERIENCIA');
+    lines.push('─'.repeat(50));
+
+    // Embudo
+    lines.push('[ Embudo narrativo ]');
+    const ef = _exp.funnel;
+    const fmtConvExport = (val, prev, label) => {
+      const pctStr = prev > 0 ? ` (${Math.round((val/prev)*100)}%)` : '';
+      lines.push(`  ${label}: ${val}${pctStr}`);
+    };
+    lines.push(`  Chequeos POI:            ${ef.poi_checks}`);
+    fmtConvExport(ef.pois_detected,         ef.poi_checks,         '  ↳ POIs detectados     ');
+    fmtConvExport(ef.pois_eligible,         ef.pois_detected,      '  ↳ POIs elegibles      ');
+    fmtConvExport(ef.pois_narrated,         ef.pois_eligible,      '  ↳ POIs narrados       ');
+    fmtConvExport(ef.narrations_completed,  ef.pois_narrated,      '  ↳ Narraciones completas');
+    lines.push(`  ↳ Narraciones interrumpidas: ${ef.narrations_interrupted}`);
+    lines.push('');
+
+    // Ritmo
+    lines.push('[ Ritmo narrativo ]');
+    const expIntervals = _getNarrationIntervalsSec();
+    if (expIntervals.length > 0) {
+      const avgI = Math.round(expIntervals.reduce((a,b)=>a+b,0)/expIntervals.length);
+      const minI = Math.min(...expIntervals);
+      const maxI = Math.max(...expIntervals);
+      const fmtS = (sec) => sec >= 60 ? `${Math.floor(sec/60)}min ${sec%60}s` : `${sec}s`;
+      lines.push(`  Intervalo promedio:       ${fmtS(avgI)}`);
+      lines.push(`  Intervalo mínimo:         ${fmtS(minI)}`);
+      lines.push(`  Mayor silencio:           ${fmtS(maxI)}`);
+      lines.push(`  Silencios > 5min:         ${expIntervals.filter(i=>i>300).length}`);
+      lines.push(`  Silencios críticos > 10min: ${expIntervals.filter(i=>i>600).length}`);
+      lines.push(`  Saturaciones < 2min:      ${expIntervals.filter(i=>i<120).length}`);
+    } else {
+      lines.push('  Sin datos de ritmo (< 2 narraciones)');
+    }
+    lines.push('');
+
+    // Calidad de caminata
+    lines.push('[ Calidad de caminata ]');
+    const expKm      = s.kmWalked || 0;
+    const expSessMs  = _getSessionDurationMs();
+    const expSessMin = Math.round(expSessMs / 60000);
+    const expNarHz   = expSessMin > 0 ? ((ef.pois_narrated / expSessMin) * 60).toFixed(1) : 'n/a';
+    const expMPerNar = ef.pois_narrated > 0 ? Math.round((expKm * 1000) / ef.pois_narrated) : null;
+    lines.push(`  Duración sesión:          ${expSessMin}min`);
+    lines.push(`  Narraciones por hora:     ${expNarHz}`);
+    lines.push(`  Metros por narración:     ${expMPerNar !== null ? expMPerNar + 'm' : 'n/a'}`);
+    lines.push('');
+
+    // Música
+    lines.push('[ Música ]');
+    let expActiveMs = _exp.music.totalActiveMs;
+    // activeSince ya no tiene valor útil en exportación — usar totalActiveMs directo
+    const expMusicPct = expSessMs > 0 ? Math.round((expActiveMs / expSessMs) * 100) : 0;
+    lines.push(`  Presencia de música:      ${expMusicPct}% de la sesión`);
+    lines.push(`  Dips:                     ${_exp.music.dipCount}`);
+    lines.push(`  Restores:                 ${_exp.music.restoreCount}`);
+    lines.push('');
+
+    // Cinematic Score
+    const expScore = _computeCinematicScore();
+    lines.push(`🎬 Cinematic Score:         ${expScore}/100`);
+    const expLabel = expScore >= 70 ? 'Buen ritmo cinematográfico'
+                   : expScore >= 40 ? 'Ritmo mejorable'
+                   : expScore > 0   ? 'Experiencia pobre'
+                   : 'Sin narraciones';
+    lines.push(`   Veredicto:               ${expLabel}`);
+    lines.push('');
+    lines.push('═'.repeat(50));
+    lines.push('');
     lines.push('RESUMEN TÉCNICO DE TIEMPOS');
     lines.push('─'.repeat(50));
     if (_metrics.length === 0) {
@@ -1238,16 +1600,13 @@ const Debug = (() => {
   /* ── VERIFICAR WORKER DE CLOUDFLARE ── */
   async function checkWorker() {
     window._dbgWorkerStatus = 'checking';
-    if (_currentTab === 'status') renderTab('status');
 
     try {
-      // Ping liviano a /weather sin lat/lon — esperamos 400, lo que confirma que el Worker responde
       const url = (typeof Narration !== 'undefined' && Narration._configUrl)
         ? Narration._configUrl.replace('/narration', '/weather')
         : 'https://followernarration.jaimeand.workers.dev/weather';
 
       const res = await fetch(url);
-      // Cualquier respuesta del servidor (200, 400, etc) confirma que el Worker está vivo
       window._dbgWorkerStatus = res.status ? 'ok' : 'error';
       log('info', `Worker Cloudflare: respondió status=${res.status}`);
 
@@ -1256,7 +1615,10 @@ const Debug = (() => {
       log('error', `Worker Cloudflare inaccesible: ${e.message}`);
     }
 
-    if (_currentTab === 'status') renderTab('status');
+    const panel = document.getElementById('dbg-panel');
+    if (panel && !panel.classList.contains('hidden') && _currentTab === 'status') {
+      renderTab('status');
+    }
   }
 
   /* ── INIT ── */
@@ -1266,7 +1628,7 @@ const Debug = (() => {
     createPanel();
     interceptConsole();
 
-    log('info', `Follower Debug v0.5 iniciado`);
+    log('info', `Follower Debug v0.5 — panel overlay activo`);
     log('info', `User Agent: ${navigator.userAgent.slice(0, 60)}...`);
     if (_metrics.length > 0) {
       log('info', `${_metrics.length} mediciones restauradas de la sesión anterior`);
@@ -1287,6 +1649,9 @@ const Debug = (() => {
     log,
     metricStart,
     metricEnd,
+    trackExp,
+    getExp,
+    clearExpMetrics,
     exportLog,
     switchTab,
     activatePOI,

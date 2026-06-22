@@ -84,6 +84,7 @@ const Music = (() => {
     _source.connect(_gainNode);
     _source.start(0);
     _isPlaying = true;
+    if (typeof Debug !== 'undefined') Debug.trackExp('music_active');
   }
 
   /* ── FADE — DA-3 función única ── */
@@ -139,11 +140,13 @@ const Music = (() => {
 
   /* ── DIP — bajar volumen durante narración ── */
   function dipForNarration() {
+    if (typeof Debug !== 'undefined') Debug.trackExp('music_dip_start');
     fadeMusic(CONFIG.VOL_NARRATION, CONFIG.FADE_DIP_MS);
   }
 
   /* ── RESTORE — subir volumen después de narración ── */
   function restoreAfterNarration() {
+    if (typeof Debug !== 'undefined') Debug.trackExp('music_dip_end');
     fadeMusic(CONFIG.VOL_AMBIENT, CONFIG.FADE_DIP_MS);
   }
 
@@ -154,6 +157,7 @@ const Music = (() => {
 
   /* ── STOP ── */
   function stop() {
+    if (typeof Debug !== 'undefined') Debug.trackExp('music_stopped');
     fadeMusic(0, CONFIG.FADE_OUT_MS, () => {
       if (_source) {
         try { _source.stop(); } catch (e) {}

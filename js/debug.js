@@ -359,6 +359,27 @@ const Debug = (() => {
   }
 
   /* ── CREAR HTML DEL PANEL ── */
+  /* ── TABS REGISTRADAS EXTERNAMENTE (ej. debug-sim.js) ──
+     Permite que otros módulos se agreguen como tab sin que debug.js
+     tenga que conocerlos por nombre — mantiene single responsibility. */
+  let _externalTabs = {};   // { name: { label, renderFn } }
+
+  function _appendTabButton(name, label) {
+    const tabsEl = document.getElementById('dbg-tabs');
+    if (!tabsEl || tabsEl.querySelector(`[data-tab="${name}"]`)) return;
+    const btn = document.createElement('button');
+    btn.className   = 'dbg-tab';
+    btn.dataset.tab = name;
+    btn.textContent = label;
+    btn.onclick     = () => switchTab(name);
+    tabsEl.appendChild(btn);
+  }
+
+  function registerTab(name, label, renderFn) {
+    _externalTabs[name] = { label, renderFn };
+    _appendTabButton(name, label);
+  }
+
   function createPanel() {
     const btn = document.createElement('button');
     btn.id        = 'dbg-toggle';
@@ -370,16 +391,20 @@ const Debug = (() => {
     panel.id = 'dbg-panel';
     panel.innerHTML = `
       <div id="dbg-tabs">
-        <button class="dbg-tab active" onclick="Debug.switchTab('status')">Estado</button>
-        <button class="dbg-tab" onclick="Debug.switchTab('search')">Buscar POI</button>
-        <button class="dbg-tab" onclick="Debug.switchTab('logs')">Logs</button>
-        <button class="dbg-tab" onclick="Debug.switchTab('timing')">Tiempos</button>
+        <button class="dbg-tab active" data-tab="status" onclick="Debug.switchTab('status')">Estado</button>
+        <button class="dbg-tab" data-tab="search" onclick="Debug.switchTab('search')">Buscar POI</button>
+        <button class="dbg-tab" data-tab="logs" onclick="Debug.switchTab('logs')">Logs</button>
+        <button class="dbg-tab" data-tab="timing" onclick="Debug.switchTab('timing')">Tiempos</button>
       </div>
       <div id="dbg-content">
         <!-- contenido dinámico -->
       </div>
     `;
     document.body.appendChild(panel);
+
+    // Agregar botones de tabs registradas externamente antes de que
+    // el panel existiera (orden de carga de scripts no garantizado)
+    Object.entries(_externalTabs).forEach(([name, t]) => _appendTabButton(name, t.label));
 
     renderTab('status');
     startAutoRefresh();
@@ -395,9 +420,8 @@ const Debug = (() => {
 
   /* ── SWITCH TAB ── */
   function switchTab(tabName) {
-    document.querySelectorAll('.dbg-tab').forEach((t, i) => {
-      const names = ['status', 'search', 'logs', 'timing'];
-      t.classList.toggle('active', names[i] === tabName);
+    document.querySelectorAll('.dbg-tab').forEach(t => {
+      t.classList.toggle('active', t.dataset.tab === tabName);
     });
     renderTab(tabName);
   }
@@ -420,6 +444,7 @@ const Debug = (() => {
     else if (tab === 'search')  content.innerHTML = renderSearch();
     else if (tab === 'logs')    content.innerHTML = renderLogs();
     else if (tab === 'timing')  content.innerHTML = renderTiming();
+    else if (_externalTabs[tab]) content.innerHTML = _externalTabs[tab].renderFn();
 
     // Search necesita listeners
     if (tab === 'search') bindSearchListeners();
@@ -762,6 +787,15 @@ const Debug = (() => {
     return record;
   }
 
+  /* ── CONTAR MEDICIONES EN VUELO (para debug-sim.js) ──
+     Cuántos metricStart de una categoría siguen sin su metricEnd —
+     usa _metricStarts, que ya existía para esto exacto. */
+  function getInFlightCount(category) {
+    return Object.values(_metricStarts)
+      .filter(m => m.category === category)
+      .length;
+  }
+
   /* ── EXPORTAR REPORTE A .TXT ── */
   function exportLog() {
     const now   = new Date();
@@ -1030,7 +1064,9 @@ const Debug = (() => {
     checkWorker,
     clearCache,
     clearLogs,
-    clearTimings
+    clearTimings,
+    getInFlightCount,
+    registerTab
   };
 
 })();

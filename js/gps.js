@@ -252,6 +252,40 @@ const GPS = (() => {
     }
   }
 
+  /* ── SIMULAR POSICIÓN (para debug-sim.js) ──
+     Arma un objeto position falso con la misma forma que entrega
+     watchPosition real, y lo pasa directo a onPosition(). El simulador
+     nunca duplica lógica de GPS real — entra por el mismo camino. */
+  function simulatePosition(lat, lng, accuracy = 5) {
+    onPosition({
+      coords: {
+        latitude:  lat,
+        longitude: lng,
+        accuracy:  accuracy
+      },
+      timestamp: Date.now()
+    });
+  }
+
+  /* ── AJUSTAR THROTTLE DE CHEQUEO DE POIs (para debug-sim.js) ──
+     Permite al simulador bajar el intervalo (ej. 1500-2000ms) para
+     estresar el candado de concurrencia de poi.js a demanda. */
+  function setPOICheckInterval(ms) {
+    if (typeof ms === 'number' && ms > 0) {
+      CONFIG.POI_CHECK_INTERVAL = ms;
+    }
+  }
+
+  /* ── EXPONER RADIOS DE CONFIG (solo lectura) ──
+     Devuelve una copia, no la referencia — el simulador puede leer
+     pero no mutar CONFIG directamente. */
+  function getRadiusConfig() {
+    return {
+      poiRadius:     CONFIG.POI_RADIUS_METERS,
+      nearbyRadius:  CONFIG.NEARBY_RADIUS
+    };
+  }
+
   /* ── AGREGAR MARCADOR POI AL MAPA ── */
   function addPOIMarker(poi) {
     if (!_map) return null;
@@ -295,7 +329,10 @@ const GPS = (() => {
     centerMap,
     distanceMeters,
     addPOIMarker,
-    getMap: () => _map
+    getMap: () => _map,
+    simulatePosition,
+    setPOICheckInterval,
+    getRadiusConfig
   };
 
 })();

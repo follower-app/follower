@@ -14,6 +14,7 @@ const DebugSim = (() => {
 
   /* ── ESTADO INTERNO ── */
   let _mode             = 'teleport';  // 'teleport' | 'route'
+  let _cityQuery        = '';           // valor del input de ciudad — preservado entre re-renders
   let _routePoints       = [];          // [{lat,lng}, ...] clicks en modo ruta
   let _routeLine          = null;        // L.Polyline de la ruta dibujada
   let _routeMarkers       = [];          // marcadores de cada waypoint
@@ -82,7 +83,57 @@ const DebugSim = (() => {
     if (!isSimTabActive()) return;
     const content = document.getElementById('dbg-content');
     if (!content) return;
+
+    // Si el input de ciudad tiene el foco, NO re-renderizar todo el panel —
+    // solo actualizar las secciones que cambian (stats, botones de modo/ruta)
+    // para no interrumpir al usuario mientras escribe en iOS
+    const cityInput = document.getElementById('dbg-sim-city-input');
+    if (cityInput && document.activeElement === cityInput) {
+      _updateStatsOnly();
+      return;
+    }
+
     content.innerHTML = renderTabInner();
+    bindCityInputListeners();
+  }
+
+  function _updateStatsOnly() {
+    // Actualiza solo los dbg-cell values del panel de stats sin tocar el input
+    const inFlight     = (typeof Debug !== 'undefined') ? Debug.getInFlightCount('poi') : 0;
+    const poisLoaded   = (typeof AppState !== 'undefined') ? (AppState.nearbyPOIs?.length || 0) : 0;
+    const phaseTotal   = _phaseAccum.systole + _phaseAccum.diastole + _phaseAccum.rest || 1;
+    const sistolePct   = Math.round((_phaseAccum.systole / phaseTotal) * 100);
+    const diastolePct  = Math.round((_phaseAccum.diastole / phaseTotal) * 100);
+
+    const cells = document.querySelectorAll('.dbg-cell-value');
+    if (cells.length >= 5) {
+      cells[0].textContent = `${sistolePct}% / ${diastolePct}%`;
+      cells[1].textContent = poisLoaded;
+      cells[3].textContent = _narrationsTriggered;
+      cells[4].textContent = inFlight;
+      cells[4].className   = `dbg-cell-value ${inFlight > 0 ? 'warn' : 'ok'}`;
+    }
+  }
+
+  function bindCityInputListeners() {
+    const input = document.getElementById('dbg-sim-city-input');
+    const btn   = document.getElementById('dbg-sim-city-btn');
+    if (!input || !btn) return;
+
+    // oninput guarda el valor en _cityQuery para preservarlo entre re-renders
+    input.addEventListener('input', () => { _cityQuery = input.value; });
+
+    // keydown con 'Enter' — compatible con iOS
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.keyCode === 13) {
+        e.preventDefault();
+        DebugSim.searchCity(input.value);
+      }
+    });
+
+    btn.addEventListener('click', () => {
+      DebugSim.searchCity(input.value);
+    });
   }
 
   /* ── LISTENER DE CLICK EN EL MAPA — una sola vez ── */
@@ -231,6 +282,7 @@ const DebugSim = (() => {
      sin key nueva, solo el endpoint /search en vez de /reverse. */
   async function searchCity(query) {
     if (!query || query.trim().length < 2) return;
+    _cityQuery = query;
 
     const resultsEl = document.getElementById('dbg-sim-city-results');
     if (resultsEl) resultsEl.innerHTML = '<div class="dbg-poi-meta">Buscando...</div>';
@@ -320,7 +372,11 @@ const DebugSim = (() => {
   /* ── RENDER ── */
   function renderTab() {
     ensureMapClickListener();
-    return renderTabInner();
+    const html = renderTabInner();
+    // Los listeners se adjuntan despues de que el HTML se inserta en el DOM —
+    // se llama desde renderTab() que a su vez es llamado por Debug.switchTab()
+    setTimeout(bindCityInputListeners, 0);
+    return html;
   }
 
   function renderTabInner() {
@@ -342,8 +398,8 @@ const DebugSim = (() => {
 
       <div class="dbg-input-row">
         <input id="dbg-sim-city-input" class="dbg-input" placeholder="Buscar ciudad..."
-               onkeydown="if(event.key==='Enter'){DebugSim.searchCity(this.value); event.preventDefault();}" />
-        <button class="dbg-btn" onclick="DebugSim.searchCity(document.getElementById('dbg-sim-city-input').value)">Buscar</button>
+               value="${escapeHtml(_cityQuery)}" />
+        <button class="dbg-btn" id="dbg-sim-city-btn">Buscar</button>
       </div>
       <div id="dbg-sim-city-results"></div>
 

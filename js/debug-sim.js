@@ -157,9 +157,17 @@ const DebugSim = (() => {
   /* ── MODO TELETRANSPORTAR ── */
   function teleportTo(lat, lng) {
     if (typeof GPS === 'undefined') return;
-    GPS.stop(); // pausar GPS real — nunca deben competir los dos
+
+    // Solo pausar GPS real si el mapa ya existe (si no existe,
+    // es la primera posición y watchPosition aún no corrió)
+    if (GPS.getMap()) GPS.stop();
+
     GPS.simulatePosition(lat, lng, 5);
+
+    // Adjuntar el listener de clic DESPUÉS de simulatePosition(),
+    // que es cuando initMap() crea el mapa si aún no existía
     ensureMapClickListener();
+
     refreshTabIfActive();
   }
 
@@ -319,13 +327,23 @@ const DebugSim = (() => {
     const r = _lastCityResults[i];
     if (!r) return;
 
-    teleportTo(parseFloat(r.lat), parseFloat(r.lon));
+    const lat = parseFloat(r.lat);
+    const lon = parseFloat(r.lon);
 
+    // simulatePosition primero — puede crear el mapa si no existia
+    teleportTo(lat, lon);
+
+    // setView despues — ahora el mapa si existe
     const map = (typeof GPS !== 'undefined') ? GPS.getMap() : null;
-    if (map) map.setView([parseFloat(r.lat), parseFloat(r.lon)], 15);
+    if (map) map.setView([lat, lon], 15);
 
     const resultsEl = document.getElementById('dbg-sim-city-results');
     if (resultsEl) resultsEl.innerHTML = '';
+    _cityQuery = r.display_name.split(',')[0];
+
+    // Refrescar el panel para que refleje que el mapa ya existe
+    // (necesario si esta era la primera posición y initMap() acaba de correr)
+    setTimeout(refreshTabIfActive, 100);
   }
 
   function escapeHtml(str) {

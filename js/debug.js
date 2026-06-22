@@ -258,6 +258,75 @@ const Debug = (() => {
         color: white;
       }
 
+      /* ── CLASES GENÉRICAS REUSABLES (debug-sim.js y futuros tabs) ──
+         Mismo estilo visual que #dbg-search-*, pero por clase en vez
+         de ID para poder reusarse en más de un lugar del panel. ── */
+      .dbg-input-row {
+        display: flex;
+        gap: 6px;
+        margin-bottom: 8px;
+      }
+
+      .dbg-input {
+        flex: 1;
+        background: rgba(255,255,255,0.07);
+        border: 1px solid rgba(255,255,255,0.1);
+        border-radius: 8px;
+        padding: 7px 10px;
+        color: #c8d4e0;
+        font-family: 'Inter', monospace;
+        font-size: 12px;
+        outline: none;
+      }
+
+      .dbg-input:focus {
+        border-color: rgba(192,57,43,0.6);
+      }
+
+      .dbg-btn {
+        background: #c0392b;
+        color: white;
+        border: none;
+        border-radius: 8px;
+        padding: 7px 14px;
+        font-family: 'Inter', monospace;
+        font-size: 11px;
+        font-weight: 600;
+        cursor: pointer;
+      }
+
+      .dbg-result-item {
+        background: rgba(255,255,255,0.04);
+        border: 1px solid rgba(255,255,255,0.08);
+        border-radius: 6px;
+        padding: 8px 10px;
+        cursor: pointer;
+        transition: background 0.15s;
+      }
+
+      .dbg-result-item:hover,
+      .dbg-result-item:active {
+        background: rgba(192,57,43,0.2);
+        border-color: rgba(192,57,43,0.4);
+      }
+
+      .dbg-slider-row {
+        margin: 10px 0;
+      }
+
+      .dbg-slider-label {
+        display: flex;
+        justify-content: space-between;
+        font-size: 10px;
+        color: #4a5568;
+        margin-bottom: 4px;
+      }
+
+      .dbg-slider {
+        width: 100%;
+        accent-color: #c0392b;
+      }
+
       /* ── SECCIÓN TIMING ── */
       .dbg-timing-row {
         display: flex;

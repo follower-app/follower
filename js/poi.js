@@ -461,6 +461,15 @@ const POI = (() => {
 
   /* ── DETECTAR NEARBY — función pública principal ── */
   function detectNearby(lat, lng, activeRadius, nearbyRadius) {
+    // Embudo Capa 1 — cada chequeo queda registrado para análisis de densidad
+    if (typeof Debug !== 'undefined') {
+      const poisCercanos = _pois.filter(p => {
+        const d = GPS.distanceMeters(lat, lng, p.lat, p.lng);
+        return d < nearbyRadius;
+      }).length;
+      Debug.log('info', `POI check · cargados=${_pois.length} cercanos=${poisCercanos} km=${AppState.kmWalked?.toFixed(2) || '0.00'}`);
+    }
+
     // Si no hay POIs o nos movimos mucho → refetch
     if (_pois.length === 0) {
       loadPOIs(lat, lng);

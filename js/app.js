@@ -20,7 +20,16 @@ const AppState = {
   kmWalked:    0,
   poisVisited: 0,
   weather:     null,
-  cityName:    ''
+  cityName:    '',
+
+  // ── Métricas de ritmo cinematográfico ──
+  _phaseStart:        null,   // timestamp (performance.now) del inicio de la fase actual
+  _msTotalSystole:    0,      // ms acumulados en sístole (caminando)
+  _msTotalDiastole:   0,      // ms acumulados en diástole (narrando)
+  _lastNarrationTs:   null,   // timestamp de la última narración disparada
+  _narrationCount:    0,      // total de narraciones en la sesión
+  _sessionStart:      null,   // timestamp de inicio de sesión (primer GPS fix)
+  _firstNarrationTs:  null,   // timestamp de la primera narración (para "tiempo hasta primera narración")
 };
 
 /* ── ROUTER — cambiar pantalla ── */
@@ -47,6 +56,23 @@ function setPhase(phase) {
     console.warn(`setPhase: fase inválida "${phase}"`);
     return;
   }
+
+  // Acumular tiempo en la fase que termina
+  const now = performance.now();
+  if (AppState._phaseStart !== null && AppState.phase !== phase) {
+    const elapsed = now - AppState._phaseStart;
+    if (AppState.phase === 'systole')  AppState._msTotalSystole  += elapsed;
+    if (AppState.phase === 'diastole') AppState._msTotalDiastole += elapsed;
+
+    // Detectar silencios largos — más de 5min en sístole sin narración
+    if (AppState.phase === 'systole' && elapsed > 5 * 60 * 1000) {
+      if (typeof Debug !== 'undefined') {
+        Debug.log('warn', `Silencio largo: ${Math.round(elapsed / 1000)}s sin narración`);
+      }
+    }
+  }
+  AppState._phaseStart = now;
+
   valid.forEach(p => document.body.classList.remove(`phase-${p}`));
   document.body.classList.add(`phase-${phase}`);
   AppState.phase = phase;
@@ -191,6 +217,13 @@ function initExplore() {
   setPhase('systole');
   updateTopPill();
   updateStats();
+
+  // Marcar inicio de sesión — base para "tiempo hasta primera narración"
+  AppState._sessionStart = performance.now();
+  AppState._phaseStart   = performance.now();
+  if (typeof Debug !== 'undefined') {
+    Debug.log('info', 'Sesión iniciada — tracking de fases activo');
+  }
 
   // GPS ya tiene permiso — solo iniciar el watch continuo
   if (typeof GPS !== 'undefined') GPS.start();

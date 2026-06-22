@@ -221,6 +221,26 @@ Take a moment to observe the details — every stone, every arch, has a story to
     _isNarrating  = true;
     _isPaused     = false;
 
+    // ── Métricas de ritmo cinematográfico ──
+    const now = performance.now();
+
+    // Tiempo hasta primera narración — desde que el usuario empezó a explorar
+    if (AppState._firstNarrationTs === null) {
+      AppState._firstNarrationTs = now;
+      if (AppState._sessionStart !== null && typeof Debug !== 'undefined') {
+        const secsToFirst = Math.round((now - AppState._sessionStart) / 1000);
+        Debug.log('info', `Primera narración: ${secsToFirst}s desde inicio de sesión · POI=${poi.name}`);
+      }
+    }
+
+    // Intervalo entre narraciones consecutivas
+    if (AppState._lastNarrationTs !== null && typeof Debug !== 'undefined') {
+      const intervaloSec = Math.round((now - AppState._lastNarrationTs) / 1000);
+      Debug.log('info', `Intervalo entre narraciones: ${intervaloSec}s · POI=${poi.name}`);
+    }
+    AppState._lastNarrationTs = now;
+    AppState._narrationCount++;
+
     startWaves();
     startProgressBar();
 

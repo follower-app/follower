@@ -26,13 +26,6 @@ const DebugSim = (() => {
   let _clickHandlerBound    = false;
   let _lastCityResults      = [];
 
-  // Acumulado sístole/diástole — no existe en otro lado, AppState solo
-  // guarda la fase ACTUAL, no el historial de tiempo en cada una
-  let _phaseAccum   = { systole: 0, diastole: 0, rest: 0 };
-  let _lastPhase    = null;
-  let _lastPhaseTs  = null;
-  let _narrationsTriggered = 0;
-
   const NOMINATIM_SEARCH_URL = 'https://nominatim.openstreetmap.org/search';
 
   /* ── INIT ── */
@@ -42,33 +35,12 @@ const DebugSim = (() => {
       return;
     }
     Debug.registerTab('simular', '🎮 Simular', renderTab);
-    startBackgroundTracking();
+    startAutoRefreshTab();
   }
 
-  /* ── TRACKING DE FASE + AUTO-REFRESH — un solo timer liviano ── */
-  function startBackgroundTracking() {
-    setInterval(() => {
-      if (typeof AppState === 'undefined') return;
-      const now   = performance.now();
-      const phase = AppState.phase || 'systole';
-
-      if (_lastPhase !== null && _lastPhaseTs !== null) {
-        const elapsed = now - _lastPhaseTs;
-        if (_phaseAccum[_lastPhase] !== undefined) {
-          _phaseAccum[_lastPhase] += elapsed;
-        }
-      }
-
-      // Transición systole -> diastole = una narración se disparó
-      if (_lastPhase === 'systole' && phase === 'diastole') {
-        _narrationsTriggered++;
-      }
-
-      _lastPhase   = phase;
-      _lastPhaseTs = now;
-
-      refreshTabIfActive();
-    }, 500);
+  /* ── AUTO REFRESH DE LA TAB — timer liviano ── */
+  function startAutoRefreshTab() {
+    setInterval(() => refreshTabIfActive(), 500);
   }
 
   /* ── ¿LA TAB SIMULAR ESTÁ VISIBLE AHORA MISMO? ──
@@ -99,18 +71,30 @@ const DebugSim = (() => {
   }
 
   function _updateStatsOnly() {
-    // Actualiza solo los dbg-cell values del panel de stats sin tocar el input
-    const inFlight     = (typeof Debug !== 'undefined') ? Debug.getInFlightCount('poi') : 0;
-    const poisLoaded   = (typeof AppState !== 'undefined') ? (AppState.nearbyPOIs?.length || 0) : 0;
-    const phaseTotal   = _phaseAccum.systole + _phaseAccum.diastole + _phaseAccum.rest || 1;
-    const sistolePct   = Math.round((_phaseAccum.systole / phaseTotal) * 100);
-    const diastolePct  = Math.round((_phaseAccum.diastole / phaseTotal) * 100);
+    const s   = typeof AppState !== 'undefined' ? AppState : {};
+    const now = performance.now();
+
+    const inFlight   = (typeof Debug !== 'undefined') ? Debug.getInFlightCount('poi') : 0;
+    const poisLoaded = typeof POI !== 'undefined' ? POI.getPOIs().length : 0;
+    const narCount   = s._narrationCount || 0;
+
+    let sistoleMs  = s._msTotalSystole  || 0;
+    let diastoleMs = s._msTotalDiastole || 0;
+    if (s._phaseStart !== null) {
+      const currentMs = now - s._phaseStart;
+      if (s.phase === 'systole')  sistoleMs  += currentMs;
+      if (s.phase === 'diastole') diastoleMs += currentMs;
+    }
+    const phaseTotal  = sistoleMs + diastoleMs || 1;
+    const sistolePct  = Math.round((sistoleMs  / phaseTotal) * 100);
+    const diastolePct = Math.round((diastoleMs / phaseTotal) * 100);
 
     const cells = document.querySelectorAll('.dbg-cell-value');
     if (cells.length >= 5) {
       cells[0].textContent = `${sistolePct}% / ${diastolePct}%`;
       cells[1].textContent = poisLoaded;
-      cells[3].textContent = _narrationsTriggered;
+      cells[3].textContent = narCount;
+      cells[3].className   = `dbg-cell-value ${narCount > 0 ? 'ok' : ''}`;
       cells[4].textContent = inFlight;
       cells[4].className   = `dbg-cell-value ${inFlight > 0 ? 'warn' : 'ok'}`;
     }
@@ -403,14 +387,27 @@ const DebugSim = (() => {
   }
 
   function renderTabInner() {
-    const phaseTotal   = _phaseAccum.systole + _phaseAccum.diastole + _phaseAccum.rest || 1;
-    const sistolePct   = Math.round((_phaseAccum.systole / phaseTotal) * 100);
-    const diastolePct  = Math.round((_phaseAccum.diastole / phaseTotal) * 100);
+    const s    = typeof AppState !== 'undefined' ? AppState : {};
+    const now  = performance.now();
 
-    const poisLoaded  = (typeof AppState !== 'undefined') ? (AppState.nearbyPOIs?.length || 0) : 0;
-    const poisVisited = (typeof AppState !== 'undefined') ? (AppState.poisVisited || 0) : 0;
-    const inFlight     = (typeof Debug !== 'undefined') ? Debug.getInFlightCount('poi') : 0;
-    const mapReady      = (typeof GPS !== 'undefined') && !!GPS.getMap();
+    // Sístole/Diástole — leído de AppState, igual que debug.js dashboard
+    let sistoleMs  = s._msTotalSystole  || 0;
+    let diastoleMs = s._msTotalDiastole || 0;
+    if (s._phaseStart !== null) {
+      const currentMs = now - s._phaseStart;
+      if (s.phase === 'systole')  sistoleMs  += currentMs;
+      if (s.phase === 'diastole') diastoleMs += currentMs;
+    }
+    const phaseTotal  = sistoleMs + diastoleMs || 1;
+    const sistolePct  = Math.round((sistoleMs  / phaseTotal) * 100);
+    const diastolePct = Math.round((diastoleMs / phaseTotal) * 100);
+
+    // Narraciones y POIs — desde AppState real
+    const poisLoaded  = typeof POI !== 'undefined' ? POI.getPOIs().length : 0;
+    const poisVisited = s.poisVisited || 0;
+    const narCount    = s._narrationCount || 0;
+    const inFlight    = (typeof Debug !== 'undefined') ? Debug.getInFlightCount('poi') : 0;
+    const mapReady    = (typeof GPS !== 'undefined') && !!GPS.getMap();
 
     return `
       <div class="dbg-poi-meta" style="margin-bottom:8px;">
@@ -469,7 +466,7 @@ const DebugSim = (() => {
         </div>
         <div class="dbg-cell">
           <div class="dbg-cell-label">Narraciones</div>
-          <div class="dbg-cell-value ${_narrationsTriggered > 0 ? 'ok' : ''}">${_narrationsTriggered}</div>
+          <div class="dbg-cell-value ${narCount > 0 ? 'ok' : ''}">${narCount}</div>
         </div>
         <div class="dbg-cell">
           <div class="dbg-cell-label">Fetches Overpass en vuelo</div>

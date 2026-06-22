@@ -34,15 +34,16 @@ follower/
 │   ├── keys.js             → API keys LOCAL ONLY (.gitignore) — vacío salvo legacy
 │   ├── config.js           → idioma, mood, mode, volúmenes, localStorage
 │   ├── app.js              → AppState, navigateTo(), setPhase(), init
-│   ├── gps.js              → Leaflet, watchPosition, Haversine, Nominatim
-│   ├── poi.js              → Overpass OSM (lz4 mirror), IndexedDB, detectPOI, renderExpanded
+│   ├── gps.js              → Leaflet, watchPosition, Haversine, Nominatim, simulatePosition() (DA-14)
+│   ├── poi.js              → Overpass OSM (lz4 mirror), IndexedDB, detectPOI, candado de concurrencia (BUG-014)
 │   ├── narration.js        → Claude API vía Worker, prompts×4moods×2langs, fallback
 │   ├── voice.js            → Web Speech API, 12 idiomas BCP-47
 │   ├── music.js            → Web Audio API, fadeMusic, dip/restore
 │   ├── weather.js          → OpenWeatherMap vía Worker, lluvia, cache 30min
 │   ├── care.js             → checkCareContext, 4 prioridades, cooldown
 │   ├── routes.js           → 5 recorridos Roma, Leaflet polyline, picker
-│   └── debug.js            → panel debug flotante + métricas con historial (DA-12), export .txt
+│   ├── debug.js            → panel debug flotante + métricas con historial (DA-12), registro de tabs externas (DA-15), export .txt
+│   └── debug-sim.js        → simulador GPS, 5ta tab registrada vía Debug.registerTab()
 │
 ├── cloudflare/
 │   └── worker.js           → proxy Claude API + OpenWeatherMap (referencia, no afecta deploy)
@@ -147,6 +148,57 @@ entre sí. El historial completo vive en un arreglo, no en un objeto que se
 sobreescribe, y se persiste en `localStorage` (`follower_debug_log`) para
 sobrevivir recargas de página durante pruebas en campo.
 
+### DA-13 — CartoDB Voyager como proveedor de tiles del mapa
+
+Se iteró en vivo contra capturas reales de campo: el filtro
+`brightness/saturate` original sobre OSM Mapnik desaturaba todo el mapa por
+igual, parques incluidos (BUG-017). Se probó CartoDB Dark Matter (resultó
+ilegible con luz de sol directa en iPhone), luego CartoDB Positron
+(demasiado minimalista — sin parques/agua/etiquetas suficientes, por
+diseño: los basemaps "soft" de CARTO están pensados como fondo para que la
+app superponga sus propios datos, no como mapa de referencia completo tipo
+Google Maps). Voyager quedó como el balance final: color + información
+manteniendo legibilidad.
+
+```js
+L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+  maxZoom: CONFIG.MAP_ZOOM_MAX, attribution: '', subdomains: 'abcd', detectRetina: true
+})
+```
+
+Nota pendiente: ni Voyager ni el OSM Mapnik anterior muestran atribución
+visible (`attribution: ''`), igual que antes del cambio de proveedor —
+ambos la requieren técnicamente en su tier gratuito. No bloqueante a corto
+plazo, pero a revisar si el uso crece (ver Deuda técnica).
+
+### DA-14 — GPS.simulatePosition() como único punto de entrada para mockear posición
+
+El simulador de GPS (`debug-sim.js`) nunca duplica lógica de `onPosition()`
+— arma un objeto position falso (`{coords: {latitude, longitude, accuracy}}`)
+y se lo pasa directo a la misma función que usa `watchPosition` real. Así,
+el mapa se auto-inicializa en la primera posición simulada exactamente
+igual que con GPS real, y los chequeos de POI respetan el mismo throttle de
+producción. Regla para cualquier código futuro que necesite mockear GPS:
+nunca llamar a `POI.detectNearby()` u otras funciones internas directo —
+siempre entrar por `GPS.simulatePosition()`.
+
+```js
+GPS.simulatePosition(lat, lng, accuracy)  // → onPosition() real, sin atajos
+GPS.setPOICheckInterval(ms)               // setter controlado de CONFIG.POI_CHECK_INTERVAL
+GPS.getRadiusConfig()                     // copia de solo lectura de POI_RADIUS_METERS/NEARBY_RADIUS
+```
+
+### DA-15 — Debug.registerTab() para tabs externas sin acoplamiento
+
+`debug.js` no conoce a `debug-sim.js` por nombre. Cualquier módulo puede
+agregarse como tab nueva del panel llamando a
+`Debug.registerTab(name, label, renderFn)`, sin tocar el archivo `debug.js`.
+Efecto secundario necesario: `switchTab()` matcheaba la tab activa por
+posición en un array hardcodeado (`['status','search','logs','timing']`) —
+se hubiera roto en silencio con cualquier tab agregada dinámicamente. Se
+corrigió a matching por atributo `data-tab`, que escala a cualquier
+cantidad de tabs.
+
 ```js
 const id = Debug.metricStart('narration', 'Claude Worker call');
 // ... operación async ...
@@ -162,11 +214,14 @@ ningún archivo se rompe.
 ## Flujo de datos
 
 ```
-GPS tick (cada 3s)
+watchPosition() dispara onPosition() — sin timer propio, depende de
+cuándo el dispositivo reporta movimiento real (o de simulatePosition()
+en debug-sim.js, DA-14)
     │
     ├── updateUserPosition() → Leaflet marker
     ├── updateDistance()     → AppState.kmWalked, steps
-    └── detectNearby()       → poi.js
+    └── throttle CONFIG.POI_CHECK_INTERVAL (5000ms, ajustable vía
+        GPS.setPOICheckInterval() — DA-14) → detectNearby() → poi.js
             │
             ├── detectPOI()
             │       ├── activatePOI() → setPhase('diastole')
@@ -216,6 +271,10 @@ GPS tick (cada 3s)
 | DT-3 | sw.js — service worker | Alta (último) |
 | DT-4 | Pantalla resumen del paseo | Media |
 | DT-5 | Más ciudades en routes.js | Baja |
+| DT-9 | Revocar key OpenAI residual expuesta en `keys.js` (commits `a249fee8`–`a303f110`) | Alta |
+| DT-10 | Error IndexedDB `"connection is closing"` visto en log de campo durante fetches solapados — probablemente Safari cerrando conexiones idle al backgroundear la app, no confirmado si el candado de poi.js (BUG-014) lo resuelve solo | Media |
+| DT-11 | Worker Cloudflare responde 400 en cada arranque de sesión (5/5 en log de campo) — sin diagnosticar qué ruta lo dispara | Baja |
+| DT-12 | Atribución CARTO/OSM no se muestra (`attribution: ''` en gps.js, DA-13) — requerida técnicamente en el tier gratuito, no bloqueante a corto plazo | Baja |
 | ~~DT-6~~ | ~~Backend proxy para API keys~~ — **Resuelto** vía Cloudflare Worker (DA-11) | — |
 
 ---

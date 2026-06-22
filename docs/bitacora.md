@@ -383,6 +383,162 @@ objeto que se sobreescribe.
 4. Resolver DT-9 (verificar/rotar key residual)
 5. Seguir con DT-1 (íconos PWA) y DT-2 (música por mood)
 
+## Sesión 6 — Junio 2026
+
+### Contexto
+Continuación directa de la Sesión 5: análisis del primer log de campo real
+(~2h caminando en Cali) que confirmó el bug de concurrencia en `poi.js` (cero
+narraciones disparadas) y expuso varios bugs de interfaz nunca antes
+probados en dispositivo real. Sesión larga, en orden: bugs bloqueantes →
+decisiones de diseño de mapa/modales → prerrequisitos del simulador →
+`debug-sim.js` en sí.
+
+### Cambios realizados
+
+**BUG-013 — Modo Libre no respondía al primer clic (reapertura de BUG-006)**
+- BUG-006 (sesión anterior) se había marcado resuelto corrigiendo el id en
+  `index.html` (`btnModeFreee` → `btnModeFree`), pero nunca se verificó que
+  `app.js` tuviera el mismo id actualizado en su `getElementById()` — seguía
+  con el typo, así que `initModeModal()` nunca encontraba el botón y el
+  listener jamás se adjuntaba
+- Fix de una línea en `js/app.js`. Lección de proceso: verificar ambos lados
+  de una referencia de id (HTML y JS), no solo uno, antes de cerrar un bug
+
+**BUG-014 — Candado de concurrencia en `poi.js`**
+- `detectNearby()` relanzaba `loadPOIs()` en cada chequeo (throttle de 5s)
+  mientras `_pois` seguía vacío, sin candado — como cada fetch a Overpass
+  tarda 8-58s (más que el throttle), se solapaban fetches simultáneos,
+  confirmado con 429s en el log real
+- Fix: flag `_isFetchingPOIs` con `try/finally` envolviendo todo el cuerpo de
+  `loadPOIs()`, garantiza liberación del candado sin importar el resultado
+  (éxito, error, fallback a cache)
+- Nota sin resolver: el log también mostró un error de IndexedDB
+  (`"connection is closing"`) durante los fetches solapados — probablemente
+  ligado a que Safari cierra conexiones idle al backgroundear la app, no
+  confirmado si el candado lo resuelve solo (DT-10)
+
+**BUG-015 — Overflow de `#dbg-panel`**
+- Sin `overflow-x: hidden`, y `.dbg-log-msg` (hijo de un flex container) sin
+  `min-width: 0` — strings largos sin espacios (ej. el XML de error 429 de
+  Overpass) empujaban el panel completo más ancho que el viewport
+- Fix en `js/debug.js`: `overflow-x: hidden` en `#dbg-panel`, más
+  `flex: 1; min-width: 0; overflow-wrap: break-word` en `.dbg-log-msg`
+
+**BUG-016 — Overflow de `.top-pill`**
+- `white-space: nowrap` sin `max-width`, creciendo sin freno con contenido
+  dinámico (ciudad + mood + temperatura que `weather.js` actualiza cada 10min)
+- Fix en `css/components.css`: `max-width: calc(100vw - 32px)` en el
+  contenedor; `min-width: 0` + ellipsis en `.top-pill-mood` (el span que
+  crece); `flex-shrink: 0` en `.top-pill-city` y `.top-pill-divider`
+
+**BUG-017 — Gradientes de contraste pensados para mapa oscuro**
+- Tras DA-13 (cambio a mapa claro), los gradientes oscuros que daban
+  contraste a texto claro sobre el mapa (`#screen-explore::before` arriba,
+  `.bottom-bar` abajo) se veían como manchas oscuras sobre un fondo claro
+- Fix: gradiente superior eliminado por completo en `css/explore.css` —
+  confirmado que nada dependía de él (`.top-pill` y `#dbg-toggle` ya tienen
+  fondo propio opaco). Gradiente inferior en `css/components.css` reducido
+  de opacidad `0.98` a `0.55` + `backdrop-filter: blur(6px)` (sí hacía falta,
+  protege `.stat-value`/`.stat-label` que son texto claro sin fondo propio)
+
+**DA-13 — Mapa: filtro simulado → CartoDB Voyager (ver arquitectura.md)**
+- Iterado en vivo contra capturas reales: Dark Matter (ilegible con sol
+  directo) → Positron (sin info suficiente, por diseño del basemap "soft" de
+  CARTO) → Voyager (balance final). Detalle completo en `arquitectura.md`
+- Efectos secundarios resueltos en el camino: `.leaflet-container` pasó de
+  fondo oscuro a `--color-cream` (parpadeo feo si no, mientras cargan tiles);
+  filtro `brightness/saturate` eliminado de `css/main.css`
+
+**Tono de modales — slate suave**
+- `--color-night-3` (única variable que usa `.modal` en `modal.css`) pasó de
+  `#111d2b` a `#16212f`. Nota de proceso: la comparación visual se había
+  hecho contra `#0d1420` ("tono actual"), que en realidad es
+  `--color-night` — una variable distinta, usada en splash/explore/mapa, no
+  en modales. Confirmado que `--color-night-3` es exclusiva de `.modal`
+  antes de tocarla, así que no hubo efecto secundario
+
+**Prerrequisitos del simulador (DA-14, DA-15 — ver arquitectura.md)**
+- `js/gps.js`: `simulatePosition()`, `setPOICheckInterval()`,
+  `getRadiusConfig()` agregados a la API pública. `getMap()`/`start()`/
+  `stop()` ya estaban públicos, no hizo falta tocarlos
+- `js/debug.js`: `registerTab()` (hook genérico de tabs externas),
+  `getInFlightCount()` (usa `_metricStarts`, que ya existía para esto). Fix
+  necesario no planeado: `switchTab()` matcheaba tabs por posición en un
+  array hardcodeado, se hubiera roto con cualquier tab agregada
+  dinámicamente — corregido a matching por `data-tab`
+
+**`js/debug-sim.js` — simulador de GPS (archivo nuevo)**
+- Se registra como 5ª tab vía `Debug.registerTab()`, sin que `debug.js`
+  lo conozca por nombre
+- Todo movimiento entra por `GPS.simulatePosition()` — nunca duplica lógica
+  de `onPosition()` (DA-14)
+- Modo teletransportar (clic = salto instantáneo) y modo dibujar ruta +
+  caminar (`requestAnimationFrame`, interpolación lineal entre waypoints
+  según velocidad elegida — suficiente para tramos urbanos, no es geodesia
+  exacta)
+- Búsqueda de ciudad vía Nominatim `/search` (mismo proveedor que `gps.js`
+  ya usa para `/reverse`, sin key nueva)
+- Sliders de velocidad (3/5/8 km/h) e intervalo de chequeo POI
+  (1500-5000ms, vía `GPS.setPOICheckInterval()`) para estresar el candado
+  de BUG-014 a demanda
+- Stats en vivo: acumulado sístole/diástole (trackeado localmente, no
+  existía en otro lado — `AppState` solo guarda la fase actual, no
+  historial), POIs cargados/visitados, narraciones disparadas (aproximado
+  por transición systole→diastole), fetches Overpass en vuelo (vía
+  `Debug.getInFlightCount('poi')`)
+- Botones "Volver a GPS real" (`GPS.start()`) y "Saltar a Modo Libre"
+  (bypassea modales de onboarding — `app.js` no está envuelto en IIFE, así
+  que `navigateTo`/`AppState`/`Config` ya eran accesibles sin exposición
+  nueva)
+- `js/debug.js` ganó clases CSS genéricas reusables (`.dbg-input`,
+  `.dbg-btn`, `.dbg-result-item`, `.dbg-slider`) calcadas del estilo visual
+  de `#dbg-search-*` pero por clase en vez de id, sin tocar el código
+  existente de esa tab
+- `index.html`: `debug-sim.js` cargado justo después de `debug.js` (único
+  orden que importa — necesita `Debug.registerTab` ya definido)
+
+### Hallazgos de proceso
+
+**`gps.js` no tiene timer propio de "GPS tick"** — la documentación previa
+describía un tick cada 3s, impreciso. En realidad `watchPosition()` dispara
+`onPosition()` cuando el dispositivo reporta movimiento (sin cadencia fija),
+y *dentro* de esa función hay un throttle (`CONFIG.POI_CHECK_INTERVAL`,
+5000ms) que decide si vale la pena chequear POIs. Corregido en
+`arquitectura.md` — afecta directamente cómo se diseñó el simulador (DA-14).
+
+**Los basemaps "soft" de CARTO no son comparables a Google Maps** — Positron
+y Voyager están pensados como fondo neutro para que la app superponga sus
+propios datos (marcadores de POI), no como mapa de referencia completo con
+cada negocio etiquetado. Explica por qué Voyager se ve con menos densidad de
+información que Google Maps — no es una limitación de configuración nuestra.
+
+### Deuda técnica actualizada
+
+| ID | Descripción | Prioridad |
+|----|-------------|-----------|
+| DT-1 | Logo SVG final + iconos PWA (404 actual en manifest) | Alta |
+| DT-2 | Archivos de música por mood (4 MP3) | Alta |
+| DT-3 | sw.js — service worker (siempre último) | Alta |
+| DT-4 | Pantalla resumen del paseo | Media |
+| DT-5 | Más ciudades en routes.js | Baja |
+| DT-8 | `debug.js` debe quitarse o deshabilitarse antes de v1.0 — ahora incluye también `debug-sim.js` | Media |
+| DT-9 | Revocar key OpenAI residual expuesta en `keys.js` (commits `a249fee8`–`a303f110`) — sigue pendiente | Alta |
+| DT-10 | Error IndexedDB `"connection is closing"` en fetches solapados — posible causa: Safari cerrando conexiones idle en background, no confirmado si BUG-014 lo resuelve | Media |
+| DT-11 | Worker Cloudflare responde 400 en cada arranque de sesión (5/5 en log de campo) — sin diagnosticar | Baja |
+| DT-12 | Atribución CARTO/OSM no se muestra (`attribution: ''`) — requerida en tier gratuito, no bloqueante a corto plazo | Baja |
+| ~~DT-6~~ | ~~Backend proxy para API keys~~ — **Resuelto** vía Cloudflare Worker | — |
+| ~~DT-7~~ | ~~Remover keys del repo~~ — **Resuelto**, `keys.js` vacío y verificado | — |
+
+### Próxima sesión
+
+1. Probar `debug-sim.js` en iPhone: búsqueda de ciudad, teletransportar, y
+   sobre todo dibujar ruta + caminar (la parte menos probada)
+2. Confirmar en campo si BUG-014 (candado) eliminó los 429 y si el error de
+   IndexedDB (DT-10) desapareció solo o necesita fix aparte
+3. Resolver DT-9 (revocar key OpenAI) — pendiente hace varias sesiones
+4. Seguir con DT-1 (íconos PWA) y DT-2 (música por mood)
+5. Diagnosticar DT-11 (Worker 400 en arranque) cuando haya tiempo
+
 ---
 
 *Follower — Bitácora v0.5 | Junio 2026*

@@ -971,7 +971,8 @@ const Debug = (() => {
     const poi  = pois.find(p => p.id === poiId);
     if (!poi) return;
     log('poi', `Volando a: ${poi.name}`);
-    if (typeof GPS !== 'undefined') GPS.flyTo(poi.lat, poi.lng);
+    const map = (typeof GPS !== 'undefined') ? GPS.getMap() : null;
+    if (map) map.setView([poi.lat, poi.lng], 17, { animate: true, duration: 0.5 });
     navigateTo('explore');
   }
 

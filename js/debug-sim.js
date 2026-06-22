@@ -84,9 +84,7 @@ const DebugSim = (() => {
     const content = document.getElementById('dbg-content');
     if (!content) return;
 
-    // Si el input de ciudad tiene el foco, NO re-renderizar todo el panel —
-    // solo actualizar las secciones que cambian (stats, botones de modo/ruta)
-    // para no interrumpir al usuario mientras escribe en iOS
+    // Si el input tiene foco: solo actualizar stats sin tocar el input
     const cityInput = document.getElementById('dbg-sim-city-input');
     if (cityInput && document.activeElement === cityInput) {
       _updateStatsOnly();
@@ -95,6 +93,9 @@ const DebugSim = (() => {
 
     content.innerHTML = renderTabInner();
     bindCityInputListeners();
+
+    // Restaurar resultados de búsqueda si los había — el timer los habría borrado
+    if (_lastCityResults.length > 0) _renderCityResultsInDOM();
   }
 
   function _updateStatsOnly() {
@@ -307,6 +308,10 @@ const DebugSim = (() => {
 
   function renderCityResults(results) {
     _lastCityResults = results || [];
+    _renderCityResultsInDOM();
+  }
+
+  function _renderCityResultsInDOM() {
     const el = document.getElementById('dbg-sim-city-results');
     if (!el) return;
 

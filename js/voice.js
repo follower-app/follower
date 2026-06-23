@@ -8,10 +8,13 @@
 const Voice = (() => {
 
   /* ── ESTADO INTERNO ── */
-  let _utterance  = null;    // SpeechSynthesisUtterance activa
-  let _isSpeaking = false;
-  let _isPaused   = false;
-  let _voices     = [];      // voces disponibles en el dispositivo
+  let _utterance   = null;    // SpeechSynthesisUtterance activa
+  let _isSpeaking  = false;
+  let _isPaused    = false;
+  let _voices      = [];      // voces disponibles en el dispositivo
+  let _safetyTimer = null;    // timer de seguridad — dispara callback si onend no llega
+  let _keepAlive   = null;    // interval iOS — evita que Safari congele la síntesis
+  let _speakDone   = false;   // flag — evita que el callback se ejecute dos veces
 
   /* ── CONFIGURACIÓN ── */
   const CONFIG = {
@@ -73,14 +76,14 @@ const Voice = (() => {
   /* ── HABLAR ── */
   function speak(text, lang = 'es', onEnd = null) {
     if (!isSupported()) {
-      console.warn('Voice: Web Speech API no disponible');
       if (typeof Debug !== 'undefined') Debug.log('error', 'Voice: Web Speech API no disponible');
       if (onEnd) onEnd();
       return;
     }
 
-    // Cancelar narración anterior
+    // Cancelar narración anterior (limpia timers del speak anterior)
     stop();
+    _speakDone = false;
 
     const bcp47 = LANG_MAP[lang] || LANG_MAP.es;
 
@@ -90,60 +93,89 @@ const Voice = (() => {
     _utterance.pitch   = CONFIG.PITCH;
     _utterance.volume  = CONFIG.VOLUME;
 
-    // Asignar mejor voz disponible
     const voice = getBestVoice(lang);
     if (voice) _utterance.voice = voice;
 
-    // Métrica 1 — lag entre texto listo y arranque real de la voz
-    // Se abre ANTES del setTimeout (cuando speak() es invocada desde narration.js)
-    // y se cierra en onstart (cuando el navegador empieza a hablar de verdad)
+    // ── Función única de cierre — se llama desde onend, onerror o safety timer ──
+    // `source` identifica quién la disparó para diagnóstico en campo
+    const _finish = (source) => {
+      if (_speakDone) return;   // garantía de ejecución única
+      _speakDone = true;
+
+      clearTimeout(_safetyTimer);
+      clearInterval(_keepAlive);
+      _safetyTimer = null;
+      _keepAlive   = null;
+      _isSpeaking  = false;
+      _isPaused    = false;
+      _utterance   = null;
+
+      if (source !== 'onend' && typeof Debug !== 'undefined') {
+        Debug.log('warn', `Voice: callback por ${source} · ${text.length} chars · lang=${lang}`);
+      }
+
+      if (onEnd) onEnd();
+    };
+
+    // ── Métricas ──
     const lagId = (typeof Debug !== 'undefined')
       ? Debug.metricStart('voice', 'lag texto→voz')
       : null;
-
-    // Métrica 2 — duración total de la narración hablada
-    // Se abre en onstart y se cierra en onend — lo que el usuario realmente escucha
     let durId = null;
 
-    // Eventos
+    // ── Estimación de duración para el safety timer ──
+    // ~12 chars/segundo en español a rate 0.92 + 5s de buffer
+    const estimatedMs = Math.max(8000, Math.ceil(text.length / 12) * 1000 + 5000);
+
+    // ── Eventos ──
     _utterance.onstart = () => {
       _isSpeaking = true;
       _isPaused   = false;
+
       if (lagId) Debug.metricEnd(lagId, 'ok', { lang, chars: text.length });
       durId = (typeof Debug !== 'undefined')
         ? Debug.metricStart('voice', 'duración narración hablada')
         : null;
+
+      // Safety timer: arranca cuando la voz empieza de verdad (no antes)
+      _safetyTimer = setTimeout(() => {
+        if (typeof Debug !== 'undefined') {
+          Debug.log('warn', `Voice: safety timer — onend no llegó en ${Math.round(estimatedMs/1000)}s`);
+        }
+        if (durId) Debug.metricEnd(durId, 'safety-timer', { chars: text.length });
+        _finish('safety-timer');
+      }, estimatedMs);
+
+      // iOS keep-alive: pause/resume cada 10s para evitar congelamiento silencioso
+      // Safari deja de hablar sin disparar onend si el audio buffer se "agota"
+      if (/iPhone|iPad|iPod/i.test(navigator.userAgent)) {
+        _keepAlive = setInterval(() => {
+          if (_isSpeaking && !_isPaused && window.speechSynthesis.speaking) {
+            window.speechSynthesis.pause();
+            window.speechSynthesis.resume();
+          }
+        }, 10000);
+      }
     };
 
     _utterance.onend = () => {
-      _isSpeaking = false;
-      _isPaused   = false;
-      _utterance  = null;
       if (durId) Debug.metricEnd(durId, 'ok', { lang, chars: text.length });
-      if (onEnd) onEnd();
+      _finish('onend');
     };
 
     _utterance.onerror = (e) => {
-      console.warn('Voice: error de síntesis:', e.error);
-      // Métrica 3 — errores de síntesis en el log exportable
-      // Antes solo iba a console.warn, invisible en el reporte de campo
       if (lagId) Debug.metricEnd(lagId, 'error', { error: e.error });
       if (durId) Debug.metricEnd(durId, 'error', { error: e.error });
       if (typeof Debug !== 'undefined') {
-        Debug.log('error', `Voice: error de síntesis — ${e.error} · lang=${lang}`);
+        Debug.log('error', `Voice: síntesis fallida — ${e.error} · lang=${lang}`);
       }
-      _isSpeaking = false;
-      _utterance  = null;
-      if (onEnd) onEnd();
+      _finish('onerror');
     };
 
-    // Workaround Chrome — a veces se congela sin este timeout
-    // Capturamos la referencia local para evitar race condition
-    // si speak() se llama de nuevo (y stop() limpia _utterance) antes de los 100ms
-    const utteranceToSpeak = _utterance;
+    // Workaround Chrome/iOS — evita congelamiento con setTimeout antes de speak()
+    const utteranceRef = _utterance;
     setTimeout(() => {
-      if (!utteranceToSpeak) return;
-      window.speechSynthesis.speak(utteranceToSpeak);
+      if (utteranceRef) window.speechSynthesis.speak(utteranceRef);
     }, 100);
 
     _isSpeaking = true;
@@ -151,9 +183,13 @@ const Voice = (() => {
 
   /* ── STOP ── */
   function stop() {
-    if (isSupported()) {
-      window.speechSynthesis.cancel();
-    }
+    clearTimeout(_safetyTimer);
+    clearInterval(_keepAlive);
+    _safetyTimer = null;
+    _keepAlive   = null;
+    _speakDone   = true;   // evita que safety timer dispare después del stop
+
+    if (isSupported()) window.speechSynthesis.cancel();
     _isSpeaking = false;
     _isPaused   = false;
     _utterance  = null;

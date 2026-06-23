@@ -247,9 +247,17 @@ function expandHeart(heart) {
   }, 550);
 
   setTimeout(() => {
-    // SIEMPRE mostrar config — así el usuario puede confirmar idioma y mood
-    // independientemente de si es primera vez o no
-    showModal('config');
+    if (Config.isFirstTime()) {
+      // Primera vez — mostrar config completa
+      showModal('config');
+    } else {
+      // Sesión anterior — ir directo a exploración con config guardada
+      AppState.lang = Config.get('lang');
+      AppState.mood = Config.get('mood');
+      AppState.mode = Config.get('mode');
+      navigateTo('explore');
+      initExplore();
+    }
   }, 720);
 }
 

@@ -147,37 +147,58 @@ function updateExplorePhase(phase) {
   }
 }
 
-/* ── ACTUALIZAR LISTA DE HISTORIAS CERCANAS ── */
+/* ── ACTUALIZAR PILL DERECHO + NEARBY SELECTOR ── */
 function updateHistCount() {
-  const list = document.getElementById('barNearbyList');
-  if (!list) return;
-
   const nearby = AppState.nearbyPOIs || [];
   const sorted = [...nearby]
     .sort((a, b) => (a._distanceMeters || 999) - (b._distanceMeters || 999))
-    .slice(0, 3);
-
-  if (sorted.length === 0) {
-    list.innerHTML = `<div class="bar-nearby-empty">buscando historias...</div>`;
-    return;
-  }
+    .slice(0, 5);
 
   const OSM_ICONS = {
     historic: '🏛️', museum: '🖼️', church: '⛪', castle: '🏰',
     ruins: '🏚️', monument: '🗿', fountain: '⛲', artwork: '🎨',
-    viewpoint: '🔭', archaeological: '⚱️', tourism: '📍', amenity: '☕',
-    park: '🌳', default: '📍'
+    viewpoint: '🔭', archaeological: '⚱️', tourism: '📍',
+    amenity: '☕', park: '🌳', default: '📍'
   };
 
-  list.innerHTML = sorted.map(poi => {
+  // Pill derecho — muestra el más cercano
+  const iconEl = document.getElementById('barNextIcon');
+  const nameEl = document.getElementById('barNextName');
+  if (iconEl && nameEl) {
+    if (sorted.length === 0) {
+      iconEl.textContent = '📍';
+      nameEl.textContent = 'buscando';
+      nameEl.classList.add('muted');
+    } else {
+      const closest = sorted[0];
+      iconEl.textContent = OSM_ICONS[closest.type] || OSM_ICONS.default;
+      nameEl.textContent = closest.name;
+      nameEl.classList.remove('muted');
+    }
+  }
+
+  // Nearby selector list
+  const listEl = document.getElementById('nearbySelectorList');
+  if (!listEl) return;
+
+  if (sorted.length === 0) {
+    listEl.innerHTML = `<div class="style-card" style="justify-content:center;">
+      <span style="font-size:11px;color:var(--color-smoke-2);">Sin historias cercanas por ahora</span>
+    </div>`;
+    return;
+  }
+
+  listEl.innerHTML = sorted.map(poi => {
     const icon     = OSM_ICONS[poi.type] || OSM_ICONS.default;
-    const dist     = poi._distanceMeters ? `${poi._distanceMeters}m` : '';
+    const dist     = poi._distanceMeters ? `· ${poi._distanceMeters}m` : '';
     const isActive = AppState.activePOI?.id === poi.id;
-    return `<div class="bar-nearby-item${isActive ? ' active-poi' : ''}"
-                 onclick="POI.activateFromBar('${poi.id}')">
-      <span class="bar-nearby-icon">${icon}</span>
-      <span class="bar-nearby-name">${poi.name}</span>
-      <span class="bar-nearby-dist">${dist}</span>
+    return `<div class="style-card${isActive ? ' active' : ''}"
+                 onclick="POI.activateFromBar('${poi.id}');document.getElementById('nearbySelector').classList.add('hidden');">
+      <div class="style-emoji">${icon}</div>
+      <div class="style-info">
+        <div class="style-name">${poi.name}</div>
+        <div class="style-desc">${poi.type || 'historia'} ${dist}</div>
+      </div>
     </div>`;
   }).join('');
 }
@@ -455,6 +476,23 @@ function initExploreListeners() {
   document.getElementById('btnContinueNarration')?.addEventListener('click', () => {
     navigateTo('explore');
     if (typeof Narration !== 'undefined') Narration.resume();
+  });
+
+  // Pill derecho — abrir lista de historias cercanas
+  const btnNearby    = document.getElementById('btnNearbyStories');
+  const nearbySelect = document.getElementById('nearbySelector');
+  if (btnNearby && nearbySelect) {
+    btnNearby.addEventListener('click', (e) => {
+      e.stopPropagation();
+      // Cerrar style selector si está abierto
+      document.getElementById('styleSelector')?.classList.add('hidden');
+      nearbySelect.classList.toggle('hidden');
+    });
+  }
+
+  // Cerrar nearby selector al tocar el mapa
+  document.getElementById('map')?.addEventListener('click', () => {
+    nearbySelect?.classList.add('hidden');
   });
 
   // Corazón-brújula — centrar mapa

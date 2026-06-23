@@ -247,6 +247,10 @@ const DebugSim = (() => {
     }
 
     GPS.simulatePosition(point.lat, point.lng, 5);
+
+    // Actualizar care strip con km/pasos acumulados durante la simulación
+    if (typeof updateCareStrip === 'function') updateCareStrip();
+
     _animFrameId = requestAnimationFrame(walkStep);
   }
 
@@ -443,6 +447,7 @@ const DebugSim = (() => {
         <div class="dbg-poi-btn-row" style="margin-top:6px;">
           <button class="dbg-poi-action map" onclick="Debug.switchTab('exp'); return false;">Ver score completo →</button>
           ${withPos > 0 ? `<button class="dbg-poi-action narrate" onclick="DebugSim.focusNarrationMap()">🗺️ Ver en mapa (${withPos})</button>` : ''}
+          <button class="dbg-poi-action" style="background:rgba(240,200,122,.2);color:#f0c87a;border:1px solid rgba(240,200,122,.3);" onclick="if(typeof Care!=='undefined'){Care.check();}">🧡 Test Care</button>
         </div>
       </div>
     `;

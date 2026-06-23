@@ -171,9 +171,9 @@
         <span class="cs-val" id="csStepsVal">0 pasos</span>
       </div>
       <span class="cs-sep"></span>
-      <div class="cs-item" id="csBpm">
-        <span class="cs-icon">❤️</span>
-        <span class="cs-val" id="csBpmVal">-- bpm</span>
+      <div class="cs-item" id="csKm">
+        <span class="cs-icon">📍</span>
+        <span class="cs-val" id="csKmVal">0.0 km</span>
       </div>
     </div>
 
@@ -233,7 +233,7 @@
     <!-- Bottom bar sólida — sin gradiente, sin blur -->
     <div class="bottom-bar" id="bottomBar">
 
-      <!-- Estado sístole: estilo | corazón-brújula | km -->
+      <!-- Estado sístole: estilo | corazón-brújula + historias cercanas -->
       <div class="bar-systole" id="barSystole">
 
         <button class="bar-style-btn" id="btnStyleSelector">
@@ -243,30 +243,31 @@
           </svg>
         </button>
 
-        <div class="bar-heart-wrap" id="btnCenter">
-          <svg class="heart-compass" id="heartCompass" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
-            <circle cx="50" cy="50" r="44" fill="none" stroke="#1e2d3d" stroke-width="1.5"/>
-            <line x1="50" y1="8"  x2="50" y2="17" stroke="#2d3e50" stroke-width="1.5" stroke-linecap="round"/>
-            <line x1="50" y1="83" x2="50" y2="92" stroke="#2d3e50" stroke-width="1"   stroke-linecap="round" opacity=".4"/>
-            <line x1="8"  y1="50" x2="17" y2="50" stroke="#2d3e50" stroke-width="1"   stroke-linecap="round" opacity=".4"/>
-            <line x1="83" y1="50" x2="92" y2="50" stroke="#2d3e50" stroke-width="1"   stroke-linecap="round" opacity=".4"/>
-            <text x="50"  y="7.5" text-anchor="middle" font-family="Inter,sans-serif" font-size="7" font-weight="700" fill="#c0392b">N</text>
-            <text x="50"  y="98"  text-anchor="middle" font-family="Inter,sans-serif" font-size="6" fill="#2d3e50" opacity=".5">S</text>
-            <text x="4.5" y="53"  text-anchor="middle" font-family="Inter,sans-serif" font-size="6" fill="#2d3e50" opacity=".5">O</text>
-            <text x="95.5" y="53" text-anchor="middle" font-family="Inter,sans-serif" font-size="6" fill="#2d3e50" opacity=".5">E</text>
-            <path d="M50,70 C50,70 21,51 21,31 C21,18 31,11 41,14 C46,16 49,22 50,27 C51,22 54,16 59,14 C69,11 79,18 79,31 C79,51 50,70 50,70 Z"
-              fill="none" stroke="#c8d4e0" stroke-width="2.2" stroke-linejoin="round"/>
-            <polygon points="50,11 46.5,43 50,38 53.5,43" fill="#c0392b"/>
-            <polygon points="50,68 46.5,43 50,48 53.5,43" fill="#c8d4e0" opacity=".25"/>
-            <circle cx="50" cy="43" r="4.5" fill="none" stroke="#c8d4e0" stroke-width="1.5"/>
-            <circle cx="50" cy="43" r="2" fill="#c8d4e0"/>
-          </svg>
-          <div class="bar-hist-count" id="barHistCount">-- historias</div>
-        </div>
+        <div class="bar-center-wrap">
+          <div class="bar-heart-wrap" id="btnCenter">
+            <svg class="heart-compass" id="heartCompass" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+              <circle cx="50" cy="50" r="44" fill="none" stroke="#1e2d3d" stroke-width="1.5"/>
+              <line x1="50" y1="8"  x2="50" y2="17" stroke="#2d3e50" stroke-width="1.5" stroke-linecap="round"/>
+              <line x1="50" y1="83" x2="50" y2="92" stroke="#2d3e50" stroke-width="1"   stroke-linecap="round" opacity=".4"/>
+              <line x1="8"  y1="50" x2="17" y2="50" stroke="#2d3e50" stroke-width="1"   stroke-linecap="round" opacity=".4"/>
+              <line x1="83" y1="50" x2="92" y2="50" stroke="#2d3e50" stroke-width="1"   stroke-linecap="round" opacity=".4"/>
+              <text x="50"  y="7.5" text-anchor="middle" font-family="Inter,sans-serif" font-size="7" font-weight="700" fill="#c0392b">N</text>
+              <text x="50"  y="98"  text-anchor="middle" font-family="Inter,sans-serif" font-size="6" fill="#2d3e50" opacity=".5">S</text>
+              <text x="4.5" y="53"  text-anchor="middle" font-family="Inter,sans-serif" font-size="6" fill="#2d3e50" opacity=".5">O</text>
+              <text x="95.5" y="53" text-anchor="middle" font-family="Inter,sans-serif" font-size="6" fill="#2d3e50" opacity=".5">E</text>
+              <path d="M50,70 C50,70 21,51 21,31 C21,18 31,11 41,14 C46,16 49,22 50,27 C51,22 54,16 59,14 C69,11 79,18 79,31 C79,51 50,70 50,70 Z"
+                fill="none" stroke="#c8d4e0" stroke-width="2.2" stroke-linejoin="round"/>
+              <polygon points="50,11 46.5,43 50,38 53.5,43" fill="#c0392b"/>
+              <polygon points="50,68 46.5,43 50,48 53.5,43" fill="#c8d4e0" opacity=".25"/>
+              <circle cx="50" cy="43" r="4.5" fill="none" stroke="#c8d4e0" stroke-width="1.5"/>
+              <circle cx="50" cy="43" r="2" fill="#c8d4e0"/>
+            </svg>
+          </div>
 
-        <div class="bar-km-wrap">
-          <div class="bar-km-val" id="barKmVal">0.0</div>
-          <div class="bar-km-lbl">km</div>
+          <!-- Lista de historias cercanas -->
+          <div class="bar-nearby-list" id="barNearbyList">
+            <div class="bar-nearby-empty" id="barNearbyEmpty">buscando historias...</div>
+          </div>
         </div>
 
       </div>

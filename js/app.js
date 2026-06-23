@@ -127,7 +127,9 @@ function updateCareStrip() {
       ? `${AppState.steps.toLocaleString()} pasos`
       : '0 pasos';
   }
-  // bpm — pendiente integración sensor
+
+  const kmEl = document.getElementById('csKmVal');
+  if (kmEl) kmEl.textContent = `${AppState.kmWalked.toFixed(1)} km`;
 }
 
 /* ── ACTUALIZAR FASE EN BOTTOM BAR ── */
@@ -145,21 +147,43 @@ function updateExplorePhase(phase) {
   }
 }
 
-/* ── ACTUALIZAR CONTADOR DE HISTORIAS ── */
+/* ── ACTUALIZAR LISTA DE HISTORIAS CERCANAS ── */
 function updateHistCount() {
-  const el    = document.getElementById('barHistCount');
-  const count = AppState.nearbyPOIs?.length || 0;
-  if (el) {
-    el.textContent = count > 0
-      ? `${count} historia${count !== 1 ? 's' : ''} cerca`
-      : '-- historias';
+  const list = document.getElementById('barNearbyList');
+  if (!list) return;
+
+  const nearby = AppState.nearbyPOIs || [];
+  const sorted = [...nearby]
+    .sort((a, b) => (a._distanceMeters || 999) - (b._distanceMeters || 999))
+    .slice(0, 3);
+
+  if (sorted.length === 0) {
+    list.innerHTML = `<div class="bar-nearby-empty">buscando historias...</div>`;
+    return;
   }
+
+  const OSM_ICONS = {
+    historic: '🏛️', museum: '🖼️', church: '⛪', castle: '🏰',
+    ruins: '🏚️', monument: '🗿', fountain: '⛲', artwork: '🎨',
+    viewpoint: '🔭', archaeological: '⚱️', tourism: '📍', amenity: '☕',
+    park: '🌳', default: '📍'
+  };
+
+  list.innerHTML = sorted.map(poi => {
+    const icon     = OSM_ICONS[poi.type] || OSM_ICONS.default;
+    const dist     = poi._distanceMeters ? `${poi._distanceMeters}m` : '';
+    const isActive = AppState.activePOI?.id === poi.id;
+    return `<div class="bar-nearby-item${isActive ? ' active-poi' : ''}"
+                 onclick="POI.activateFromBar('${poi.id}')">
+      <span class="bar-nearby-icon">${icon}</span>
+      <span class="bar-nearby-name">${poi.name}</span>
+      <span class="bar-nearby-dist">${dist}</span>
+    </div>`;
+  }).join('');
 }
 
 /* ── ACTUALIZAR STATS ── */
 function updateStats() {
-  const kmEl = document.getElementById('barKmVal');
-  if (kmEl) kmEl.textContent = AppState.kmWalked.toFixed(1);
   updateHistCount();
   updateCareStrip();
 }

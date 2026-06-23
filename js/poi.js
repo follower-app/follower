@@ -495,6 +495,12 @@ const POI = (() => {
     await initDB();
   }
 
+  /* ── ACTIVAR DESDE LISTA DEL BOTTOM BAR ── */
+  function activateFromBar(poiId) {
+    const poi = _pois.find(p => p.id === poiId);
+    if (poi) activatePOI(poi);
+  }
+
   init();
 
   /* ── API PÚBLICA ── */
@@ -503,6 +509,7 @@ const POI = (() => {
     renderExpanded,
     onMarkerTap,
     onDepthPill,
+    activateFromBar,
     getPOIs: () => _pois
   };
 

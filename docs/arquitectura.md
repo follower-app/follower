@@ -1,6 +1,6 @@
-# 🏗️ Follower — Arquitectura v0.5
+# 🏗️ Follower — Arquitectura v0.6
 
-> Junio 2026 — Migración a Cloudflare Worker (DT-6 resuelto anticipadamente)
+> Junio 2026 — Sprint de UI: rediseño pantalla exploración, estilos de narrador, debug overlay
 
 ---
 
@@ -25,28 +25,40 @@ follower/
 ├── css/
 │   ├── main.css            → variables, reset, tipografía, fases
 │   ├── components.css      → botones, pills, cards, waves, badges
+│   │                         (top-pill y vol-control eliminados en v0.6)
 │   ├── splash.css          → latido, rings, expand animation
 │   ├── modal.css           → modales, care card, route picker
-│   ├── explore.css         → mapa, pins POI, card pequeña, bottom bar
+│   ├── explore.css         → mapa, care strip, bottom bar sólida,
+│   │                         pills simétricos, heart-compass, style-selector
 │   └── poi.css             → héroe, player, narración, acciones
 │
 ├── js/
-│   ├── keys.js             → API keys LOCAL ONLY (.gitignore) — vacío salvo legacy
+│   ├── keys.js             → API keys LOCAL ONLY (.gitignore)
 │   ├── config.js           → idioma, mood, mode, volúmenes, localStorage
-│   ├── app.js              → AppState, navigateTo(), setPhase(), init
-│   ├── gps.js              → Leaflet, watchPosition, Haversine, Nominatim, simulatePosition() (DA-14)
-│   ├── poi.js              → Overpass OSM (lz4 mirror), IndexedDB, detectPOI, candado de concurrencia (BUG-014)
-│   ├── narration.js        → Claude API vía Worker, prompts×4moods×2langs, fallback
+│   ├── app.js              → AppState, navigateTo(), setPhase(),
+│   │                         updateCareStrip(), updateHistCount(),
+│   │                         initStyleSelector(), updateExplorePhase()
+│   ├── gps.js              → Leaflet, watchPosition, Haversine, Nominatim,
+│   │                         simulatePosition() (DA-14)
+│   ├── poi.js              → Overpass OSM (lz4 mirror), IndexedDB,
+│   │                         detectPOI, candado concurrencia (BUG-014),
+│   │                         activateFromBar()
+│   ├── narration.js        → Claude API vía Worker, STYLE_PROMPTS
+│   │                         (system+user separados, 4 estilos × 2 langs),
+│   │                         cache por estilo, fallback (DA-17)
 │   ├── voice.js            → Web Speech API, 12 idiomas BCP-47
 │   ├── music.js            → Web Audio API, fadeMusic, dip/restore
-│   ├── weather.js          → OpenWeatherMap vía Worker, lluvia, cache 30min
+│   ├── weather.js          → OpenWeatherMap vía Worker, updateCareStrip()
 │   ├── care.js             → checkCareContext, 4 prioridades, cooldown
 │   ├── routes.js           → 5 recorridos Roma, Leaflet polyline, picker
-│   ├── debug.js            → panel debug flotante + métricas con historial (DA-12), registro de tabs externas (DA-15), export .txt
-│   └── debug-sim.js        → simulador GPS, 5ta tab registrada vía Debug.registerTab()
+│   ├── debug.js            → barra fija de tabs (DA-20), overlay panel,
+│   │                         métricas técnicas + experiencia (DA-19+),
+│   │                         trackExp(), getExp(), export .txt
+│   └── debug-sim.js        → simulador GPS, tab registrada vía registerTab(),
+│                             updateCareStrip() en cada tick, botón Test Care
 │
 ├── cloudflare/
-│   └── worker.js           → proxy Claude API + OpenWeatherMap (referencia, no afecta deploy)
+│   └── worker.js           → proxy Claude API + OpenWeatherMap
 │
 ├── assets/
 │   ├── logo.svg            → pendiente
@@ -54,9 +66,10 @@ follower/
 │   └── icons/              → icon-192.png, icon-512.png (pendiente logo)
 │
 └── docs/
-    ├── producto_v0.4.md
-    ├── arquitectura_v0.4.md
-    └── bitacora_v0.4.md
+    ├── producto.md
+    ├── arquitectura.md     ← este archivo
+    ├── bitacora.md
+    └── contexto_maestro.md
 ```
 
 ---
@@ -72,27 +85,33 @@ const AppState = {
   screen, phase, mode, mood, lang,
   gps, nearbyPOIs, activePOI, activeRoute,
   offline, steps, kmWalked, poisVisited,
-  weather, cityName
+  weather, cityName,
+  // v0.6 — estilo de narrador (reemplaza mood como driver de prompts)
+  narrationStyle:      'storyteller',   // storyteller|historian|poet|detective
+  narrationStyleLabel: 'Cuentero',      // label visible en UI
+  // métricas de experiencia (DA-16)
+  _phaseStart, _msTotalSystole, _msTotalDiastole,
+  _lastNarrationTs, _narrationCount, _sessionStart, _firstNarrationTs
 }
 ```
 
 ### DA-3 — Funciones únicas por responsabilidad
 
-| Función | Archivo |
-|---------|---------|
-| `detectPOI()` | poi.js |
-| `triggerNarration(poi, mood, lang, topic)` | narration.js |
-| `fadeMusic(targetVol, durationMs)` | music.js |
-| `checkCareContext()` | care.js |
-| `setPhase(phase)` | app.js |
-| `navigateTo(screen)` | app.js |
+| Función | Archivo | Nota v0.6 |
+|---------|---------|-----------|
+| `detectNearby()` | poi.js | |
+| `trigger(poi, _unused, lang, topic)` | narration.js | `mood` reemplazado por `AppState.narrationStyle` |
+| `fadeMusic(targetVol, durationMs)` | music.js | |
+| `checkCareContext()` | care.js | |
+| `setPhase(phase)` | app.js | llama `updateExplorePhase()` |
+| `navigateTo(screen)` | app.js | |
+| `updateCareStrip()` | app.js | nuevo v0.6 |
+| `updateHistCount()` | app.js | nuevo v0.6 |
 
 ### DA-4 — Sístole / Diástole como sistema CSS
 `setPhase()` cambia clase en `body`. CSS hace el resto. Nunca estilos inline desde JS.
-
-```js
-setPhase('diastole') // body.phase-diastole → CSS cambia colores
-```
+En v0.6, `setPhase()` también llama `updateExplorePhase()` que muestra/oculta
+`#barSystole` / `#barDiastole` en el bottom bar.
 
 ### DA-5 — Offline por 4 capas
 ```
@@ -104,8 +123,12 @@ Capa 4 — Cache API  → música, assets
 
 ### DA-6 — Narración con fallback obligatorio
 ```
-1. Cache IndexedDB (key: poiId_mood_lang_topic)
-2. Claude API vía Cloudflare Worker (timeout 15s)
+Cache key: poiId_style_lang_topic   ← v0.6: "style" en vez de "mood"
+
+1. Cache IndexedDB (key: poiId_style_lang_topic)
+2. Claude API vía Cloudflare Worker
+   └── system prompt: personalidad del narrador (DA-17)
+   └── user prompt:   contexto del POI y la solicitud
 3. Texto genérico con datos OSM
 → Nunca error visible al usuario
 ```
@@ -125,10 +148,6 @@ Todos los colores en `:root`. Nunca hardcoded en otros archivos CSS o JS.
 ### DA-11 — Cloudflare Worker como proxy de API keys
 Repo es público (requisito de GitHub Pages gratis). Keys de Claude y OpenWeatherMap
 nunca viven en código del repo — viven como Secrets en Cloudflare, invisibles.
-`narration.js` y `weather.js` llaman al Worker, nunca directo a los proveedores.
-Resuelve DT-6 antes de lo planeado, por necesidad: probar en celular vía GitHub
-Pages exponía las keys directamente, causando revocación automática (pasó con
-Gemini y casi con OpenAI).
 
 ```
 App (GitHub Pages, pública)
@@ -138,140 +157,149 @@ Cloudflare Worker (followernarration.jaimeand.workers.dev)
     └── /weather    → agrega OPENWEATHER_API_KEY → OpenWeatherMap
 ```
 
-### DA-12 — Métricas de tiempo con id único, no por label fijo
+### DA-12 — Métricas de tiempo con id único
+`Debug.metricStart(category, label)` → id único; `Debug.metricEnd(id, status, meta)`
+cierra esa medición. Historial persiste en `localStorage` (`follower_debug_log`).
 
-`Debug.metricStart(category, label)` devuelve un id único
-(`category|label|timestamp|random`); `Debug.metricEnd(id, status, meta)`
-cierra esa medición específica. Evita que dos operaciones concurrentes del
-mismo tipo (ej. dos narraciones activándose casi al mismo tiempo) se pisen
-entre sí. El historial completo vive en un arreglo, no en un objeto que se
-sobreescribe, y se persiste en `localStorage` (`follower_debug_log`) para
-sobrevivir recargas de página durante pruebas en campo.
-
-Categorías instrumentadas:
-- `poi` — Overpass fetch, cache IndexedDB load, chequeos detectNearby
-- `narration` — cache lookup, Claude Worker call, narración total
-- `voice` — lag texto→voz, duración narración hablada, errores de síntesis
-- `music` — cargar track
-
-El estado de la experiencia cinematográfica (sístole/diástole, primera
-narración, intervalos) vive en `AppState` (ver DA-16), no en `_metrics`,
-porque son acumulados de sesión, no mediciones discretas con duración.
-
-### DA-13 — CartoDB Voyager como proveedor de tiles del mapa
-
-Se iteró en vivo contra capturas reales de campo: el filtro
-`brightness/saturate` original sobre OSM Mapnik desaturaba todo el mapa por
-igual, parques incluidos (BUG-017). Se probó CartoDB Dark Matter (resultó
-ilegible con luz de sol directa en iPhone), luego CartoDB Positron
-(demasiado minimalista — sin parques/agua/etiquetas suficientes, por
-diseño: los basemaps "soft" de CARTO están pensados como fondo para que la
-app superponga sus propios datos, no como mapa de referencia completo tipo
-Google Maps). Voyager quedó como el balance final: color + información
-manteniendo legibilidad.
-
-```js
-L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
-  maxZoom: CONFIG.MAP_ZOOM_MAX, attribution: '', subdomains: 'abcd', detectRetina: true
-})
-```
-
-Nota pendiente: ni Voyager ni el OSM Mapnik anterior muestran atribución
-visible (`attribution: ''`), igual que antes del cambio de proveedor —
-ambos la requieren técnicamente en su tier gratuito. No bloqueante a corto
-plazo, pero a revisar si el uso crece (ver Deuda técnica).
+### DA-13 — CartoDB Voyager como proveedor de tiles
+Elegido sobre Dark Matter (ilegible con sol en iPhone) y Positron (demasiado minimalista).
+Voyager: color + información + legibilidad en campo.
 
 ### DA-14 — GPS.simulatePosition() como único punto de entrada para mockear posición
-
-El simulador de GPS (`debug-sim.js`) nunca duplica lógica de `onPosition()`
-— arma un objeto position falso (`{coords: {latitude, longitude, accuracy}}`)
-y se lo pasa directo a la misma función que usa `watchPosition` real. Así,
-el mapa se auto-inicializa en la primera posición simulada exactamente
-igual que con GPS real, y los chequeos de POI respetan el mismo throttle de
-producción. Regla para cualquier código futuro que necesite mockear GPS:
-nunca llamar a `POI.detectNearby()` u otras funciones internas directo —
-siempre entrar por `GPS.simulatePosition()`.
-
-```js
-GPS.simulatePosition(lat, lng, accuracy)  // → onPosition() real, sin atajos
-GPS.setPOICheckInterval(ms)               // setter controlado de CONFIG.POI_CHECK_INTERVAL
-GPS.getRadiusConfig()                     // copia de solo lectura de POI_RADIUS_METERS/NEARBY_RADIUS
-```
+El simulador nunca llama a `POI.detectNearby()` directo — siempre entra por
+`GPS.simulatePosition()` → `onPosition()`. Garantiza que la simulación y el GPS
+real ejecutan exactamente el mismo código.
 
 ### DA-15 — Debug.registerTab() para tabs externas sin acoplamiento
-
 `debug.js` no conoce a `debug-sim.js` por nombre. Cualquier módulo puede
-agregarse como tab nueva del panel llamando a
-`Debug.registerTab(name, label, renderFn)`, sin tocar el archivo `debug.js`.
-Efecto secundario necesario: `switchTab()` matcheaba la tab activa por
-posición en un array hardcodeado (`['status','search','logs','timing']`) —
-se hubiera roto en silencio con cualquier tab agregada dinámicamente. Se
-corrigió a matching por atributo `data-tab`, que escala a cualquier
-cantidad de tabs.
+agregarse como tab llamando a `Debug.registerTab(name, label, renderFn)`.
 
 ### DA-16 — Estado de experiencia en AppState, no en métricas de tiempo
+Métricas discretas → `_metrics` de `debug.js`.
+Estado acumulado de sesión → `AppState` (sístole/diástole, narraciones, intervalos).
+`setPhase()` es la única función que acumula tiempos de fase.
 
-Las métricas discretas (duración de un fetch, lag de voz) viven en
-`_metrics` de `debug.js`. El estado de la experiencia cinematográfica —
-que es acumulado a lo largo de toda la sesión — vive en `AppState`:
+### DA-17 — Estilos de narrador con prompts separados (system + user)
 
-```javascript
-AppState._phaseStart        // timestamp inicio de la fase actual
-AppState._msTotalSystole    // ms acumulados en sístole (caminando)
-AppState._msTotalDiastole   // ms acumulados en diástole (narrando)
-AppState._lastNarrationTs   // timestamp de la última narración
-AppState._narrationCount    // total de narraciones en la sesión
-AppState._sessionStart      // timestamp de inicio de sesión (initExplore)
-AppState._firstNarrationTs  // timestamp de la primera narración
-```
-
-`setPhase()` en `app.js` es la única función que acumula los tiempos de
-fase — cualquier transición sístole/diástole pasa por ahí, tanto en GPS
-real como en el simulador (que entra por `GPS.simulatePosition()` → 
-`onPosition()` → `detectNearby()` → `activatePOI()` → `setPhase()`).
-
-Regla: `debug-sim.js` nunca calcula sus propios acumulados de experiencia
-— siempre lee de `AppState`. Esto garantiza que el dashboard muestre los
-mismos números en una sesión de campo real y en una sesión simulada.
+En v0.6, los `MOOD_PROMPTS` se reemplazan por `STYLE_PROMPTS` con separación
+explícita de system prompt (personalidad permanente del narrador) y user prompt
+(solicitud específica del POI y el tema).
 
 ```js
-const id = Debug.metricStart('narration', 'Claude Worker call');
-// ... operación async ...
-Debug.metricEnd(id, 'ok', { poi: poi.name });
+STYLE_PROMPTS = {
+  storyteller: { system: { es, en }, user: { es, en } },
+  historian:   { system: { es, en }, user: { es, en } },
+  poet:        { system: { es, en }, user: { es, en } },
+  detective:   { system: { es, en }, user: { es, en } }
+}
 ```
 
-Toda instrumentación en `poi.js`, `narration.js` y `music.js` queda detrás de
-`typeof Debug !== 'undefined'` — si `debug.js` se quita antes de v1.0 (DT-8),
-ningún archivo se rompe.
+El `trigger()` ignora el parámetro `mood` heredado y lee `AppState.narrationStyle`.
+La cache usa `style` en la key (`poiId_style_lang_topic`) — cada estilo guarda
+su propia narración para el mismo POI.
+
+El mapeo estilo → música para `Music.changeMood()`:
+- `storyteller` → epic
+- `historian`   → epic (pendiente track clásico)
+- `poet`        → romantic
+- `detective`   → mystery
+
+### DA-18 — Bottom bar sólida sin gradiente ni blur
+
+En v0.6, el bottom bar:
+- `position: absolute; bottom: 0`
+- `background: var(--color-night)` (sólido)
+- `border-top: 1px solid var(--color-border)` (límite limpio)
+- **Sin** `backdrop-filter: blur()`, **sin** gradiente transparente
+- Estado-aware: `#barSystole` visible en sístole, `#barDiastole` en diástole
+- `updateExplorePhase(phase)` en `app.js` hace el switch
+
+Layout sístole: dos pills simétricos + corazón-brújula al centro
+```
+[🎭 Cuentero ↓]    💗    [🏛️ La Merced ↑]
+```
+
+Layout diástole: mini-player completo
+```
+[ Iglesia La Merced          · 48m ]
+[ ████████░░░░░░             ⏸  ⏹ ]
+[ ≋≋≋≋≋≋  Cuentero                ]
+```
+
+### DA-19 — Care strip como contexto permanente arriba
+
+El care strip reemplaza la top-pill. Ocupa los primeros 32px de la pantalla de exploración.
+```
+☀️ 28° | 👣 3,240 pasos | 📍 1.4 km
+```
+
+- `position: absolute; top: 0; z-index: var(--z-notch)`
+- El debug bar (en dev) arranca en `top: 32px` para no superponerse
+- Cuando se quita debug.js antes de v1.0, el care strip queda solo en el top
+- Datos en alerta (temp ≥ 30° o ≤ 5°) se marcan con `.alert` (color dorado)
+- `updateCareStrip()` en `app.js` es la función única de actualización,
+  llamada desde: weather.js al recibir datos, updateStats(), simulador en cada tick
+
+### DA-20 — Debug panel como barra fija de tabs + overlay (no bottom panel)
+
+En v0.6, el debug panel cambia completamente de estructura:
+
+```
+Antes: botón flotante rojo top-right + panel desde bottom (55vh)
+Ahora: barra de tabs fija en top:32px + panel overlay en top:64px
+```
+
+- `#dbg-bar`: `position: fixed; top: 32px` — siempre visible en dev, solo tabs
+- `#dbg-panel`: `position: fixed; top: 64px; max-height: 52vh` — oculto por defecto
+- Tap en tab cerrada → abre panel con contenido de esa tab
+- Tap en tab activa (panel abierto) → colapsa el panel
+- Auto-refresh solo cuando el panel está visible (no consume CPU innecesariamente)
+- Botón Exportar .txt: **solo en tab Logs** (no en otras tabs)
+- Tabs internas: Estado, Buscar, Logs, Tiempos, 🎬 Exp
+- Tabs externas: Simular (registrada por debug-sim.js vía registerTab)
+
+### DA-21 — Care conectado al simulador
+
+En v0.6, el simulador alimenta care correctamente:
+
+1. **`updateCareStrip()`** se llama en cada tick del simulador — el km del
+   care strip se actualiza en tiempo real durante la simulación
+2. **Botón "🧡 Test Care"** en el tab Simular fuerza `Care.check()` inmediatamente,
+   sin esperar el timer real de 5 minutos — permite validar la experiencia de
+   cuidado en simulaciones de caminata
+3. Las fuentes de datos que care lee (`AppState.kmWalked`, `AppState.steps`,
+   `AppState.gps`) se actualizan correctamente porque el simulador entra por
+   `GPS.simulatePosition()` → `onPosition()` (DA-14)
 
 ---
 
 ## Flujo de datos
 
 ```
-watchPosition() dispara onPosition() — sin timer propio, depende de
-cuándo el dispositivo reporta movimiento real (o de simulatePosition()
-en debug-sim.js, DA-14)
+watchPosition() dispara onPosition() — sin timer propio
     │
     ├── updateUserPosition() → Leaflet marker
     ├── updateDistance()     → AppState.kmWalked, steps
-    └── throttle CONFIG.POI_CHECK_INTERVAL (5000ms, ajustable vía
-        GPS.setPOICheckInterval() — DA-14) → detectNearby() → poi.js
+    ├── updateCareStrip()    → care strip km (cada N updates)
+    └── throttle 5000ms → detectNearby() → poi.js
             │
+            ├── Debug.trackExp('poi_check')
             ├── detectPOI()
-            │       ├── activatePOI() → setPhase('diastole')
-            │       │       ├── showPOICard()
-            │       │       └── Narration.trigger()
-            │       │               ├── cache check
-            │       │               ├── Claude API
-            │       │               ├── Voice.speak()
-            │       │               └── Music.dipForNarration()
-            │       └── deactivatePOI() → setPhase('systole')
-            └── Care.check()
-                    └── checkCareContext()
-                            ├── weather check
-                            ├── steps check
-                            └── showCareCard()
+            │   ├── Debug.trackExp('poi_detected') por cada poi en radio
+            │   ├── Debug.trackExp('poi_eligible') si hay candidato
+            │   └── activatePOI()
+            │       ├── Debug.trackExp('poi_narrated', {lat, lng, poiId})
+            │       ├── setPhase('diastole') → updateExplorePhase()
+            │       ├── showPOICard() → actualiza #barPoiName, #barPoiDist
+            │       └── Narration.trigger()
+            │           ├── AppState.narrationStyle → STYLE_PROMPTS
+            │           ├── cache IndexedDB (key: poiId_style_lang_topic)
+            │           ├── Claude API (system + user prompt separados)
+            │           ├── Voice.speak()
+            │           │   └── Debug.trackExp('narration_completed')
+            │           └── Music.dipForNarration()
+            │               └── Debug.trackExp('music_dip_start')
+            └── updateHistCount() → actualiza pills y nearbySelector
 ```
 
 ---
@@ -280,10 +308,10 @@ en debug-sim.js, DA-14)
 
 | API | Endpoint | Auth | Fallback |
 |-----|----------|------|---------|
-| Claude API | `followernarration.jaimeand.workers.dev/narration` (proxy) | Secret en Worker | Cache + texto genérico |
+| Claude API | `followernarration.jaimeand.workers.dev/narration` | Secret en Worker | Cache + texto genérico |
 | Overpass OSM | `lz4.overpass-api.de/api/interpreter` | Ninguna | IndexedDB |
 | Nominatim | `nominatim.openstreetmap.org/reverse` | Ninguna | IP fallback |
-| OpenWeatherMap | `followernarration.jaimeand.workers.dev/weather` (proxy) | Secret en Worker | localStorage 2h |
+| OpenWeatherMap | `followernarration.jaimeand.workers.dev/weather` | Secret en Worker | localStorage 2h |
 | ipapi.co | `ipapi.co/json/` | Ninguna | cityName = 'Tu ciudad' |
 
 ---
@@ -291,9 +319,8 @@ en debug-sim.js, DA-14)
 ## Gestión de API Keys
 
 - **Claude y OpenWeatherMap** — keys como Secrets en Cloudflare Worker, nunca en el repo (DA-11)
-- **`js/keys.js`** — local, en `.gitignore`, queda vacío o sin uso real; nunca sube a GitHub
-- Repo es público (GitHub Pages gratis) por lo que ninguna key puede vivir en código versionado
-- Worker gratis (100k requests/día), sin tarjeta de crédito requerida
+- **`js/keys.js`** — local, en `.gitignore`; nunca sube a GitHub
+- Repo es público (GitHub Pages gratis)
 
 ---
 
@@ -302,16 +329,23 @@ en debug-sim.js, DA-14)
 | ID | Descripción | Prioridad |
 |----|-------------|-----------|
 | DT-1 | Logo SVG final + iconos PWA | Alta |
-| DT-2 | Archivos de música por mood (4 MP3) | Alta |
+| DT-2 | Archivos de música por estilo (4 MP3, renombrar a estilos) | Alta |
 | DT-3 | sw.js — service worker | Alta (último) |
 | DT-4 | Pantalla resumen del paseo | Media |
 | DT-5 | Más ciudades en routes.js | Baja |
-| DT-9 | Revocar key OpenAI residual expuesta en `keys.js` (commits `a249fee8`–`a303f110`) | Alta |
-| DT-10 | Error IndexedDB `"connection is closing"` visto en log de campo durante fetches solapados — probablemente Safari cerrando conexiones idle al backgroundear la app, no confirmado si el candado de poi.js (BUG-014) lo resuelve solo | Media |
-| DT-11 | Worker Cloudflare responde 400 en cada arranque de sesión (5/5 en log de campo) — sin diagnosticar qué ruta lo dispara | Baja |
-| DT-12 | Atribución CARTO/OSM no se muestra (`attribution: ''` en gps.js, DA-13) — requerida técnicamente en el tier gratuito, no bloqueante a corto plazo | Baja |
+| DT-8 | `debug.js` + `debug-sim.js` deshabilitados antes de v1.0 | Media |
+| DT-9 | Revocar key OpenAI expuesta (commits `a249fee8`–`a303f110`) | Alta |
+| DT-10 | Error IndexedDB `"connection is closing"` — Safari backgrounding | Media |
+| DT-11 | Worker 400 en arranque — sin diagnosticar | Baja |
+| DT-12 | Atribución CARTO/OSM no visible | Baja |
+| DT-13 | Botones `btnBookmark`/`btnShare` huérfanos en splash | Baja |
+| DT-14 | Corazón-brújula: diseño final como brújula sólida con N S E O y aguja rota bicolor (blanco/rojo) que gira con bearing real (DeviceOrientationEvent) | Media |
+| DT-15 | Prompts de estilos de narrador: refinar con pruebas de campo — definir largo exacto, ejemplos de salida esperada, tests A/B | Alta |
+| DT-16 | Pantalla POI expandida: rediseñar con nuevo sistema visual | Media |
+| DT-17 | Config modal: reemplazar "Mood" por selector de estilo de narrador para alinear con v0.6 | Media |
+| DT-18 | Track de música para estilo Historiador — hoy usa "epic" por fallback | Baja |
 | ~~DT-6~~ | ~~Backend proxy para API keys~~ — **Resuelto** vía Cloudflare Worker (DA-11) | — |
 
 ---
 
-*Follower — Arquitectura v0.5 | Junio 2026*
+*Follower — Arquitectura v0.6 | Junio 2026*

@@ -774,3 +774,245 @@ diseño. Decisión pendiente: quitar, ocultar o implementar.
 
 *Follower — Bitácora v0.5 | Junio 2026*
 
+
+---
+
+## Sesión 8 — Junio 2026
+
+### Contexto
+Sprint de UI y experiencia. Tres objetivos paralelos: (1) rediseño
+completo de la pantalla de exploración, (2) sistema de estilos de
+narrador reemplazando los moods, (3) observabilidad de experiencia en
+el panel de debug. La pregunta rectora de cada decisión: ¿esto nos
+acerca a una experiencia cinematográfica o a una audioguía tradicional?
+
+---
+
+### Sprint 1 — Observabilidad de experiencia (debug.js, poi.js, narration.js, music.js)
+
+#### Problema
+El debugger medía infraestructura técnica (tiempos de Worker, fetches
+Overpass) pero no podía responder: ¿la caminata tuvo ritmo cinematográfico
+o se sintió vacía/saturada?
+
+#### Solución: capa de Experience Metrics
+
+**`debug.js`** — nuevo estado `_exp` con:
+- `funnel`: embudo poi_checks → pois_detected → pois_eligible →
+  pois_narrated → narrations_completed → narrations_interrupted
+- `narrations[]`: log de cada narración con timestamp, lat/lng, poiId,
+  estado (completada/interrumpida)
+- `music{}`: tiempo activo, dips/restores, acumuladores en ms
+
+**Nueva función `Debug.trackExp(step, data)`** — entrada única para
+todos los módulos. Steps: `poi_check`, `poi_detected`, `poi_eligible`,
+`poi_narrated`, `narration_completed`, `narration_interrupted`,
+`music_active`, `music_stopped`, `music_dip_start`, `music_dip_end`.
+Detrás de guards `typeof Debug !== 'undefined'` en todos los módulos.
+
+**Nueva tab `🎬 Exp`** en debug panel con:
+- **Cinematic Score 0–100**: métrica compuesta (completitud de narraciones
+  +20, ritmo en sweet spot 2-7min +15, música activa +10, penalización
+  por interrupciones y silencios largos)
+- Embudo narrativo con % de conversión entre etapas
+- Ritmo: intervalo avg/min/max, alertas de silencio >5min y saturación <2min
+- Calidad de caminata: narraciones/hora, metros/narración
+- Música: % de sesión activa, dips, restores
+
+**`exportLog()`** gana sección "MÉTRICAS DE EXPERIENCIA" con embudo
+completo + ritmo + Cinematic Score al final del reporte.
+
+**`debug-sim.js`** gana:
+- Tarjeta "🎬 Ritmo del paseo" al pie del tab Simular con resumen en vivo
+- Capa de marcadores narrativos en mapa (`_narrationLayer`) — punto verde
+  por narración completada, naranja por interrumpida
+- `focusNarrationMap()` hace fitBounds sobre los marcadores narrativos
+
+**Instrumentación nueva en módulos:**
+- `poi.js`: `poi_check` en `detectNearby`, `poi_detected`/`poi_eligible`
+  en `detectPOI`, `poi_narrated` (con lat/lng/poiId) en `activatePOI`
+- `narration.js`: `narration_completed` en callback de `Voice.speak`,
+  `narration_interrupted` en `stop()`
+- `music.js`: `music_active` en `playBuffer`, `music_stopped` en `stop()`,
+  `music_dip_start`/`music_dip_end` en dip y restore
+
+---
+
+### Sprint 2 — Rediseño pantalla exploración
+
+#### Cambios estructurales en index.html
+Pantalla de exploración completamente reemplazada:
+
+**Eliminados:**
+- `top-pill` (ciudad + mood) — informativo sin función real
+- `vol-control` (slider vertical) — el volumen lo maneja el sistema
+- `poi-card` flotante con `backdrop-filter: blur()` — reemplazada por mini-player
+- `bottom-bar` con gradiente y blur — anti-patrón en campo con sol
+
+**Agregados:**
+- `care-strip`: banda de 32px siempre visible con clima/pasos/km (DA-19)
+- `bottom-bar` sólida con `border-top` limpio (DA-18)
+- `#barSystole`: dos pills simétricos + corazón-brújula al centro
+- `#barDiastole`: mini-player con nombre POI, progreso, pausa ⏸ y stop ⏹
+- `style-selector`: bottom sheet con 4 estilos de narrador
+- `nearbySelector`: bottom sheet con lista de historias cercanas
+- Ghost `#poiCard` invisible preserva IDs para backward compat
+
+#### Bottom bar estado-aware
+
+`setPhase()` → `updateExplorePhase()` → muestra `#barSystole` o
+`#barDiastole`. El mapa nunca se desplaza — el panel overlay el mapa.
+
+Layout sístole final — dos pills simétricos:
+```
+[🎭 Cuentero ↓]    💗    [🏛️ La Merced ↑]
+```
+- Pill izquierdo (azul): selector de estilo — tap abre style-selector
+- Corazón-brújula SVG: placeholder de la brújula final (DT-14)
+- Pill derecho (rojo sutil): historia más cercana — tap abre nearbySelector
+
+`updateHistCount()` en `app.js` actualiza el pill derecho con el POI
+más cercano y rellena el nearbySelector con los top-5 ordenados por
+distancia. `POI.activateFromBar(poiId)` permite activar desde la lista.
+
+#### Care strip (DA-19)
+Care strip: `☀️ 28° | 👣 3,240 pasos | 📍 1.4 km`
+- Km movidos desde bottom bar al care strip
+- Temperatura en alerta (≥30° o ≤5°) con clase `.alert` (color dorado)
+- `weather.js` llama `updateCareStrip()` al recibir datos en vez de
+  actualizar `#topMood` (elemento eliminado)
+
+#### Corazón-brújula SVG
+SVG inline en `index.html` con corazón C2, círculo exterior, marcas
+cardinales N S E O y aguja bicolor. Placeholder funcional hasta DT-14.
+
+#### Debug panel rediseñado (DA-20)
+```
+Antes: botón flotante rojo + panel desde bottom
+Ahora: barra fija top:32px + overlay top:64px max 52vh
+```
+- Tap en tab cerrada → abre overlay
+- Tap en tab activa → colapsa overlay
+- Auto-refresh solo cuando panel está abierto
+- Botón Exportar .txt → **solo en tab Logs**
+- `isSimTabActive()` en debug-sim.js verifica tab activa Y panel visible
+
+#### Fix: modal config solo en primera visita
+`expandHeart()` mostraba el modal de configuración en cada carga
+(comentario en código decía "SIEMPRE mostrar config"). Corregido:
+```js
+if (Config.isFirstTime()) showModal('config');
+else navigateTo('explore');  // sesiones siguientes: directo al mapa
+```
+
+---
+
+### Sprint 3 — Estilos de narrador (narration.js)
+
+#### Reemplazo de MOOD_PROMPTS por STYLE_PROMPTS (DA-17)
+
+4 estilos con personalidades distintas, cada uno con system prompt
+(quién es el narrador) y user prompt (qué se le pide) separados:
+
+| Estilo | Clave | Personalidad | Música |
+|--------|-------|--------------|--------|
+| Cuentero | `storyteller` | Narrador local, personajes reales, drama humano | epic |
+| Historiador | `historian` | Riguroso y apasionado, fechas, contexto | epic* |
+| Poeta | `poet` | Sensorial, presente y pasado coexisten | romantic |
+| Detective | `detective` | Periodista de historia oculta, secretos | mystery |
+
+*DT-18: Historiador debería tener track clásico propio.
+
+Decisión clave de diseño de prompt: cada sistema prompt incluye
+**REGLAS ABSOLUTAS** explícitas (exactamente 3 párrafos, cómo empezar,
+cómo terminar, solo datos verificables). Sin estas reglas, Claude tiende
+a generar texto genérico sin estructura real.
+
+`max_tokens` subido de 350 a 450 para narraciones más completas.
+
+`trigger(poi, _unused, lang, topic)` ignora el segundo parámetro
+(antes `mood`) y lee `AppState.narrationStyle` internamente.
+Cache key cambiada de `poiId_mood_lang_topic` a `poiId_style_lang_topic` —
+cada estilo tiene su propia narración para el mismo POI.
+
+`initStyleSelector()` en `app.js` conecta el pill izquierdo con los 4
+style-cards. Al cambiar estilo: actualiza `AppState.narrationStyle`,
+`AppState.mood` (para música), llama `Music.changeMood()`, cierra el sheet.
+
+---
+
+### Sprint 4 — Care conectado al simulador (DA-21)
+
+**Problema:** El timer de care usa reloj real (primer check a 5 minutos
+reales). Una caminata simulada de 3km en 30 segundos nunca dispara care.
+El km del care strip no se actualizaba durante la simulación.
+
+**Fix:**
+1. Cada tick del simulador llama `updateCareStrip()` → km se refresca
+   en tiempo real
+2. Botón "🧡 Test Care" en tab Simular llama `Care.check()` inmediatamente
+   → permite testear la experiencia de cuidado en cualquier momento
+
+**Fuentes de datos:** care.js lee `AppState.kmWalked`, `AppState.steps`,
+`AppState.gps` que se actualizan correctamente vía DA-14
+(`GPS.simulatePosition()` → `onPosition()`).
+
+---
+
+### Bugs resueltos esta sesión
+
+**BUG-019 — Modal config aparecía en cada carga**
+- Causa: `expandHeart()` tenía comentario "SIEMPRE mostrar config"
+- Fix: `Config.isFirstTime()` controla si se muestra o se va directo al mapa
+- Archivo: `js/app.js`
+
+**BUG-020 — Care strip no actualizaba km durante simulación**
+- Causa: `updateCareStrip()` solo se llamaba al activar POIs o al init
+- Fix: llamada en cada tick del simulador
+- Archivos: `js/debug-sim.js`, `js/app.js`
+
+**BUG-021 — `#topMood` referenciado en weather.js pero elemento eliminado**
+- Causa: weather.js intentaba actualizar `#topMood` (eliminado en v0.6)
+- Fix: reemplazado por llamada a `updateCareStrip()`
+- Archivo: `js/weather.js`
+
+---
+
+### Deuda técnica actualizada
+
+| ID | Descripción | Prioridad |
+|----|-------------|-----------|
+| DT-1 | Logo SVG final + iconos PWA | Alta |
+| DT-2 | Archivos de música por estilo (4 MP3) | Alta |
+| DT-3 | sw.js — service worker | Alta (último) |
+| DT-4 | Pantalla resumen del paseo | Media |
+| DT-5 | Más ciudades en routes.js | Baja |
+| DT-8 | `debug.js` + `debug-sim.js` deshabilitados antes de v1.0 | Media |
+| DT-9 | Revocar key OpenAI expuesta (commits `a249fee8`–`a303f110`) | Alta |
+| DT-10 | Error IndexedDB `"connection is closing"` — Safari backgrounding | Media |
+| DT-11 | Worker 400 en arranque — sin diagnosticar | Baja |
+| DT-12 | Atribución CARTO/OSM no visible | Baja |
+| DT-13 | Botones `btnBookmark`/`btnShare` huérfanos en splash | Baja |
+| DT-14 | Corazón-brújula: diseño final sólido con N S E O, aguja bicolor que rota con bearing real (DeviceOrientationEvent) | Media |
+| DT-15 | Refinar prompts de estilos de narrador con pruebas de campo | Alta |
+| DT-16 | Pantalla POI expandida: rediseñar con nuevo sistema visual | Media |
+| DT-17 | Config modal: reemplazar "Mood" por selector de estilo de narrador | Media |
+| DT-18 | Track de música para estilo Historiador | Baja |
+
+---
+
+### Próxima sesión
+
+1. Probar en iPhone: care strip, bottom bar, pills, estilo selector,
+   nearby stories list — verificar que la UI funciona en campo real
+2. Testear 4 estilos de narrador en un mismo POI — verificar diferencias
+   reales en la narración (Cinematic Score en tab 🎬 Exp)
+3. Usar botón "🧡 Test Care" durante simulación — validar que care card
+   aparece correctamente y que la experiencia de cuidado está completa
+4. DT-14 — corazón-brújula con rotación real según bearing al POI más cercano
+5. DT-16 — rediseño pantalla POI expandida
+6. DT-9 — revocar key OpenAI (pendiente hace varias sesiones)
+
+---
+
+*Follower — Bitácora v0.6 | Junio 2026*

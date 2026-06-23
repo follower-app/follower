@@ -241,6 +241,12 @@
       </div>
     </div>
 
+    <!-- Controles de zoom — derecha del mapa -->
+    <div class="map-zoom-controls">
+      <button class="map-zoom-btn" id="btnZoomIn"  aria-label="Acercar"  onclick="const m=GPS.getMap();if(m)m.zoomIn();">+</button>
+      <button class="map-zoom-btn" id="btnZoomOut" aria-label="Alejar"   onclick="const m=GPS.getMap();if(m)m.zoomOut();">−</button>
+    </div>
+
     <!-- Bottom bar sólida — sin gradiente, sin blur -->
     <div class="bottom-bar" id="bottomBar">
 

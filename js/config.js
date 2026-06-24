@@ -1,6 +1,6 @@
 /* ═══════════════════════════════════════════
    FOLLOWER — config.js
-   Configuración del usuario: idioma, mood,
+   Configuración del usuario: idioma, narrador,
    preferencias. Se carga antes que todo.
    ═══════════════════════════════════════════ */
 
@@ -9,9 +9,8 @@ const Config = (() => {
   /* ── VALORES POR DEFECTO ── */
   const DEFAULTS = {
     lang:       'es',
-    mood:       'epic',
+    narrator:   'storyteller',
     mode:       'free',
-    volMusic:   0.65,
     volVoice:   1.0,
     unitSystem: 'metric'
   };
@@ -68,13 +67,13 @@ const Config = (() => {
     set('lang', lang);
   }
 
-  function setMood(mood) {
-    const valid = ['epic', 'romantic', 'mystery', 'curious'];
-    if (!valid.includes(mood)) {
-      console.warn(`Config: mood inválido "${mood}"`);
+  function setNarrator(narrator) {
+    const valid = ['storyteller', 'historian', 'explorer', 'local'];
+    if (!valid.includes(narrator)) {
+      console.warn(`Config: narrador inválido "${narrator}"`);
       return;
     }
-    set('mood', mood);
+    set('narrator', narrator);
   }
 
   function setMode(mode) {
@@ -84,10 +83,6 @@ const Config = (() => {
       return;
     }
     set('mode', mode);
-  }
-
-  function setVolMusic(vol) {
-    set('volMusic', Math.min(1, Math.max(0, vol)));
   }
 
   function setVolVoice(vol) {
@@ -105,30 +100,18 @@ const Config = (() => {
     localStorage.removeItem(STORAGE_KEY);
   }
 
-  /* ── HELPERS DE MOOD ── */
-  const MOOD_LABELS = {
-    epic:     { es: '🎬 épico',     en: '🎬 epic' },
-    romantic: { es: '🌹 romántico', en: '🌹 romantic' },
-    mystery:  { es: '🔮 misterio',  en: '🔮 mystery' },
-    curious:  { es: '😄 curioso',   en: '😄 curious' }
+  /* ── LABELS DE NARRADOR ── */
+  const NARRATOR_LABELS = {
+    storyteller: { es: '🎭 Storyteller', en: '🎭 Storyteller' },
+    historian:   { es: '🏛️ Historiador', en: '🏛️ Historian'  },
+    explorer:    { es: '🔎 Explorador',  en: '🔎 Explorer'   },
+    local:       { es: '❤️ Local',       en: '❤️ Local'      }
   };
 
-  function getMoodLabel() {
-    const mood = _config.mood;
-    const lang = _config.lang;
-    return MOOD_LABELS[mood]?.[lang] || MOOD_LABELS[mood]?.['es'] || mood;
-  }
-
-  /* ── HELPERS DE MÚSICA POR MOOD ── */
-  const MOOD_MUSIC = {
-    epic:     'assets/sounds/epic.mp3',
-    romantic: 'assets/sounds/romantic.mp3',
-    mystery:  'assets/sounds/mystery.mp3',
-    curious:  'assets/sounds/curious.mp3'
-  };
-
-  function getMusicTrack() {
-    return MOOD_MUSIC[_config.mood] || MOOD_MUSIC['epic'];
+  function getNarratorLabel() {
+    const narrator = _config.narrator;
+    const lang     = _config.lang;
+    return NARRATOR_LABELS[narrator]?.[lang] || NARRATOR_LABELS[narrator]?.['es'] || narrator;
   }
 
   /* ── INICIALIZAR ── */
@@ -140,14 +123,12 @@ const Config = (() => {
     getAll,
     set,
     setLang,
-    setMood,
+    setNarrator,
     setMode,
-    setVolMusic,
     setVolVoice,
     isFirstTime,
     reset,
-    getMoodLabel,
-    getMusicTrack
+    getNarratorLabel
   };
 
 })();

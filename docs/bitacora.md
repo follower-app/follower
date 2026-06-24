@@ -1133,3 +1133,103 @@ aguja rombo ancha) + sin letra N (tick rojo largo como indicador de norte)
 ---
 
 *Follower — Bitácora v0.6 | Sesión 9 | Junio 2026*
+
+---
+
+## Sesión 9 — continuación (misma fecha)
+
+### Bugs resueltos en campo post-deploy
+
+**BUG-026 — Care strip y debug bar visibles en splash/config**
+
+Dos causas simultáneas:
+
+Causa A: `explore.css` tenía `position: relative` en `#screen-explore`
+que anulaba el `position: fixed` heredado de `.screen`. Esto rompía
+el stacking context haciendo que el care strip "escapara" visualmente
+por encima de la pantalla de splash.
+Fix: eliminado `position: relative` de `#screen-explore`.
+
+Causa B: `debug.js` crea `#dbg-bar` en el `body` como `position: fixed`
+al inicializarse — antes de que `navigateTo()` sea llamado.
+Fix 1: `#dbg-bar` se crea con `display: none` por defecto.
+Fix 2: `navigateTo()` en `app.js` muestra `#dbg-bar` solo cuando
+`screenId === 'explore'` y lo oculta en cualquier otra pantalla.
+
+Archivos: `explore.css`, `debug.js`, `app.js`
+
+---
+
+**BUG-027 — Cono de dirección GPS desalineado del punto de usuario**
+
+Causa: el cono era un `L.marker` Leaflet SEPARADO del marcador del usuario.
+Aunque compartían el mismo lat/lng, el cálculo de `iconAnchor` nunca
+coincidía perfectamente, causando que el cono apareciera desplazado.
+
+Fix: el cono ahora va DENTRO del mismo `divIcon` del usuario.
+`_buildUserIcon(showCone, heading)` genera HTML combinado:
+- Cono SVG con `<g transform="rotate(${heading})">` → rotación en SVG
+- `user-pulse` + `user-dot` en el mismo contenedor
+- Mismo `iconAnchor: [40, 40]` → alineación perfecta garantizada
+
+`showHeadingCone(visible)` y `updateHeadingCone(heading)` ahora llaman
+`_updateUserIcon()` que hace `_userMarker.setIcon(_buildUserIcon(...))`.
+Eliminado el `_coneMarker` separado.
+
+Archivo: `gps.js`
+
+---
+
+**Métricas de arranque agregadas a runSplash()**
+
+Ahora se mide el arranque completo en `debug.js`:
+- `metricStart('app', 'arranque → exploración lista')` al inicio del splash
+- Log GPS: `concedido/denegado · Xms` — tiempo exacto del permiso
+- `metricEnd` con status `first-time` o `returning-user` en `expandHeart()`
+
+Visible en el reporte de debug bajo `[app] arranque → exploración lista`.
+
+Archivo: `app.js`
+
+---
+
+**BUG-028 — Narración sin audio (Music bloquea Voice)**
+
+Causa: `Music.dipForNarration()` lanzaba excepción cuando los archivos
+MP3 están ausentes y el `AudioContext` queda en estado inválido.
+Como la excepción no estaba capturada, el `Voice.speak()` inmediatamente
+posterior nunca se ejecutaba → silencio total.
+
+Fix narration.js: `Music.dipForNarration()` y `Music.restoreAfterNarration()`
+en bloques `try/catch`. Un error de música nunca vuelve a bloquear la narración.
+
+Fix adicional voice.js: `speechSynthesis.resume()` antes de `speak()`
+si `paused === true`. iOS Safari puede dejar la síntesis en estado paused
+tras `cancel()`, causando que el siguiente `speak()` no produzca audio.
+También se agrega log de estado (`speaking/paused/pending`) antes de cada
+`speak()` para diagnóstico en campo.
+
+Archivos: `narration.js`, `voice.js`
+
+---
+
+### Estado al cierre de sesión
+
+**Funcional:**
+- Pipeline narración completo operativo (sin música por ahora)
+- Brújula 3 estados implementada y posicionada
+- Debug bar oculto hasta pantalla de exploración
+- Care strip visible solo en exploración
+- Cono GPS perfectamente alineado con punto de usuario
+- Métricas de arranque activas
+
+**Pendiente para próxima sesión:**
+1. Commits de música cuando estén listos los 4 MP3
+2. Test de campo con música activa — verificar dip/restore
+3. Verificar BUG-022 resuelto en iOS (narrations_completed > 0)
+4. Rediseño pantalla POI expandida (DT-16)
+5. Revocar key OpenAI expuesta (DT-9 — pendiente hace varias sesiones)
+
+---
+
+*Follower — Bitácora | Sesión 9 cierre | Junio 2026*

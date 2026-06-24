@@ -230,6 +230,10 @@ const Care = (() => {
       btnDis.onclick     = () => dismiss();
     }
 
+    // Ocultar care strip — la card ocupa su lugar
+    const strip = document.getElementById('careStrip');
+    if (strip) strip.classList.add('care-active');
+
     // Cambiar fase a descanso
     setPhase('rest');
 
@@ -260,6 +264,10 @@ const Care = (() => {
   function dismiss() {
     const careCard = document.getElementById('careCard');
     if (careCard) careCard.classList.add('hidden');
+
+    // Restaurar care strip
+    const strip = document.getElementById('careStrip');
+    if (strip) strip.classList.remove('care-active');
 
     _suggestionShown = false;
     _nearbyRest      = null;

@@ -168,39 +168,55 @@
 
 /* ── MOOD CARDS — config inicial ── */
 
-.mood-row {
+.narrator-list {
   display: flex;
+  flex-direction: column;
   gap: var(--space-sm);
 }
 
-.mood-card {
-  flex: 1;
-  padding: 11px var(--space-xs);
+.narrator-card {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  padding: 11px var(--space-md);
   border-radius: var(--radius-md);
   border: 0.5px solid var(--color-border);
-  text-align: center;
   cursor: pointer;
   transition: all var(--transition-fast);
   user-select: none;
 }
-.mood-card:hover { border-color: var(--color-smoke-2); }
-.mood-card.active {
+.narrator-card:hover { border-color: var(--color-smoke-2); }
+.narrator-card.active {
   border-color: var(--color-diastole);
   background: rgba(192, 57, 43, 0.08);
 }
 
-.mood-icon {
-  font-size: 18px;
-  margin-bottom: var(--space-xs);
+.narrator-emoji {
+  font-size: 20px;
   line-height: 1;
+  flex-shrink: 0;
 }
 
-.mood-name {
+.narrator-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.narrator-name {
+  font-family: var(--font-ui);
+  font-size: 13px;
+  font-weight: var(--weight-regular);
+  color: var(--color-ice);
+}
+
+.narrator-desc {
   font-family: var(--font-ui);
   font-size: 10px;
   font-weight: var(--weight-light);
-  color: var(--color-smoke);
-  letter-spacing: 0.03em;
+  color: var(--color-smoke-3);
+  letter-spacing: 0.02em;
 }
 
 /* ── MODE CARDS — selección de modo ── */

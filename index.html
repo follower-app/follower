@@ -99,25 +99,37 @@
         </div>
       </div>
 
-      <!-- Mood -->
+      <!-- Narrador -->
       <div class="config-block">
-        <p class="config-label">Mood de la experiencia</p>
-        <div class="mood-row" id="moodCards">
-          <div class="mood-card active" data-value="epic">
-            <div class="mood-icon">🎬</div>
-            <div class="mood-name">épico</div>
+        <p class="config-label">¿Quién te acompaña hoy?</p>
+        <div class="narrator-list" id="narratorCards">
+          <div class="narrator-card active" data-value="storyteller">
+            <div class="narrator-emoji">🎭</div>
+            <div class="narrator-info">
+              <div class="narrator-name">Storyteller</div>
+              <div class="narrator-desc">personajes reales, emoción, suspenso</div>
+            </div>
           </div>
-          <div class="mood-card" data-value="romantic">
-            <div class="mood-icon">🌹</div>
-            <div class="mood-name">romántico</div>
+          <div class="narrator-card" data-value="historian">
+            <div class="narrator-emoji">🏛️</div>
+            <div class="narrator-info">
+              <div class="narrator-name">Historiador</div>
+              <div class="narrator-desc">fechas, arquitectura, contexto histórico</div>
+            </div>
           </div>
-          <div class="mood-card" data-value="mystery">
-            <div class="mood-icon">🔮</div>
-            <div class="mood-name">misterio</div>
+          <div class="narrator-card" data-value="explorer">
+            <div class="narrator-emoji">🔎</div>
+            <div class="narrator-info">
+              <div class="narrator-name">Explorador</div>
+              <div class="narrator-desc">secretos, detalles ocultos, revelaciones</div>
+            </div>
           </div>
-          <div class="mood-card" data-value="curious">
-            <div class="mood-icon">😄</div>
-            <div class="mood-name">curioso</div>
+          <div class="narrator-card" data-value="local">
+            <div class="narrator-emoji">❤️</div>
+            <div class="narrator-info">
+              <div class="narrator-name">Local</div>
+              <div class="narrator-desc">costumbres reales, cultura viva, voz del barrio</div>
+            </div>
           </div>
         </div>
       </div>
@@ -180,6 +192,9 @@
     <!-- Mapa Leaflet -->
     <div id="map"></div>
 
+    <!-- Bienvenida de ciudad — texto sobre el mapa, fade in/out, una vez por sesión -->
+    <div id="cityWelcome" class="city-welcome hidden"></div>
+
     <!-- Care card — alertas de cuidado con acción -->
     <div class="care-card hidden" id="careCard">
       <div class="care-card-top">
@@ -210,32 +225,32 @@
       <div class="style-handle"></div>
       <p class="style-title">Estilo de narrador</p>
       <div class="style-list">
-        <div class="style-card active" data-style="storyteller" data-mood="epic">
+        <div class="style-card active" data-style="storyteller">
           <div class="style-emoji">🎭</div>
           <div class="style-info">
-            <div class="style-name">Cuentero</div>
-            <div class="style-desc">Anécdotas, drama humano, historias de barrio</div>
+            <div class="style-name">Storyteller</div>
+            <div class="style-desc">personajes reales, emoción, suspenso</div>
           </div>
         </div>
-        <div class="style-card" data-style="historian" data-mood="epic">
-          <div class="style-emoji">📜</div>
+        <div class="style-card" data-style="historian">
+          <div class="style-emoji">🏛️</div>
           <div class="style-info">
             <div class="style-name">Historiador</div>
-            <div class="style-desc">Fechas, contexto, hechos verificables</div>
+            <div class="style-desc">fechas, arquitectura, contexto histórico</div>
           </div>
         </div>
-        <div class="style-card" data-style="poet" data-mood="romantic">
-          <div class="style-emoji">🌊</div>
+        <div class="style-card" data-style="explorer">
+          <div class="style-emoji">🔎</div>
           <div class="style-info">
-            <div class="style-name">Poeta</div>
-            <div class="style-desc">Sensorial, evocador, el lugar como se siente</div>
+            <div class="style-name">Explorador</div>
+            <div class="style-desc">secretos, detalles ocultos, revelaciones</div>
           </div>
         </div>
-        <div class="style-card" data-style="detective" data-mood="mystery">
-          <div class="style-emoji">🔍</div>
+        <div class="style-card" data-style="local">
+          <div class="style-emoji">❤️</div>
           <div class="style-info">
-            <div class="style-name">Detective</div>
-            <div class="style-desc">Lo que no te cuentan, secretos, misterio</div>
+            <div class="style-name">Local</div>
+            <div class="style-desc">costumbres reales, cultura viva, voz del barrio</div>
           </div>
         </div>
       </div>

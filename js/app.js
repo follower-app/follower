@@ -9,7 +9,6 @@ const AppState = {
   screen:      'splash',
   phase:       'systole',
   mode:        'free',
-  mood:        'epic',
   lang:        'es',
   gps:         null,
   nearbyPOIs:  [],
@@ -22,16 +21,19 @@ const AppState = {
   weather:     null,
   cityName:    '',
   narrationStyle:      'storyteller',
-  narrationStyleLabel: 'Cuentero',
+  narrationStyleLabel: 'Storyteller',
+
+  // ── Bienvenida de ciudad ──
+  _cityWelcomeDone: false,
 
   // ── Métricas de ritmo cinematográfico ──
-  _phaseStart:        null,   // timestamp (performance.now) del inicio de la fase actual
-  _msTotalSystole:    0,      // ms acumulados en sístole (caminando)
-  _msTotalDiastole:   0,      // ms acumulados en diástole (narrando)
-  _lastNarrationTs:   null,   // timestamp de la última narración disparada
-  _narrationCount:    0,      // total de narraciones en la sesión
-  _sessionStart:      null,   // timestamp de inicio de sesión (primer GPS fix)
-  _firstNarrationTs:  null,   // timestamp de la primera narración (para "tiempo hasta primera narración")
+  _phaseStart:        null,
+  _msTotalSystole:    0,
+  _msTotalDiastole:   0,
+  _lastNarrationTs:   null,
+  _narrationCount:    0,
+  _sessionStart:      null,
+  _firstNarrationTs:  null,
 };
 
 /* ── ROUTER — cambiar pantalla ── */
@@ -320,9 +322,10 @@ function expandHeart(heart, splashId) {
       showModal('config');
     } else {
       // Sesión anterior — ir directo a exploración con config guardada
-      AppState.lang = Config.get('lang');
-      AppState.mood = Config.get('mood');
-      AppState.mode = Config.get('mode');
+      AppState.lang           = Config.get('lang');
+      AppState.narrationStyle = Config.get('narrator');
+      AppState.narrationStyleLabel = STYLE_LABELS[AppState.narrationStyle] || AppState.narrationStyle;
+      AppState.mode           = Config.get('mode');
       if (splashId) Debug.metricEnd(splashId, 'returning-user');
       navigateTo('explore');
       initExplore();
@@ -347,9 +350,6 @@ function initExplore() {
   // GPS ya tiene permiso — solo iniciar el watch continuo
   if (typeof GPS !== 'undefined') GPS.start();
 
-  // Iniciar música
-  if (typeof Music !== 'undefined') Music.play(Config.get('mood'));
-
   // Iniciar clima
   if (typeof Weather !== 'undefined') Weather.start();
 
@@ -357,11 +357,51 @@ function initExplore() {
   if (typeof Care !== 'undefined') Care.start();
 }
 
+/* ── BIENVENIDA DE CIUDAD — texto sobre el mapa, una vez por sesión ── */
+function welcomeCity(city) {
+  if (AppState._cityWelcomeDone) return;
+  AppState._cityWelcomeDone = true;
+
+  const style = AppState.narrationStyle || 'storyteller';
+  const lang  = AppState.lang || 'es';
+
+  let text = city;
+  if (typeof Narration !== 'undefined' && typeof Narration.getCityWelcome === 'function') {
+    text = Narration.getCityWelcome(city, style, lang);
+  }
+
+  const el = document.getElementById('cityWelcome');
+  if (!el) return;
+
+  el.textContent = text;
+  el.classList.remove('hidden');
+  el.classList.add('visible');
+
+  if (typeof Debug !== 'undefined') {
+    Debug.log('info', `Bienvenida ciudad: "${text}" · narrador=${style}`);
+  }
+
+  // Auto-cerrar a los 5 segundos
+  const autoClose = setTimeout(() => dismissCityWelcome(el), 5000);
+
+  // Tap para cerrar antes
+  el.addEventListener('click', () => {
+    clearTimeout(autoClose);
+    dismissCityWelcome(el);
+  }, { once: true });
+}
+
+function dismissCityWelcome(el) {
+  if (!el) return;
+  el.classList.remove('visible');
+  setTimeout(() => el.classList.add('hidden'), 600);
+}
+
 /* ── EVENT LISTENERS — CONFIG MODAL ── */
 function initConfigModal() {
   // Preseleccionar valores guardados
-  const savedLang = Config.get('lang');
-  const savedMood = Config.get('mood');
+  const savedLang     = Config.get('lang');
+  const savedNarrator = Config.get('narrator');
 
   // Pills de idioma
   const langPills = document.querySelectorAll('#langPills .pill');
@@ -375,15 +415,15 @@ function initConfigModal() {
     });
   });
 
-  // Cards de mood
-  const moodCards = document.querySelectorAll('#moodCards .mood-card');
-  moodCards.forEach(card => {
-    if (card.dataset.value === savedMood) card.classList.add('active');
+  // Cards de narrador
+  const narratorCards = document.querySelectorAll('#narratorCards .narrator-card');
+  narratorCards.forEach(card => {
+    if (card.dataset.value === savedNarrator) card.classList.add('active');
     else card.classList.remove('active');
     card.addEventListener('click', () => {
-      moodCards.forEach(c => c.classList.remove('active'));
+      narratorCards.forEach(c => c.classList.remove('active'));
       card.classList.add('active');
-      AppState.mood = card.dataset.value;
+      AppState.narrationStyle = card.dataset.value;
     });
   });
 
@@ -392,7 +432,7 @@ function initConfigModal() {
   if (btnStart) {
     btnStart.addEventListener('click', () => {
       Config.setLang(AppState.lang);
-      Config.setMood(AppState.mood);
+      Config.setNarrator(AppState.narrationStyle);
       hideModal('config');
       setTimeout(() => showModal('mode'), 300);
     });
@@ -431,15 +471,15 @@ function initModeModal() {
 
 /* ── STYLE SELECTOR ── */
 const STYLE_LABELS = {
-  storyteller: 'Cuentero',
+  storyteller: 'Storyteller',
   historian:   'Historiador',
-  poet:        'Poeta',
-  detective:   'Detective',
+  explorer:    'Explorador',
+  local:       'Local',
 };
 
 function initStyleSelector() {
-  const selector  = document.getElementById('styleSelector');
-  const styleBtn  = document.getElementById('btnStyleSelector');
+  const selector   = document.getElementById('styleSelector');
+  const styleBtn   = document.getElementById('btnStyleSelector');
   const styleCards = document.querySelectorAll('.style-card');
 
   if (styleBtn && selector) {
@@ -457,12 +497,10 @@ function initStyleSelector() {
   styleCards.forEach(card => {
     card.addEventListener('click', () => {
       const style = card.dataset.style;
-      const mood  = card.dataset.mood || 'epic';
 
       AppState.narrationStyle      = style;
       AppState.narrationStyleLabel = STYLE_LABELS[style] || style;
-      AppState.mood                = mood;
-      Config.setMood(mood);
+      Config.setNarrator(style);
 
       styleCards.forEach(c => c.classList.remove('active'));
       card.classList.add('active');
@@ -472,11 +510,10 @@ function initStyleSelector() {
       if (nameEl) nameEl.textContent = AppState.narrationStyleLabel;
       if (lblEl)  lblEl.textContent  = AppState.narrationStyleLabel;
 
-      if (typeof Music !== 'undefined') Music.changeMood(mood);
       selector?.classList.add('hidden');
 
       if (typeof Debug !== 'undefined') {
-        Debug.log('info', `Estilo cambiado: ${AppState.narrationStyleLabel} · mood=${mood}`);
+        Debug.log('info', `Narrador cambiado: ${AppState.narrationStyleLabel}`);
       }
     });
   });
@@ -686,9 +723,10 @@ function initExploreListeners() {
 
 /* ── INIT PRINCIPAL ── */
 function init() {
-  AppState.lang = Config.get('lang');
-  AppState.mood = Config.get('mood');
-  AppState.mode = Config.get('mode');
+  AppState.lang            = Config.get('lang');
+  AppState.narrationStyle  = Config.get('narrator');
+  AppState.narrationStyleLabel = STYLE_LABELS[AppState.narrationStyle] || AppState.narrationStyle;
+  AppState.mode            = Config.get('mode');
 
   window.addEventListener('online',  handleOnline);
   window.addEventListener('offline', handleOffline);

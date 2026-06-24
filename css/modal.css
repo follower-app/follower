@@ -89,46 +89,45 @@
 
 .care-card {
   position: absolute;
-  bottom: 120px;
-  left: var(--space-lg);
-  right: var(--space-lg);
+  top: 0;
+  left: 0;
+  right: 0;
   z-index: var(--z-card);
-  background: rgba(10, 16, 24, 0.92);
-  border: 0.5px solid var(--color-border);
-  border-radius: var(--radius-xl);
-  padding: var(--space-lg) 18px;
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  animation: card-rise 0.6s cubic-bezier(0.34, 1.2, 0.64, 1) both;
+  background: var(--color-night);
+  border-bottom: 1px solid var(--color-border);
+  height: 32px;
+  display: flex;
+  align-items: center;
+  padding: 0 var(--space-lg);
+  gap: var(--space-sm);
+  animation: care-fade-in 0.3s ease both;
+}
+
+@keyframes care-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
 }
 
 .care-card.hidden {
   display: none !important;
 }
 
-@keyframes card-rise {
-  from {
-    opacity: 0;
-    transform: translateY(20px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
 .care-card-top {
   display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  margin-bottom: var(--space-xs);
+  align-items: center;
+  gap: var(--space-sm);
+  flex: 1;
+  min-width: 0;
 }
 
 .care-card-title {
-  font-family: var(--font-display);
-  font-size: 17px;
+  font-family: var(--font-ui);
+  font-size: 11px;
+  font-weight: var(--weight-regular);
   color: var(--color-ice);
-  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .care-card-badge {
@@ -137,63 +136,48 @@
   font-weight: var(--weight-regular);
   color: #633806;
   background: var(--color-gold);
-  padding: 3px 9px;
+  padding: 2px 7px;
   border-radius: var(--radius-pill);
   letter-spacing: 0.06em;
   white-space: nowrap;
+  flex-shrink: 0;
 }
 
-.care-card-meta {
-  font-family: var(--font-ui);
-  font-size: 10px;
-  font-weight: var(--weight-light);
-  color: var(--color-smoke-3);
-  letter-spacing: 0.05em;
-  margin-bottom: var(--space-md);
-}
-
-.care-card-text {
-  font-family: var(--font-ui);
-  font-size: 12px;
-  font-weight: var(--weight-thin);
-  color: var(--color-smoke);
-  line-height: 1.6;
-  margin-bottom: var(--space-md);
-}
+.care-card-meta { display: none; }
+.care-card-text { display: none; }
 
 .care-actions {
   display: flex;
-  gap: var(--space-sm);
+  gap: var(--space-xs);
+  flex-shrink: 0;
 }
 
 .btn-care-primary {
-  flex: 1;
-  padding: 9px;
+  padding: 4px 10px;
   background: var(--color-gold);
   border: none;
   border-radius: var(--radius-pill);
   font-family: var(--font-ui);
-  font-size: 12px;
+  font-size: 10px;
   font-weight: var(--weight-regular);
   color: #633806;
   cursor: pointer;
-  letter-spacing: 0.04em;
+  white-space: nowrap;
   transition: opacity var(--transition-fast);
 }
 .btn-care-primary:hover { opacity: 0.88; }
 
 .btn-care-secondary {
-  flex: 1;
-  padding: 9px;
+  padding: 4px 10px;
   background: transparent;
   border: 0.5px solid var(--color-border);
   border-radius: var(--radius-pill);
   font-family: var(--font-ui);
-  font-size: 12px;
+  font-size: 10px;
   font-weight: var(--weight-light);
   color: var(--color-smoke);
   cursor: pointer;
-  letter-spacing: 0.04em;
+  white-space: nowrap;
   transition: border-color var(--transition-fast);
 }
 .btn-care-secondary:hover { border-color: var(--color-smoke-2); }

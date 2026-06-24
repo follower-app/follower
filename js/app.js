@@ -49,6 +49,13 @@ function navigateTo(screenId) {
   next.classList.remove('hidden');
   next.classList.add('active');
   AppState.screen = screenId;
+
+  // Debug bar y care strip solo visibles en la pantalla de exploración
+  const onExplore = screenId === 'explore';
+  const dbgBar = document.getElementById('dbg-bar');
+  const dbgPanel = document.getElementById('dbg-panel');
+  if (dbgBar)  dbgBar.style.display  = onExplore ? 'flex' : 'none';
+  if (dbgPanel && !onExplore) dbgPanel.classList.add('hidden');
 }
 
 /* ── SET PHASE — sístole / diástole ── */

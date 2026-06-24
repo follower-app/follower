@@ -53,28 +53,71 @@ const GPS = (() => {
       detectRetina: true
     }).addTo(_map);
 
-    // Marcador del usuario — círculo azul sístole
-    const userIcon = L.divIcon({
-      className:   '',
-      html:        `<div class="user-marker">
-                      <div class="user-pulse"></div>
-                      <div class="user-pulse"></div>
-                      <div class="user-dot"></div>
-                    </div>`,
-      iconSize:    [60, 60],
-      iconAnchor:  [30, 30]
-    });
-
+    // Marcador del usuario — se crea con posición inicial
     _userMarker = L.marker([lat, lng], {
-      icon:        userIcon,
+      icon:         _buildUserIcon(false, 0),
       zIndexOffset: 1000
     }).addTo(_map);
+  }
+
+  /* ── CONSTRUIR ICON DEL USUARIO (con o sin cono) ── */
+  function _buildUserIcon(showCone, heading) {
+    const coneHtml = showCone ? `
+      <svg style="position:absolute;top:0;left:0;width:80px;height:80px;overflow:visible;pointer-events:none;"
+           viewBox="-40 -40 80 80">
+        <defs>
+          <radialGradient id="coneG" cx="50%" cy="100%" r="100%">
+            <stop offset="0%"   stop-color="#1a5276" stop-opacity="0.5"/>
+            <stop offset="100%" stop-color="#1a5276" stop-opacity="0"/>
+          </radialGradient>
+        </defs>
+        <g transform="rotate(${heading})">
+          <path d="M0,0 L-16,-36 A38,38 0 0,1 16,-36 Z" fill="url(#coneG)"/>
+          <line x1="0" y1="0" x2="-16" y2="-36" stroke="rgba(26,82,118,0.3)" stroke-width="1"/>
+          <line x1="0" y1="0" x2="16"  y2="-36" stroke="rgba(26,82,118,0.3)" stroke-width="1"/>
+        </g>
+      </svg>` : '';
+
+    return L.divIcon({
+      className:  '',
+      html: `<div style="position:relative;width:80px;height:80px;display:flex;align-items:center;justify-content:center;">
+               ${coneHtml}
+               <div class="user-marker" style="position:relative;z-index:2;">
+                 <div class="user-pulse"></div>
+                 <div class="user-pulse"></div>
+                 <div class="user-dot"></div>
+               </div>
+             </div>`,
+      iconSize:   [80, 80],
+      iconAnchor: [40, 40]
+    });
+  }
+
+  /* ── ACTUALIZAR ICON DEL USUARIO ── */
+  function _updateUserIcon(showCone, heading) {
+    if (_userMarker) {
+      _userMarker.setIcon(_buildUserIcon(showCone, heading));
+    }
   }
 
   /* ── ACTUALIZAR POSICIÓN EN EL MAPA ── */
   function updateUserPosition(lat, lng) {
     if (!_map || !_userMarker) return;
     _userMarker.setLatLng([lat, lng]);
+  }
+
+  /* ── CONO DE DIRECCIÓN ── */
+  let _coneActive  = false;
+  let _coneHeading = 0;
+
+  function showHeadingCone(visible) {
+    _coneActive = visible;
+    _updateUserIcon(visible, _coneHeading);
+  }
+
+  function updateHeadingCone(heading) {
+    _coneHeading = heading;
+    if (_coneActive) _updateUserIcon(true, heading);
   }
 
   /* ── CENTRAR MAPA EN EL USUARIO ── */
@@ -320,62 +363,6 @@ const GPS = (() => {
       });
 
     return marker;
-  }
-
-  /* ── CONO DE DIRECCIÓN — se muestra cuando la brújula está activa ── */
-  let _coneMarker = null;
-
-  function _createConeIcon(heading) {
-    return L.divIcon({
-      className: '',
-      html: `<div style="
-        width:80px;height:80px;
-        transform:rotate(${heading}deg);
-        transform-origin:40px 40px;
-        transition:transform 0.15s ease-out;
-        pointer-events:none;
-      ">
-        <svg width="80" height="80" viewBox="-40 -40 80 80" style="overflow:visible;">
-          <defs>
-            <radialGradient id="coneG" cx="50%" cy="100%" r="100%">
-              <stop offset="0%"   stop-color="#1a5276" stop-opacity="0.5"/>
-              <stop offset="100%" stop-color="#1a5276" stop-opacity="0"/>
-            </radialGradient>
-          </defs>
-          <path d="M0,0 L-16,-36 A38,38 0 0,1 16,-36 Z" fill="url(#coneG)"/>
-          <line x1="0" y1="0" x2="-16" y2="-36" stroke="rgba(26,82,118,0.3)" stroke-width="1"/>
-          <line x1="0" y1="0" x2="16"  y2="-36" stroke="rgba(26,82,118,0.3)" stroke-width="1"/>
-        </svg>
-      </div>`,
-      iconSize:   [80, 80],
-      iconAnchor: [40, 40]
-    });
-  }
-
-  function showHeadingCone(visible) {
-    if (!_map || !AppState.gps) return;
-
-    if (visible) {
-      if (!_coneMarker) {
-        _coneMarker = L.marker(
-          [AppState.gps.lat, AppState.gps.lng],
-          { icon: _createConeIcon(0), interactive: false, zIndexOffset: 900 }
-        ).addTo(_map);
-      } else {
-        _coneMarker.setLatLng([AppState.gps.lat, AppState.gps.lng]);
-      }
-    } else {
-      if (_coneMarker) {
-        _coneMarker.remove();
-        _coneMarker = null;
-      }
-    }
-  }
-
-  function updateHeadingCone(heading) {
-    if (!_coneMarker || !AppState.gps) return;
-    _coneMarker.setLatLng([AppState.gps.lat, AppState.gps.lng]);
-    _coneMarker.setIcon(_createConeIcon(heading));
   }
 
   /* ── API PÚBLICA ── */

@@ -8,7 +8,7 @@
 
 #screen-explore {
   background: var(--color-night);
-  position: relative;
+  /* position: fixed; inset: 0 viene de .screen en main.css — no sobreescribir */
 }
 
 /* ── CARE STRIP — contexto siempre visible arriba ── */

@@ -132,9 +132,25 @@ const POI = (() => {
       const withName = elements.filter(el => el.tags?.name);
       console.log(`POI: ${withName.length} elementos tienen nombre`);
 
-      const normalized = withName
+      let normalized = withName
         .map(el => normalizePOI(el))
         .filter(Boolean);
+
+      // BUG-025: limitar a 80 POIs en ciudades densas
+      // Ordenar por relevancia: historic > tourism > amenity > leisure
+      const MAX_POIS = 80;
+      if (normalized.length > MAX_POIS) {
+        const PRIORITY = { historic: 4, museum: 3, monument: 3, artwork: 3,
+                           place_of_worship: 2, theatre: 2, viewpoint: 2,
+                           fountain: 1, park: 1, garden: 1 };
+        normalized = normalized
+          .sort((a, b) => (PRIORITY[b.type] || 0) - (PRIORITY[a.type] || 0))
+          .slice(0, MAX_POIS);
+        if (typeof Debug !== 'undefined') {
+          Debug.log('info', `POI: ${withName.length} → limitado a ${MAX_POIS} POIs más relevantes (BUG-025)`);
+        }
+      }
+
       console.log(`POI: ${normalized.length} POIs normalizados correctamente`);
 
       if (dbgId) {
@@ -233,19 +249,25 @@ const POI = (() => {
 
     let closestPOI  = null;
     let closestDist = Infinity;
+    let detectedCount = 0;
 
     _pois.forEach(poi => {
       const dist = GPS.distanceMeters(lat, lng, poi.lat, poi.lng);
       poi._distanceMeters = Math.round(dist);
 
       if (dist < activeRadius) {
-        if (typeof Debug !== 'undefined') Debug.trackExp('poi_detected');
+        detectedCount++;
         if (dist < closestDist) {
           closestDist = dist;
           closestPOI  = poi;
         }
       }
     });
+
+    // BUG-024: una llamada por chequeo, no una por cada POI encontrado
+    if (detectedCount > 0 && typeof Debug !== 'undefined') {
+      Debug.trackExp('poi_detected');
+    }
 
     // Actualizar POIs cercanos para los marcadores
     AppState.nearbyPOIs = _pois.filter(

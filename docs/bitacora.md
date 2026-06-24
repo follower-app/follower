@@ -1016,3 +1016,120 @@ El km del care strip no se actualizaba durante la simulación.
 ---
 
 *Follower — Bitácora v0.6 | Junio 2026*
+
+---
+
+## Sesión 9 — Junio 2026
+
+### Contexto
+Sprint de brújula, bugs del reporte de campo y documentación. El reporte de
+debug de la caminata en Madrid reveló bugs críticos que bloqueaban métricas
+reales. Paralelamente, rediseño completo de la brújula basado en iteración
+visual con mockups.
+
+---
+
+### Brújula — 3 estados (DA-22)
+
+Después de varias iteraciones de mockup se definió el diseño final:
+
+**Diseño:** Brújula militar clásica (círculo + 8 ticks + corazón sutil de
+fondo) como botón en la columna derecha del mapa, mismo tamaño que +/−.
+
+**3 estados:**
+1. **Reposo** — brújula estática, aguja apuntando al norte, corazón sutil
+2. **Latido** (~450ms) — al tocar, el corazón pulsa (animation CSS) + ring
+   exterior que se expande y desvanece. Transición cinematográfica.
+3. **Activo** — aguja rota con `DeviceOrientationEvent.webkitCompassHeading`
+   (iOS) o `360 - alpha` (Android). Borde rojo activo en el botón. Cono azul
+   semitransparente en el punto GPS indica dirección del usuario.
+
+**Permisos iOS 13+:** `DeviceOrientationEvent.requestPermission()` se llama
+antes de activar el listener. Si el usuario deniega, la brújula no se activa
+y se loggea en debug.
+
+**Tap de nuevo en estado activo:** vuelve al estado 1 (reposo), aguja al
+norte, cono GPS desaparece.
+
+**Eliminado:** el corazón-brújula del centro de `barSystole`. La `barSystole`
+ahora tiene solo los dos pills simétricos (Cuentero | La Merced · 48m).
+
+**Archivos:**
+- `index.html` — nuevo `#btnCompass` en `.map-zoom-controls`, `barSystole`
+  simplificado a dos pills
+- `explore.css` — `.map-compass-btn`, `.compass-pulse-ring`, animaciones
+  `heart-pulse`, `pulse-ring-anim`, transición de `#compassNeedle`
+- `app.js` — `initCompass()`, `_compassBeat()`, `_requestCompassPermission()`,
+  `_activateCompass()`, `_deactivateCompass()`, `_updateCompassNeedle()`
+- `gps.js` — `showHeadingCone(visible)`, `updateHeadingCone(heading)`,
+  `_createConeIcon(heading)`, `_coneMarker` (Leaflet divIcon con SVG)
+
+---
+
+### Bugs resueltos
+
+**BUG-022 — iOS Safari onend no confiable (voice.js)**
+- Safety timer: si `onend` no llega, callback se ejecuta igualmente.
+  Duración estimada: `ceil(chars/12)*1000 + 5000ms`, mínimo 8s.
+  Arranca en `onstart`, no antes.
+- iOS keep-alive: `pause()/resume()` cada 10s en iPhone/iPad para evitar
+  congelamiento silencioso de la síntesis.
+- Flag `_speakDone`: garantiza ejecución única desde cualquier camino
+  (onend, onerror, safety-timer, stop).
+- `stop()` limpia timer e interval — sin fugas de memoria.
+
+**BUG-024 — POIs detectados > POI checks (poi.js)**
+- Causa: `trackExp('poi_detected')` se llamaba una vez por CADA POI dentro
+  del radio, no una vez por chequeo. Con 6 POIs en radio → 6 eventos por
+  tick → embudo imposible (175% de conversión).
+- Fix: contador `detectedCount` por loop, una sola llamada si > 0.
+  Semántica correcta: "este chequeo GPS encontró al menos un POI en rango".
+
+**BUG-025 — 874 POIs en ciudades densas (poi.js)**
+- Causa: Madrid dentro de 2km tiene ~1040 elementos OSM con nombre.
+  El mapa era inutilizable y Overpass daba 429 por queries pesadas.
+- Fix: `MAX_POIS = 80`. Si `normalized.length > 80`, ordenar por prioridad
+  de tipo (`historic:4 > museum:3 > place_of_worship:2 > park:1`) y tomar
+  los 80 más relevantes.
+- Log en debug cuando se aplica el límite.
+
+---
+
+### Iteración de diseño — proceso de la brújula
+
+Se hicieron 6 mockups interactivos animados antes de decidir el diseño final:
+1. Referencias clásicas: militar, minimalista, rosa de vientos
+2. Versiones con corazón: A (aguja sobre outline), B (relleno + aguja),
+   C (corazón entero = aguja, bicolor)
+3. Híbrido militar + corazón: 3 variantes de opacidad
+4. Posición: centrada flotante vs esquina inferior derecha
+5. Idea Apple Maps: brújula pequeña en columna con zoom
+6. Sistema de 3 estados con latido
+
+**Decisión final:** Variante 1 del híbrido (corazón sutil 12% opacidad,
+aguja rombo ancha) + sin letra N (tick rojo largo como indicador de norte)
++ sistema Apple Maps (botón en columna derecha).
+
+---
+
+### Deuda técnica actualizada
+
+| ID | Descripción | Prioridad |
+|----|-------------|-----------|
+| DT-14 | Brújula → IMPLEMENTADA (DA-22) | ~~Media~~ ✅ |
+| DT-19 | Música — 4 tracks por estilo (en creación) | Alta |
+| DT-20 | Test en campo con brújula real — verificar DeviceOrientation iOS | Alta |
+| DT-21 | Worker 400 al inicio (DT-11) — pendiente diagnóstico | Baja |
+
+---
+
+### Próxima sesión
+
+1. Commits de música cuando estén listos los MP3
+2. Test de brújula en iPhone — verificar latido + cono GPS
+3. Verificar BUG-022 resuelto (narrations_completed debe llegar a > 0)
+4. Rediseño pantalla POI expandida (DT-16)
+
+---
+
+*Follower — Bitácora v0.6 | Sesión 9 | Junio 2026*

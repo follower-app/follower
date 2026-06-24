@@ -311,6 +311,7 @@ function initExplore() {
   setPhase('systole');
   updateCareStrip();
   updateStats();
+  initCompass();
 
   // Marcar inicio de sesión — base para "tiempo hasta primera narración"
   AppState._sessionStart = performance.now();
@@ -457,6 +458,122 @@ function initStyleSelector() {
   });
 }
 
+/* ── BRÚJULA — lógica de 3 estados ── */
+
+let _compassActive    = false;
+let _compassHeading   = 0;
+let _orientationCb    = null;
+
+function initCompass() {
+  const btn = document.getElementById('btnCompass');
+  if (!btn) return;
+  btn.addEventListener('click', _onCompassTap);
+}
+
+function _onCompassTap() {
+  if (_compassActive) {
+    _deactivateCompass();
+  } else {
+    _compassBeat(() => _requestCompassPermission());
+  }
+}
+
+/* Fase 1 — latido (~450ms) */
+function _compassBeat(callback) {
+  const btn = document.getElementById('btnCompass');
+  if (!btn) { callback(); return; }
+
+  // Ring exterior
+  const ring = document.createElement('div');
+  ring.className = 'compass-pulse-ring';
+  btn.appendChild(ring);
+
+  // Clase para animar el corazón
+  btn.classList.add('beating');
+
+  setTimeout(() => {
+    btn.classList.remove('beating');
+    ring.remove();
+    callback();
+  }, 450);
+}
+
+/* Fase 2 — pedir permiso iOS 13+ y activar */
+function _requestCompassPermission() {
+  if (typeof DeviceOrientationEvent !== 'undefined' &&
+      typeof DeviceOrientationEvent.requestPermission === 'function') {
+    DeviceOrientationEvent.requestPermission()
+      .then(state => {
+        if (state === 'granted') {
+          _activateCompass();
+        } else {
+          if (typeof Debug !== 'undefined') {
+            Debug.log('warn', 'Brújula: permiso de orientación denegado por el usuario');
+          }
+        }
+      })
+      .catch(err => {
+        if (typeof Debug !== 'undefined') {
+          Debug.log('error', `Brújula: error solicitando permiso — ${err.message}`);
+        }
+      });
+  } else {
+    // Android / Chrome desktop
+    _activateCompass();
+  }
+}
+
+/* Fase 3 — activar rotación real */
+function _activateCompass() {
+  const btn = document.getElementById('btnCompass');
+  if (btn) btn.classList.add('active');
+  _compassActive = true;
+
+  _orientationCb = (e) => {
+    let heading = 0;
+    if (e.webkitCompassHeading !== undefined && e.webkitCompassHeading !== null) {
+      heading = e.webkitCompassHeading;          // iOS — grados desde norte, clockwise
+    } else if (e.alpha !== null) {
+      heading = (360 - e.alpha) % 360;           // Android — invertir
+    }
+    _compassHeading = heading;
+    _updateCompassNeedle(heading);
+    if (typeof GPS !== 'undefined') GPS.updateHeadingCone(heading);
+  };
+
+  window.addEventListener('deviceorientation', _orientationCb, true);
+  if (typeof GPS !== 'undefined') GPS.showHeadingCone(true);
+
+  if (typeof Debug !== 'undefined') {
+    Debug.log('info', 'Brújula activada — escuchando DeviceOrientationEvent');
+  }
+}
+
+function _deactivateCompass() {
+  const btn = document.getElementById('btnCompass');
+  if (btn) btn.classList.remove('active');
+  _compassActive = false;
+
+  if (_orientationCb) {
+    window.removeEventListener('deviceorientation', _orientationCb, true);
+    _orientationCb = null;
+  }
+
+  // Aguja vuelve al norte
+  _updateCompassNeedle(0);
+  if (typeof GPS !== 'undefined') GPS.showHeadingCone(false);
+
+  if (typeof Debug !== 'undefined') {
+    Debug.log('info', 'Brújula desactivada');
+  }
+}
+
+/* Rotar la aguja SVG: -heading para que siempre apunte al norte */
+function _updateCompassNeedle(heading) {
+  const needle = document.getElementById('compassNeedle');
+  if (needle) needle.style.transform = `rotate(${-heading}deg)`;
+}
+
 /* ── EVENT LISTENERS — EXPLORACIÓN ── */
 function initExploreListeners() {
   // Tap en nombre del POI en diástole → pantalla expandida
@@ -530,7 +647,6 @@ function initExploreListeners() {
     if (typeof Narration !== 'undefined') Narration.stop();
     AppState.activePOI = null;
     _narrPaused = false;
-    // Restaurar icono de pausa
     if (btnPause) {
       btnPause.innerHTML = `<svg width="14" height="14" viewBox="0 0 14 14" fill="none">
         <rect x="2.5" y="2" width="3.5" height="10" rx="1" fill="#5dade2"/>

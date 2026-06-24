@@ -349,3 +349,30 @@ watchPosition() dispara onPosition() — sin timer propio
 ---
 
 *Follower — Arquitectura v0.6 | Junio 2026*
+
+### DA-22 — Brújula: 3 estados + cono de dirección GPS
+
+La brújula es un botón en la columna derecha del mapa (junto a +/−), mismo
+tamaño (34px). Tres estados:
+
+**Estado 1 — Reposo:** aguja estática apuntando al norte. Corazón Follower
+como fondo sutil del dial (12% opacidad, identidad sin interferir).
+Tick norte en rojo (coherencia semántica: todo lo rojo = norte).
+Sin letra "N" — el tick largo es suficiente para usuarios con cualquier brújula.
+
+**Estado 2 — Latido (~450ms):** al tocar, animación CSS en el corazón de fondo
+(`heart-pulse`) + ring exterior (`pulse-ring-anim`). Transición cinematográfica
+que conecta el gesto del usuario con la identidad de Follower (el corazón late).
+
+**Estado 3 — Activo:** `DeviceOrientationEvent` listener activo.
+- iOS: `webkitCompassHeading` (grados desde norte, clockwise)
+- Android: `360 - alpha`
+- Aguja rota: `rotate(${-heading}deg)` — contra-rotación para mantener norte
+- Cono GPS: `L.divIcon` con SVG SVG triangular semitransparente en la posición
+  del usuario, rota con `rotate(${heading}deg)`
+- Borde del botón en rojo activo
+- Permisos iOS 13+: `DeviceOrientationEvent.requestPermission()` antes de activar
+
+Tap de nuevo → estado 1, cono GPS desaparece, listener removido.
+
+**Archivos:** `index.html`, `explore.css`, `app.js`, `gps.js`

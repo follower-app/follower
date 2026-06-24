@@ -241,16 +241,46 @@
       </div>
     </div>
 
-    <!-- Controles de zoom — derecha del mapa -->
+    <!-- Controles de zoom + brújula — columna derecha del mapa -->
     <div class="map-zoom-controls">
-      <button class="map-zoom-btn" id="btnZoomIn"  aria-label="Acercar"  onclick="const m=GPS.getMap();if(m)m.zoomIn();">+</button>
-      <button class="map-zoom-btn" id="btnZoomOut" aria-label="Alejar"   onclick="const m=GPS.getMap();if(m)m.zoomOut();">−</button>
+      <button class="map-zoom-btn" id="btnZoomIn"  aria-label="Acercar" onclick="const m=GPS.getMap();if(m)m.zoomIn();">+</button>
+      <button class="map-zoom-btn" id="btnZoomOut" aria-label="Alejar"  onclick="const m=GPS.getMap();if(m)m.zoomOut();">−</button>
+
+      <!-- Brújula — 3 estados: estática → latido → activa con sensor -->
+      <button class="map-compass-btn" id="btnCompass" aria-label="Activar brújula">
+        <svg class="compass-svg" id="compassSvg" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+          <!-- Dial estático -->
+          <circle cx="50" cy="50" r="46" fill="none" stroke="#2d3a4a" stroke-width="2"/>
+          <circle cx="50" cy="50" r="37" fill="none" stroke="#1e2d3d" stroke-width="0.8" stroke-dasharray="3,5"/>
+          <!-- Tick norte — rojo, más largo -->
+          <line x1="50" y1="5"  x2="50" y2="16" stroke="#c0392b" stroke-width="3"   stroke-linecap="round"/>
+          <!-- Ticks S O E -->
+          <line x1="50" y1="84" x2="50" y2="95" stroke="#4a5568" stroke-width="2"   stroke-linecap="round"/>
+          <line x1="5"  y1="50" x2="16" y2="50" stroke="#4a5568" stroke-width="2"   stroke-linecap="round"/>
+          <line x1="84" y1="50" x2="95" y2="50" stroke="#4a5568" stroke-width="2"   stroke-linecap="round"/>
+          <!-- Intercardinal -->
+          <line x1="18" y1="18" x2="22" y2="22" stroke="#4a5568" stroke-width="1.2" stroke-linecap="round" opacity=".45"/>
+          <line x1="78" y1="78" x2="82" y2="82" stroke="#4a5568" stroke-width="1.2" stroke-linecap="round" opacity=".45"/>
+          <line x1="78" y1="18" x2="82" y2="22" stroke="#4a5568" stroke-width="1.2" stroke-linecap="round" opacity=".45"/>
+          <line x1="18" y1="78" x2="22" y2="82" stroke="#4a5568" stroke-width="1.2" stroke-linecap="round" opacity=".45"/>
+          <!-- Corazón sutil de fondo (identidad Follower) -->
+          <path class="compass-heart" d="M50,74 C50,74 24,58 24,40 C24,28 33,21 42,24 C46,26 49,31 50,36 C51,31 54,26 58,24 C67,21 76,28 76,40 C76,58 50,74 50,74 Z"
+            fill="rgba(192,57,43,0.1)" stroke="rgba(192,57,43,0.28)" stroke-width="2" stroke-linejoin="round"/>
+          <!-- Aguja bicolor — rota con JS cuando está activa -->
+          <g id="compassNeedle" style="transform-origin:50px 50px;">
+            <polygon points="50,13 46,50 50,43 54,50" fill="#c0392b"/>
+            <polygon points="50,87 46,50 50,57 54,50" fill="#c8d4e0" opacity=".55"/>
+            <circle cx="50" cy="50" r="5.5" fill="#0d1420" stroke="#c8d4e0" stroke-width="1.5"/>
+            <circle cx="50" cy="50" r="2.5" fill="#c8d4e0"/>
+          </g>
+        </svg>
+      </button>
     </div>
 
     <!-- Bottom bar sólida — sin gradiente, sin blur -->
     <div class="bottom-bar" id="bottomBar">
 
-      <!-- Estado sístole: [estilo] | corazón | [próxima historia] -->
+      <!-- Estado sístole: [estilo]  ·  [próxima historia] -->
       <div class="bar-systole" id="barSystole">
 
         <!-- Pill izquierdo — selector de estilo -->
@@ -261,27 +291,6 @@
             <path d="M1 1.5L4 4.5L7 1.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
           </svg>
         </button>
-
-        <!-- Centro — corazón brújula -->
-        <div class="bar-heart-wrap" id="btnCenter">
-          <svg class="heart-compass" id="heartCompass" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
-            <circle cx="50" cy="50" r="44" fill="none" stroke="#1e2d3d" stroke-width="1.5"/>
-            <line x1="50" y1="8"  x2="50" y2="17" stroke="#2d3e50" stroke-width="1.5" stroke-linecap="round"/>
-            <line x1="50" y1="83" x2="50" y2="92" stroke="#2d3e50" stroke-width="1"   stroke-linecap="round" opacity=".4"/>
-            <line x1="8"  y1="50" x2="17" y2="50" stroke="#2d3e50" stroke-width="1"   stroke-linecap="round" opacity=".4"/>
-            <line x1="83" y1="50" x2="92" y2="50" stroke="#2d3e50" stroke-width="1"   stroke-linecap="round" opacity=".4"/>
-            <text x="50"  y="7.5" text-anchor="middle" font-family="Inter,sans-serif" font-size="7" font-weight="700" fill="#c0392b">N</text>
-            <text x="50"  y="98"  text-anchor="middle" font-family="Inter,sans-serif" font-size="6" fill="#2d3e50" opacity=".5">S</text>
-            <text x="4.5" y="53"  text-anchor="middle" font-family="Inter,sans-serif" font-size="6" fill="#2d3e50" opacity=".5">O</text>
-            <text x="95.5" y="53" text-anchor="middle" font-family="Inter,sans-serif" font-size="6" fill="#2d3e50" opacity=".5">E</text>
-            <path d="M50,70 C50,70 21,51 21,31 C21,18 31,11 41,14 C46,16 49,22 50,27 C51,22 54,16 59,14 C69,11 79,18 79,31 C79,51 50,70 50,70 Z"
-              fill="none" stroke="#c8d4e0" stroke-width="2.2" stroke-linejoin="round"/>
-            <polygon points="50,11 46.5,43 50,38 53.5,43" fill="#c0392b"/>
-            <polygon points="50,68 46.5,43 50,48 53.5,43" fill="#c8d4e0" opacity=".25"/>
-            <circle cx="50" cy="43" r="4.5" fill="none" stroke="#c8d4e0" stroke-width="1.5"/>
-            <circle cx="50" cy="43" r="2" fill="#c8d4e0"/>
-          </svg>
-        </div>
 
         <!-- Pill derecho — próxima historia -->
         <button class="bar-pill bar-pill-right" id="btnNearbyStories">

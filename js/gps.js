@@ -322,6 +322,62 @@ const GPS = (() => {
     return marker;
   }
 
+  /* ── CONO DE DIRECCIÓN — se muestra cuando la brújula está activa ── */
+  let _coneMarker = null;
+
+  function _createConeIcon(heading) {
+    return L.divIcon({
+      className: '',
+      html: `<div style="
+        width:80px;height:80px;
+        transform:rotate(${heading}deg);
+        transform-origin:40px 40px;
+        transition:transform 0.15s ease-out;
+        pointer-events:none;
+      ">
+        <svg width="80" height="80" viewBox="-40 -40 80 80" style="overflow:visible;">
+          <defs>
+            <radialGradient id="coneG" cx="50%" cy="100%" r="100%">
+              <stop offset="0%"   stop-color="#1a5276" stop-opacity="0.5"/>
+              <stop offset="100%" stop-color="#1a5276" stop-opacity="0"/>
+            </radialGradient>
+          </defs>
+          <path d="M0,0 L-16,-36 A38,38 0 0,1 16,-36 Z" fill="url(#coneG)"/>
+          <line x1="0" y1="0" x2="-16" y2="-36" stroke="rgba(26,82,118,0.3)" stroke-width="1"/>
+          <line x1="0" y1="0" x2="16"  y2="-36" stroke="rgba(26,82,118,0.3)" stroke-width="1"/>
+        </svg>
+      </div>`,
+      iconSize:   [80, 80],
+      iconAnchor: [40, 40]
+    });
+  }
+
+  function showHeadingCone(visible) {
+    if (!_map || !AppState.gps) return;
+
+    if (visible) {
+      if (!_coneMarker) {
+        _coneMarker = L.marker(
+          [AppState.gps.lat, AppState.gps.lng],
+          { icon: _createConeIcon(0), interactive: false, zIndexOffset: 900 }
+        ).addTo(_map);
+      } else {
+        _coneMarker.setLatLng([AppState.gps.lat, AppState.gps.lng]);
+      }
+    } else {
+      if (_coneMarker) {
+        _coneMarker.remove();
+        _coneMarker = null;
+      }
+    }
+  }
+
+  function updateHeadingCone(heading) {
+    if (!_coneMarker || !AppState.gps) return;
+    _coneMarker.setLatLng([AppState.gps.lat, AppState.gps.lng]);
+    _coneMarker.setIcon(_createConeIcon(heading));
+  }
+
   /* ── API PÚBLICA ── */
   return {
     start,
@@ -329,6 +385,8 @@ const GPS = (() => {
     centerMap,
     distanceMeters,
     addPOIMarker,
+    showHeadingCone,
+    updateHeadingCone,
     getMap: () => _map,
     simulatePosition,
     setPOICheckInterval,

@@ -172,12 +172,12 @@
   background: rgba(192, 57, 43, 0.85);
 }
 
-/* ── CONTROLES DE ZOOM ── */
+/* ── COLUMNA DERECHA — zoom + brújula ── */
 
 .map-zoom-controls {
   position: absolute;
   right: 14px;
-  bottom: 110px;      /* encima del bottom bar */
+  bottom: 110px;
   z-index: var(--z-ui);
   display: flex;
   flex-direction: column;
@@ -198,13 +198,79 @@
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  transition: background var(--transition-fast), transform var(--transition-fast);
+  transition: background var(--transition-fast);
   -webkit-tap-highlight-color: transparent;
 }
 
 .map-zoom-btn:active {
-  background: rgba(26, 82, 118, 0.5);
+  background: rgba(26, 82, 118, 0.4);
   transform: scale(0.93);
+}
+
+/* ── BOTÓN BRÚJULA ── */
+
+.map-compass-btn {
+  width: 34px;
+  height: 34px;
+  background: rgba(10, 16, 24, 0.88);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  position: relative;
+  overflow: visible;
+  transition: background var(--transition-fast), border-color var(--transition-fast);
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Estado activo — borde rojo */
+.map-compass-btn.active {
+  background: rgba(192, 57, 43, 0.12);
+  border-color: rgba(192, 57, 43, 0.5);
+}
+
+/* Estado latiendo — corazón más visible */
+.map-compass-btn.beating .compass-heart {
+  fill: rgba(192, 57, 43, 0.28);
+  stroke: rgba(192, 57, 43, 0.6);
+  animation: heart-pulse 0.45s ease-in-out;
+}
+
+.compass-svg {
+  width: 22px;
+  height: 22px;
+}
+
+/* Ring de pulso exterior al latir */
+.compass-pulse-ring {
+  position: absolute;
+  inset: -3px;
+  border-radius: 10px;
+  border: 1.5px solid rgba(192, 57, 43, 0.55);
+  pointer-events: none;
+  animation: pulse-ring-anim 0.45s ease-out forwards;
+}
+
+/* ── ANIMACIONES BRÚJULA ── */
+
+@keyframes heart-pulse {
+  0%   { fill: rgba(192,57,43,.10); stroke: rgba(192,57,43,.28); }
+  35%  { fill: rgba(192,57,43,.35); stroke: rgba(192,57,43,.75); }
+  65%  { fill: rgba(192,57,43,.18); stroke: rgba(192,57,43,.45); }
+  85%  { fill: rgba(192,57,43,.28); stroke: rgba(192,57,43,.60); }
+  100% { fill: rgba(192,57,43,.10); stroke: rgba(192,57,43,.28); }
+}
+
+@keyframes pulse-ring-anim {
+  0%   { transform: scale(1);   opacity: 0.7; }
+  100% { transform: scale(1.9); opacity: 0; }
+}
+
+/* Aguja — transición suave cuando empieza a rotar */
+#compassNeedle {
+  transition: transform 0.15s ease-out;
 }
 
 /* ── BOTTOM BAR SÓLIDA — sin gradiente, sin blur ── */

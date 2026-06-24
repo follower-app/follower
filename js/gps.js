@@ -178,8 +178,14 @@ const GPS = (() => {
       const country = data.address?.country_code?.toUpperCase() || '';
 
       if (city) {
+        const isFirst = !AppState.cityName;
         AppState.cityName = country ? `${city}, ${country}` : city;
         updateTopPill();
+
+        // Bienvenida de ciudad — solo la primera vez que se detecta
+        if (isFirst && typeof welcomeCity === 'function') {
+          welcomeCity(city);
+        }
       }
     } catch (e) {
       // Sin conexión o error — mantener cityName anterior
@@ -252,6 +258,11 @@ const GPS = (() => {
       if (data.city) {
         AppState.cityName = `${data.city}, ${data.country_code || ''}`;
         updateTopPill();
+
+        // Bienvenida de ciudad — fallback por IP
+        if (typeof welcomeCity === 'function') {
+          welcomeCity(data.city);
+        }
 
         // Inicializar mapa en la ciudad detectada
         if (data.latitude && data.longitude && !_map) {

@@ -370,14 +370,24 @@ Take a moment to observe the details — every stone, every arch, has a story to
 
     updateNarrationUI(text);
 
-    if (typeof Music !== 'undefined') Music.dipForNarration();
+    // Bajar música antes de hablar — protegido para que un error de música
+    // nunca bloquee la narración
+    try {
+      if (typeof Music !== 'undefined') Music.dipForNarration();
+    } catch (e) {
+      if (typeof Debug !== 'undefined') {
+        Debug.log('warn', `Music dip falló — continuando con narración · ${e.message}`);
+      }
+    }
 
     if (typeof Voice !== 'undefined') {
       Voice.speak(text, lang, () => {
         _isNarrating = false;
         stopWaves();
         if (typeof Debug !== 'undefined') Debug.trackExp('narration_completed');
-        if (typeof Music !== 'undefined') Music.restoreAfterNarration();
+        try {
+          if (typeof Music !== 'undefined') Music.restoreAfterNarration();
+        } catch (e) { /* música no disponible */ }
         if (AppState.activePOI?.id === poi.id) {
           setPhase('systole');
         }

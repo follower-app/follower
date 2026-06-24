@@ -175,7 +175,18 @@ const Voice = (() => {
     // Workaround Chrome/iOS — evita congelamiento con setTimeout antes de speak()
     const utteranceRef = _utterance;
     setTimeout(() => {
-      if (utteranceRef) window.speechSynthesis.speak(utteranceRef);
+      if (!utteranceRef) return;
+
+      // iOS: speechSynthesis puede quedar en paused tras cancel() — forzar resume
+      if (window.speechSynthesis.paused) {
+        window.speechSynthesis.resume();
+      }
+
+      if (typeof Debug !== 'undefined') {
+        Debug.log('info', `Voice: speak · speaking=${window.speechSynthesis.speaking} paused=${window.speechSynthesis.paused} pending=${window.speechSynthesis.pending} · ${text.length} chars · lang=${lang}`);
+      }
+
+      window.speechSynthesis.speak(utteranceRef);
     }, 100);
 
     _isSpeaking = true;

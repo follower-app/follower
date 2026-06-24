@@ -419,6 +419,7 @@ const Debug = (() => {
     // ── Barra de tabs fija ──
     const bar = document.createElement('div');
     bar.id = 'dbg-bar';
+    bar.style.display = 'none';   // oculto hasta navigateTo('explore')
     bar.innerHTML = `<div id="dbg-tabs">
       <button class="dbg-tab" data-tab="status"  onclick="Debug.switchTab('status')">Estado</button>
       <button class="dbg-tab" data-tab="search"  onclick="Debug.switchTab('search')">Buscar</button>

@@ -246,6 +246,11 @@ async function runSplash() {
   const label  = document.getElementById('progressLabel');
   const heart  = document.getElementById('heartSvg');
 
+  // Métrica: tiempo total de arranque
+  const splashId = (typeof Debug !== 'undefined')
+    ? Debug.metricStart('app', 'arranque → exploración lista')
+    : null;
+
   const msgs = [
     'iniciando...',
     'obteniendo ubicación...',
@@ -257,7 +262,8 @@ async function runSplash() {
   let pct = 0;
 
   // Pedir permiso GPS en paralelo con la animación del splash
-  const gpsPromise = requestGPSPermission();
+  const gpsStartTs  = performance.now();
+  const gpsPromise  = requestGPSPermission();
 
   const iv = setInterval(() => {
     // Avanzar más lento al llegar a 80% — esperar GPS
@@ -280,16 +286,25 @@ async function runSplash() {
     new Promise(resolve => setTimeout(() => resolve(false), 8000))
   ]);
 
+  const gpsDurationMs = Math.round(performance.now() - gpsStartTs);
+
+  if (typeof Debug !== 'undefined') {
+    Debug.log(
+      gpsOk ? 'info' : 'warn',
+      `GPS arranque: ${gpsOk ? 'concedido' : 'denegado/timeout'} · ${gpsDurationMs}ms`
+    );
+  }
+
   clearInterval(iv);
 
   // Completar barra
   if (fill)  fill.style.width = '100%';
   if (label) label.textContent = gpsOk ? 'listo ✓' : 'continuando sin GPS...';
 
-  setTimeout(() => expandHeart(heart), 400);
+  setTimeout(() => expandHeart(heart, splashId), 400);
 }
 
-function expandHeart(heart) {
+function expandHeart(heart, splashId) {
   if (!heart) return;
   heart.classList.add('expanding');
 
@@ -301,12 +316,14 @@ function expandHeart(heart) {
   setTimeout(() => {
     if (Config.isFirstTime()) {
       // Primera vez — mostrar config completa
+      if (splashId) Debug.metricEnd(splashId, 'first-time');
       showModal('config');
     } else {
       // Sesión anterior — ir directo a exploración con config guardada
       AppState.lang = Config.get('lang');
       AppState.mood = Config.get('mood');
       AppState.mode = Config.get('mode');
+      if (splashId) Debug.metricEnd(splashId, 'returning-user');
       navigateTo('explore');
       initExplore();
     }

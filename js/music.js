@@ -1,38 +1,33 @@
 /* ═══════════════════════════════════════════
    FOLLOWER — music.js
-   Música cinematográfica por mood.
+   Intros narrativas por narrador (10-15s).
    Web Audio API nativa — sin dependencias.
-   DA-3: fadeMusic() función única.
+   DA-3: playNarratorIntro() función única.
    ═══════════════════════════════════════════ */
 
 const Music = (() => {
 
   /* ── ESTADO INTERNO ── */
-  let _context     = null;    // AudioContext
-  let _source      = null;    // BufferSourceNode activo
-  let _gainNode    = null;    // GainNode para volumen/fade
-  let _buffer      = null;    // AudioBuffer cargado
-  let _currentMood = null;    // mood actual
-  let _isPlaying   = false;
-  let _isFading    = false;
-  let _fadeTimer   = null;
+  let _context        = null;   // AudioContext
+  let _source         = null;   // BufferSourceNode activo
+  let _gainNode       = null;   // GainNode para volumen/fade
+  let _isPlaying      = false;
+  let _currentNarrator = null;  // narrador cuya intro está sonando
 
   /* ── CONFIGURACIÓN ── */
   const CONFIG = {
-    VOL_AMBIENT:   0.35,    // volumen música de fondo
-    VOL_NARRATION: 0.15,    // volumen durante narración (se baja)
-    FADE_IN_MS:    2000,    // duración fade in (ms)
-    FADE_OUT_MS:   1500,    // duración fade out (ms)
-    FADE_DIP_MS:   800,     // duración dip durante narración
-    LOOP:          true     // música en loop
+    VOL_INTRO:   0.7,    // volumen de la intro narrativa
+    FADE_IN_MS:  600,    // fade in suave al arrancar
+    FADE_OUT_MS: 800,    // fade out al terminar
+    SAFETY_MS:   16000   // tiempo máximo de espera si onended no llega (iOS)
   };
 
-  /* ── TRACKS POR MOOD ── */
-  const TRACKS = {
-    epic:     'assets/sounds/epic.mp3',
-    romantic: 'assets/sounds/romantic.mp3',
-    mystery:  'assets/sounds/mystery.mp3',
-    curious:  'assets/sounds/curious.mp3'
+  /* ── TRACKS DE INTRO POR NARRADOR ── */
+  const INTROS = {
+    storyteller: 'assets/sounds/storyteller-intro.mp3',
+    historian:   'assets/sounds/historian-intro.mp3',
+    explorer:    'assets/sounds/explorer-intro.mp3',
+    local:       'assets/sounds/local-intro.mp3'
   };
 
   /* ── INICIALIZAR AUDIO CONTEXT ── */
@@ -53,149 +48,144 @@ const Music = (() => {
   /* ── CARGAR AUDIO ── */
   async function loadTrack(url) {
     const dbgId = (typeof Debug !== 'undefined')
-      ? Debug.metricStart('music', 'cargar track')
+      ? Debug.metricStart('music', `cargar intro: ${url}`)
       : null;
     try {
       const res     = await fetch(url);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const buffer  = await res.arrayBuffer();
       const decoded = await _context.decodeAudioData(buffer);
-      if (dbgId) Debug.metricEnd(dbgId, 'ok', { url });
+      if (dbgId) Debug.metricEnd(dbgId, 'ok');
       return decoded;
     } catch (e) {
-      console.warn('Music: no se pudo cargar el track:', url);
-      if (dbgId) Debug.metricEnd(dbgId, 'error', { url, message: e.message });
+      console.warn('Music: no se pudo cargar intro:', url, e.message);
+      if (dbgId) Debug.metricEnd(dbgId, 'error', { message: e.message });
       return null;
     }
   }
 
-  /* ── REPRODUCIR BUFFER ── */
-  function playBuffer(buffer) {
-    if (!_context || !_gainNode || !buffer) return;
-
-    // Detener source anterior
-    if (_source) {
-      try { _source.stop(); } catch (e) {}
-      _source = null;
-    }
-
-    _source             = _context.createBufferSource();
-    _source.buffer      = buffer;
-    _source.loop        = CONFIG.LOOP;
-    _source.connect(_gainNode);
-    _source.start(0);
-    _isPlaying = true;
-    if (typeof Debug !== 'undefined') Debug.trackExp('music_active');
-  }
-
-  /* ── FADE — DA-3 función única ── */
-  function fadeMusic(targetVol, durationMs, onComplete = null) {
+  /* ── FADE ── */
+  function fadeMusic(targetVol, durationMs) {
     if (!_context || !_gainNode) return;
-    if (_fadeTimer) clearTimeout(_fadeTimer);
-
-    const startVol  = _gainNode.gain.value;
     const startTime = _context.currentTime;
     const endTime   = startTime + (durationMs / 1000);
-
     _gainNode.gain.cancelScheduledValues(startTime);
-    _gainNode.gain.setValueAtTime(startVol, startTime);
+    _gainNode.gain.setValueAtTime(_gainNode.gain.value, startTime);
     _gainNode.gain.linearRampToValueAtTime(targetVol, endTime);
-
-    if (onComplete) {
-      _fadeTimer = setTimeout(onComplete, durationMs);
-    }
   }
 
-  /* ── PLAY — iniciar música por mood ── */
-  async function play(mood) {
-    if (!initContext()) return;
+  /* ── PLAY NARRATOR INTRO — DA-3 función única ── */
+  /* Devuelve una Promise que resuelve cuando la intro termina (o fallback silencioso) */
+  function playNarratorIntro(narrator) {
+    return new Promise(async (resolve) => {
 
-    // Reanudar contexto si estaba suspendido (política autoplay)
-    if (_context.state === 'suspended') {
-      await _context.resume();
-    }
+      // Fallback silencioso si no hay contexto de audio
+      if (!initContext()) { resolve(); return; }
 
-    const track = TRACKS[mood] || TRACKS.epic;
+      // Reanudar contexto si estaba suspendido (política autoplay)
+      if (_context.state === 'suspended') {
+        try { await _context.resume(); } catch (e) { resolve(); return; }
+      }
 
-    // Si es el mismo mood y está sonando, no recargar
-    if (_currentMood === mood && _isPlaying) {
-      fadeMusic(CONFIG.VOL_AMBIENT, CONFIG.FADE_IN_MS);
-      return;
-    }
+      const url = INTROS[narrator] || INTROS.storyteller;
 
-    _currentMood = mood;
+      if (typeof Debug !== 'undefined') {
+        Debug.log('info', `Music: cargando intro [${narrator}] → ${url}`);
+      }
 
-    // Fade out del track anterior si hay uno
-    if (_isPlaying) {
-      fadeMusic(0, CONFIG.FADE_OUT_MS, async () => {
-        _buffer = await loadTrack(track);
-        playBuffer(_buffer);
-        fadeMusic(CONFIG.VOL_AMBIENT, CONFIG.FADE_IN_MS);
-      });
-    } else {
-      _buffer = await loadTrack(track);
-      playBuffer(_buffer);
-      fadeMusic(CONFIG.VOL_AMBIENT, CONFIG.FADE_IN_MS);
-    }
-  }
+      const buffer = await loadTrack(url);
 
-  /* ── DIP — bajar volumen durante narración ── */
-  function dipForNarration() {
-    if (typeof Debug !== 'undefined') Debug.trackExp('music_dip_start');
-    fadeMusic(CONFIG.VOL_NARRATION, CONFIG.FADE_DIP_MS);
-  }
+      // Fallback silencioso si el MP3 no existe aún
+      if (!buffer) {
+        if (typeof Debug !== 'undefined') {
+          Debug.log('warn', `Music: intro no disponible para [${narrator}] — continuando sin música`);
+        }
+        resolve();
+        return;
+      }
 
-  /* ── RESTORE — subir volumen después de narración ── */
-  function restoreAfterNarration() {
-    if (typeof Debug !== 'undefined') Debug.trackExp('music_dip_end');
-    fadeMusic(CONFIG.VOL_AMBIENT, CONFIG.FADE_DIP_MS);
-  }
-
-  /* ── FADE TO AMBIENT — entre POIs (sístole) ── */
-  function fadeToAmbient() {
-    fadeMusic(CONFIG.VOL_AMBIENT, CONFIG.FADE_IN_MS);
-  }
-
-  /* ── STOP ── */
-  function stop() {
-    if (typeof Debug !== 'undefined') Debug.trackExp('music_stopped');
-    fadeMusic(0, CONFIG.FADE_OUT_MS, () => {
+      // Detener cualquier fuente anterior
       if (_source) {
         try { _source.stop(); } catch (e) {}
         _source = null;
       }
-      _isPlaying = false;
+
+      _source              = _context.createBufferSource();
+      _source.buffer       = buffer;
+      _source.loop         = false;
+      _currentNarrator     = narrator;
+      _source.connect(_gainNode);
+
+      // Fade in
+      _gainNode.gain.setValueAtTime(0, _context.currentTime);
+      _source.start(0);
+      _isPlaying = true;
+      fadeMusic(CONFIG.VOL_INTRO, CONFIG.FADE_IN_MS);
+
+      if (typeof Debug !== 'undefined') Debug.trackExp('music_intro_start');
+
+      // Safety timer — iOS Safari a veces no dispara onended
+      let _resolved = false;
+      const safetyTimer = setTimeout(() => {
+        if (!_resolved) {
+          _resolved = true;
+          if (typeof Debug !== 'undefined') {
+            Debug.log('warn', 'Music: safety timer disparado — onended no llegó');
+          }
+          _finishIntro(resolve);
+        }
+      }, CONFIG.SAFETY_MS);
+
+      _source.onended = () => {
+        if (!_resolved) {
+          _resolved = true;
+          clearTimeout(safetyTimer);
+          _finishIntro(resolve);
+        }
+      };
     });
   }
 
-  /* ── CAMBIAR MOOD ── */
-  async function changeMood(mood) {
-    if (mood === _currentMood) return;
-    await play(mood);
+  /* ── TERMINAR INTRO — fade out y limpiar ── */
+  function _finishIntro(resolve) {
+    fadeMusic(0, CONFIG.FADE_OUT_MS);
+    setTimeout(() => {
+      if (_source) {
+        try { _source.stop(); } catch (e) {}
+        _source = null;
+      }
+      _isPlaying       = false;
+      _currentNarrator = null;
+      if (typeof Debug !== 'undefined') Debug.trackExp('music_intro_end');
+      resolve();
+    }, CONFIG.FADE_OUT_MS);
   }
 
-  /* ── ACTUALIZAR VOLUMEN desde config ── */
-  function setVolume(vol) {
-    if (!_gainNode) return;
-    const target = Math.min(1, Math.max(0, vol)) * CONFIG.VOL_AMBIENT;
-    fadeMusic(target, 300);
+  /* ── STOP — interrumpir intro si está sonando ── */
+  function stop() {
+    if (!_isPlaying) return;
+    fadeMusic(0, CONFIG.FADE_OUT_MS);
+    setTimeout(() => {
+      if (_source) {
+        try { _source.stop(); } catch (e) {}
+        _source = null;
+      }
+      _isPlaying       = false;
+      _currentNarrator = null;
+      if (typeof Debug !== 'undefined') Debug.trackExp('music_stopped');
+    }, CONFIG.FADE_OUT_MS);
   }
 
   /* ── GETTERS ── */
-  function isPlaying()    { return _isPlaying; }
-  function currentMood()  { return _currentMood; }
+  function isPlaying()       { return _isPlaying; }
+  function currentNarrator() { return _currentNarrator; }
 
   /* ── API PÚBLICA ── */
   return {
-    play,
+    playNarratorIntro,
     stop,
-    changeMood,
-    fadeMusic,
-    dipForNarration,
-    restoreAfterNarration,
-    fadeToAmbient,
-    setVolume,
     isPlaying,
-    currentMood
+    currentNarrator
   };
 
 })();

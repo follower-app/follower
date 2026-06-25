@@ -1162,7 +1162,29 @@ const Debug = (() => {
                      : score > 0   ? 'Experiencia pobre — revisar pipeline'
                      : 'Sin narraciones';
 
+    // Tiempo hasta primera historia
+    const ttf     = (s._firstNarrationTs !== null && s._sessionStart !== null)
+                    ? Math.round((s._firstNarrationTs - s._sessionStart) / 1000)
+                    : null;
+    const ttfStr  = ttf !== null ? fmtSec(ttf) : '—';
+    // Semáforo: verde <90s · amarillo 90-300s · rojo >300s
+    const ttfColor = ttf === null   ? '#4a5568'
+                   : ttf <= 90      ? '#2ecc71'
+                   : ttf <= 300     ? '#f39c12'
+                   : '#c0392b';
+    const ttfLabel = ttf === null   ? 'esperando primera historia'
+                   : ttf <= 90      ? 'excelente — primera historia rápida'
+                   : ttf <= 300     ? 'aceptable — mejorar densidad o radio'
+                   : 'crítico — el usuario esperó demasiado';
+
     return `
+      <!-- Tiempo hasta primera historia — métrica principal -->
+      <div style="text-align:center; padding:10px 0 10px; border-bottom:1px solid rgba(255,255,255,0.07); margin-bottom:8px;">
+        <div style="font-size:9px; color:#4a5568; letter-spacing:0.12em; text-transform:uppercase; margin-bottom:4px;">⏱ Tiempo hasta primera historia</div>
+        <div style="font-size:36px; font-weight:700; color:${ttfColor}; line-height:1;">${ttfStr}</div>
+        <div style="font-size:9px; color:${ttfColor}; margin-top:2px; opacity:0.85;">${ttfLabel}</div>
+      </div>
+
       <!-- Score -->
       <div style="text-align:center; padding:10px 0 8px; border-bottom:1px solid rgba(255,255,255,0.07); margin-bottom:8px;">
         <div style="font-size:9px; color:#4a5568; letter-spacing:0.12em; text-transform:uppercase; margin-bottom:4px;">🎬 Cinematic Score</div>
@@ -1409,6 +1431,17 @@ const Debug = (() => {
     lines.push(`  Presencia de música:      ${expMusicPct}% de la sesión`);
     lines.push(`  Dips:                     ${_exp.music.dipCount}`);
     lines.push(`  Restores:                 ${_exp.music.restoreCount}`);
+    lines.push('');
+
+    // Tiempo hasta primera historia — métrica principal
+    const expTTF = (s._firstNarrationTs !== null && s._sessionStart !== null)
+                   ? Math.round((s._firstNarrationTs - s._sessionStart) / 1000)
+                   : null;
+    const expTTFLabel = expTTF === null  ? 'sin primera historia'
+                      : expTTF <= 90    ? 'excelente'
+                      : expTTF <= 300   ? 'aceptable'
+                      : 'crítico';
+    lines.push(`⏱ Tiempo hasta 1ª historia: ${expTTF !== null ? expTTF + 's' : '—'} — ${expTTFLabel}`);
     lines.push('');
 
     // Cinematic Score

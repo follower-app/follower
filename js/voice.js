@@ -84,10 +84,18 @@ const Voice = (() => {
     let voice  = null;
 
     if (lang === 'es') {
-      // Para español: recorrer prioridad latam en orden
+      // Dos pasadas para español:
+      // 1ª pasada: buscar voz LOCAL en orden de prioridad latam
       for (const code of ES_PRIORITY) {
-        voice = _voices.find(v => v.lang === code);
+        voice = _voices.find(v => v.lang === code && v.localService);
         if (voice) break;
+      }
+      // 2ª pasada: si no hay ninguna local, aceptar online en orden de prioridad
+      if (!voice) {
+        for (const code of ES_PRIORITY) {
+          voice = _voices.find(v => v.lang === code);
+          if (voice) break;
+        }
       }
       // Fallback: cualquier voz con base 'es'
       if (!voice) voice = _voices.find(v => v.lang.startsWith('es'));

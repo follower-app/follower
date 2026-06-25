@@ -1233,3 +1233,103 @@ Archivos: `narration.js`, `voice.js`
 ---
 
 *Follower — Bitácora | Sesión 9 cierre | Junio 2026*
+
+---
+
+## Sesión 10 — Junio 2026
+
+### Redefinición de experiencia — v0.7
+
+Sesión de diseño y producto antes de código. El análisis del producto reveló una
+desconexión fundamental: la música continua no encaja con Follower.
+
+**Descubrimiento clave:**
+La música permanente se vuelve repetitiva, compite con la narración, y convierte
+a Follower en una mezcla extraña entre Spotify y audioguía. Su verdadera función
+no es acompañar toda la caminata — es preparar emocionalmente al usuario para
+una historia.
+
+**Decisión de diseño:**
+La música continua se elimina. Se reemplaza por intros narrativas de 10-15s,
+una por narrador, que se reproducen antes de cada narración.
+
+### Nuevo sistema de narradores
+
+El concepto de **mood** (épico/romántico/misterio/curioso) fue reemplazado por
+**narradores** — personajes con voz propia que el usuario elige como compañero.
+
+La pregunta en la config cambió de *"¿Qué mood prefieres?"* a *"¿Quién te acompaña hoy?"*
+
+Los 4 narradores implementados:
+- 🎭 **Storyteller** — personajes reales, emoción, suspenso
+- 🏛️ **Historiador** — fechas, arquitectura, contexto histórico
+- 🔎 **Explorador** — periodístico, revelador, secretos y detalles ocultos
+- ❤️ **Local** — nacido aquí, costumbres reales, sin tono oficial
+
+`poet` y `detective` eliminados. `Familiar` (lenguaje simple, niños) reservado para v1.x.
+
+Decisión de reemplazo (Opción A de 3 alternativas):
+- Opción A — Reemplazar poet/detective por explorer/local ✅ elegida
+- Opción B — Renombrar/fusionar detective→explorer
+- Opción C — Expandir a 5 narradores
+
+### Features nuevas implementadas
+
+**1. Bienvenida de ciudad (DA-25)**
+Cuando el GPS detecta la ciudad por primera vez en la sesión, el narrador activo
+presenta la ciudad con una frase corta sobre el mapa. Texto solo, sin voz, sin música.
+Fade in/out, DM Serif Display, 5 segundos o tap para cerrar.
+
+Decisión UX: texto sobre el mapa (no toast, no tarjeta, no care strip) — más
+cinematográfico. El mapa sigue vivo debajo. La ciudad se presenta sola.
+
+**2. Care card desde arriba (DA-26)**
+La care card dejó de flotar desde abajo (`bottom: 120px`). Ahora reemplaza al
+care strip en su mismo espacio (`top: 0`, `height: 32px`). El strip hace fade out,
+la card aparece, al hacer dismiss el strip vuelve. El mapa nunca se mueve.
+
+Decisión UX: el care strip es el territorio de "cuidado" — la card es una extensión
+de ese mismo espacio, no una interrupción desde abajo.
+
+**3. Intros musicales por narrador (DA-24)**
+`playNarratorIntro(narrator)` reemplaza toda la lógica de música continua.
+Devuelve una Promise con await en `trigger()`. Safety timer de 16s para iOS.
+Fallback silencioso si el MP3 no existe.
+
+### Archivos modificados — 5 commits
+
+| Commit | Archivos | Cambio |
+|--------|----------|--------|
+| 1 | `narration.js` | 4 narradores nuevos + CITY_WELCOME + getCityWelcome() |
+| 2 | `config.js` | mood → narrator, setMood → setNarrator, MOOD_MUSIC eliminado |
+| 3 | `music.js` | loops eliminados, playNarratorIntro() como función única |
+| 4 | `index.html`, `app.js`, `modal.css`, `explore.css`, `components.css`, `care.js` | UI narradores, #cityWelcome, care card reposicionada |
+| 5 | `narration.js`, `gps.js` | flujo conectado: await intro + hook welcomeCity |
+
+### Deuda técnica nueva
+
+| ID | Descripción | Prioridad |
+|----|-------------|-----------|
+| DT-19 | 4 MP3 de intro (storyteller/historian/explorer/local) — en creación | Alta |
+
+### Deuda técnica resuelta
+
+| ID | Descripción |
+|----|-------------|
+| DT-15 | Prompts de narradores — 4 estilos definitivos con REGLAS explícitas |
+| DT-17 | Config modal: selector de narrador implementado |
+| DT-18 | Track historiador — irrelevante, sistema de música continua eliminado |
+| DT-2 | Música por mood — reemplazado por intros por narrador (DT-19) |
+
+### Próxima sesión
+
+1. Pruebas en iPhone del deploy v0.7
+2. Verificar bienvenida de ciudad — timing y visibilidad
+3. Verificar care card desde arriba — fade strip, dismiss correcto
+4. Verificar modal de narradores — selección y persistencia
+5. Verificar flujo narración con await intro (silencioso mientras no hay MP3)
+6. MP3 de intros — integrar cuando estén listos
+
+---
+
+*Follower — Bitácora v0.7 | Sesión 10 | Junio 2026*

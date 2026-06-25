@@ -1,6 +1,6 @@
-# 🏗️ Follower — Arquitectura v0.6
+# 🏗️ Follower — Arquitectura v0.7
 
-> Junio 2026 — Sprint de UI: rediseño pantalla exploración, estilos de narrador, debug overlay
+> Junio 2026 — Redefinición de experiencia: narradores, intros musicales, bienvenida de ciudad, care card desde arriba
 
 ---
 
@@ -376,3 +376,185 @@ que conecta el gesto del usuario con la identidad de Follower (el corazón late)
 Tap de nuevo → estado 1, cono GPS desaparece, listener removido.
 
 **Archivos:** `index.html`, `explore.css`, `app.js`, `gps.js`
+
+---
+
+### DA-23 — Narradores reemplazan moods como identidad de la experiencia
+
+En v0.7, el concepto de **mood** (épico/romántico/misterio/curioso) se elimina
+completamente. Es reemplazado por **narradores** — personajes con voz y perspectiva
+propias que el usuario elige como compañero de viaje.
+
+Los 4 narradores definitivos:
+
+| Narrador | Clave | Prioriza |
+|----------|-------|----------|
+| 🎭 Storyteller | `storyteller` | personajes reales, emoción, suspenso |
+| 🏛️ Historiador | `historian` | fechas, arquitectura, contexto histórico |
+| 🔎 Explorador | `explorer` | secretos, detalles ocultos, revelaciones |
+| ❤️ Local | `local` | costumbres reales, cultura viva, voz del barrio |
+
+`poet` y `detective` eliminados. `Familiar` reservado para v1.x.
+
+Cambios de nomenclatura:
+- `AppState.mood` → eliminado
+- `Config.get('mood')` → `Config.get('narrator')`
+- `Config.setMood()` → `Config.setNarrator()`
+- `MOOD_LABELS` → `NARRATOR_LABELS` en `config.js`
+- `MOOD_MUSIC` y `getMusicTrack()` → eliminados
+- `STYLE_PROMPTS` en `narration.js` — reescrito completamente con los 4 narradores
+
+**Pregunta rectora aplicada:** "¿Esto nos acerca a una experiencia cinematográfica?"
+Un narrador es un personaje. Un mood es una abstracción. El usuario se conecta con personajes.
+
+---
+
+### DA-24 — Música: intros narrativas reemplazan loops continuos
+
+En v0.7, la música continua de fondo se elimina. Su función cambia radicalmente:
+
+**Antes:** loops ambiente por mood durante toda la caminata
+**Ahora:** clip corto (10-15s) antes de cada narración — anuncia que algo interesante está por ocurrir
+
+```
+GPS → POI detectado → playNarratorIntro(narrator) → await → Voice.speak()
+```
+
+`playNarratorIntro(narrator)` devuelve una Promise que resuelve cuando el clip termina.
+`Voice.speak()` solo arranca después del await — orden garantizado.
+
+Tracks:
+```
+assets/sounds/storyteller-intro.mp3   — emocional, cálida
+assets/sounds/historian-intro.mp3     — elegante, clásica
+assets/sounds/explorer-intro.mp3      — curiosa, ligera
+assets/sounds/local-intro.mp3         — cercana, urbana
+```
+
+**Fallback silencioso:** si el MP3 no existe, `playNarratorIntro()` resuelve
+inmediatamente y la narración continúa. El error nunca es visible al usuario.
+
+**Safety timer:** 16s máximo de espera si `onended` no llega (iOS Safari).
+Mismo patrón que `voice.js` (DA-22 / BUG-022).
+
+Funciones eliminadas de `music.js`: `play()`, `changeMood()`, `dipForNarration()`,
+`restoreAfterNarration()`, `fadeToAmbient()`, `TRACKS`.
+
+---
+
+### DA-25 — Bienvenida de ciudad: texto sobre el mapa, una vez por sesión
+
+Al detectar la ciudad (GPS o IP fallback), el narrador activo presenta la ciudad
+con una frase corta en tipografía cinematográfica.
+
+**Comportamiento:**
+- Una sola vez por sesión (`AppState._cityWelcomeDone`)
+- Solo texto — sin voz, sin música
+- Fade in 600ms → 5 segundos visible → fade out 400ms
+- Tap para cerrar antes
+- Posición: centrado sobre el mapa, DM Serif Display 22px
+
+**Implementación:**
+- `welcomeCity(city)` en `app.js` — lee narrador activo, llama `Narration.getCityWelcome()`
+- `getCityWelcome(city, style, lang)` en `narration.js` — devuelve la frase
+- Hook en `gps.js` → `fetchCityName()`: `if (isFirst) welcomeCity(city)`
+- `#cityWelcome` en `index.html`, `.city-welcome` en `explore.css`
+
+**Una frase por narrador:**
+- 🎭 `"Cali. Aquí cada esquina tiene un personaje esperando ser contado."`
+- 🏛️ `"Cali. Cada piedra de esta ciudad tiene una fecha y una razón."`
+- 🔎 `"Cali. La mayoría pasa por aquí sin notar lo que realmente esconde."`
+- ❤️ `"Cali. Bienvenido. Acá te cuento cómo es esto de verdad."`
+
+---
+
+### DA-26 — Care card reemplaza al care strip (no se superponen)
+
+En v0.7, la care card deja de flotar sobre el mapa desde abajo (`bottom: 120px`).
+Ahora reemplaza al care strip en su mismo espacio (`top: 0`, `height: 32px`).
+
+**Antes:** care card flotante + care strip visible simultáneamente
+**Ahora:** care strip hace fade out → care card ocupa su lugar → dismiss → care strip vuelve
+
+```css
+/* Care strip con clase cuando la card está activa */
+.care-strip.care-active { opacity: 0; pointer-events: none; }
+
+/* Care card en la misma posición */
+.care-card { position: absolute; top: 0; height: 32px; }
+```
+
+`care.js` → `showCareCard()` agrega `.care-active` al strip.
+`care.js` → `dismiss()` remueve `.care-active` y restaura el strip.
+
+**Ventaja:** el mapa nunca se desplaza. El layout es estable siempre.
+
+---
+
+### Estructura de archivos actualizada (v0.7)
+
+```
+assets/sounds/
+├── storyteller-intro.mp3   → pendiente (DT-19)
+├── historian-intro.mp3     → pendiente (DT-19)
+├── explorer-intro.mp3      → pendiente (DT-19)
+└── local-intro.mp3         → pendiente (DT-19)
+```
+
+`epic.mp3`, `romantic.mp3`, `mystery.mp3`, `curious.mp3` → **eliminados**
+
+### DA-3 actualizada — Funciones únicas por responsabilidad (v0.7)
+
+| Función | Archivo | Nota v0.7 |
+|---------|---------|-----------|
+| `detectNearby()` | poi.js | sin cambios |
+| `trigger(poi, _unused, lang, topic)` | narration.js | llama `Music.playNarratorIntro()` con await |
+| `playNarratorIntro(narrator)` | music.js | reemplaza `fadeMusic/dip/restore` |
+| `welcomeCity(city)` | app.js | nuevo v0.7 |
+| `getCityWelcome(city, style, lang)` | narration.js | nuevo v0.7 |
+| `checkCareContext()` | care.js | sin cambios |
+| `setPhase(phase)` | app.js | sin cambios |
+| `navigateTo(screen)` | app.js | sin cambios |
+
+### Flujo de datos actualizado (v0.7)
+
+```
+watchPosition() → onPosition()
+    │
+    ├── fetchCityName() [primera vez]
+    │   └── welcomeCity(city) → #cityWelcome fade in/out
+    │
+    └── throttle 5000ms → detectNearby() → poi.js
+            └── activatePOI()
+                └── Narration.trigger()
+                    ├── cache / Claude API / fallback → text
+                    ├── await Music.playNarratorIntro(style)  ← nuevo v0.7
+                    │   └── onended / safety 16s → resolve
+                    └── Voice.speak(text, lang, callback)
+```
+
+### Deuda técnica actualizada (v0.7)
+
+| ID | Descripción | Prioridad |
+|----|-------------|-----------|
+| DT-1 | Logo SVG final + iconos PWA | Alta |
+| DT-3 | sw.js — service worker (siempre último) | Alta |
+| DT-4 | Pantalla resumen del paseo | Media |
+| DT-5 | Más ciudades en routes.js | Baja |
+| DT-8 | `debug.js` + `debug-sim.js` deshabilitados antes de v1.0 | Media |
+| DT-9 | Revocar key OpenAI expuesta (commits `a249fee8`–`a303f110`) | Alta |
+| DT-10 | Error IndexedDB `"connection is closing"` — Safari backgrounding | Media |
+| DT-12 | Atribución CARTO/OSM no visible | Baja |
+| DT-13 | Botones `btnBookmark`/`btnShare` huérfanos en splash | Baja |
+| DT-16 | Pantalla POI expandida: rediseñar con nuevo sistema visual | Media |
+| DT-19 | 4 MP3 de intro por narrador (storyteller/historian/explorer/local) | Alta |
+| DT-20 | Test en campo con brújula real — verificar DeviceOrientation iOS | Alta |
+| DT-21 | Worker 400 al inicio — pendiente diagnóstico | Baja |
+| ~~DT-2~~ | ~~Archivos de música por mood~~ — reemplazado por DT-19 | — |
+| ~~DT-15~~ | ~~Prompts de estilos~~ — resuelto en v0.7 con 4 narradores definitivos | — |
+| ~~DT-17~~ | ~~Config modal: selector de estilo~~ — resuelto en v0.7 | — |
+| ~~DT-18~~ | ~~Track historiador~~ — eliminado junto con sistema de música continua | — |
+
+---
+
+*Follower — Arquitectura v0.7 | Junio 2026*

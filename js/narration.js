@@ -35,7 +35,8 @@ REGLAS:
 - Segundo párrafo: la emoción, la anécdota, lo que le pasó — el suspenso
 - Tercer párrafo: el remate — lo que cambió, lo que quedó, lo que el oyente no va a olvidar
 - Sin presentaciones, sin saludos, sin datos sueltos
-- Solo datos históricos verificables`,
+- Solo datos históricos verificables
+- LONGITUD: máximo 70 palabras por párrafo. Total: 180-220 palabras. Objetivo: 30-40 segundos hablado.`,
         en: `You are a human stories narrator. Your raw material is people — not buildings, not dates. There's always someone who lived something here.
 Your voice: warm, rhythmic, suspenseful. The listener can't stop listening because they want to know what happened.
 RULES:
@@ -45,7 +46,8 @@ RULES:
 - Second paragraph: the emotion, the anecdote, what happened — the suspense
 - Third paragraph: the payoff — what changed, what remained, what the listener won't forget
 - No introductions, no greetings, no loose facts
-- Only verifiable historical facts`
+- Only verifiable historical facts
+- LENGTH: maximum 70 words per paragraph. Total: 180-220 words. Target: 30-40 seconds spoken.`
       },
       user: {
         es: (poi, topic) => `Estoy parado frente a "${poi.name}" en ${AppState.cityName}.
@@ -69,7 +71,8 @@ REGLAS:
 - Tercer párrafo: lo que sobrevivió, lo que cambió, por qué sigue importando hoy
 - Al menos una fecha o cifra verificable
 - Sin saludos, sin listas, solo narración continua
-- Solo datos históricos verificables`,
+- Solo datos históricos verificables
+- LONGITUD: máximo 70 palabras por párrafo. Total: 180-220 palabras. Objetivo: 30-40 segundos hablado.`,
         en: `You are a passionate historian. Your focus is history, dates, architecture and context — why this place exists, what it represents, what it reveals about its era.
 Your voice: precise but alive. Facts move you and it shows. You are not a textbook — you are someone who found something fascinating and is sharing it.
 RULES:
@@ -80,7 +83,8 @@ RULES:
 - Third paragraph: what survived, what changed, why it still matters today
 - At least one verifiable date or figure
 - No greetings, no lists, only continuous narration
-- Only verifiable historical facts`
+- Only verifiable historical facts
+- LENGTH: maximum 70 words per paragraph. Total: 180-220 words. Target: 30-40 seconds spoken.`
       },
       user: {
         es: (poi, topic) => `Estoy frente a "${poi.name}" en ${AppState.cityName}.
@@ -104,7 +108,8 @@ REGLAS:
 - Tercer párrafo: el dato que cambia cómo el oyente va a ver este lugar para siempre
 - Tono de descubrimiento activo — como si lo estuvieras revelando ahora mismo
 - Sin presentaciones, sin saludos
-- Solo datos históricos verificables`,
+- Solo datos históricos verificables
+- LONGITUD: máximo 70 palabras por párrafo. Total: 180-220 palabras. Objetivo: 30-40 segundos hablado.`,
         en: `You are an urban journalist who uncovers what the city hides in plain sight. You're not looking for the dark — you're looking for the fascinating that nobody noticed.
 Your voice: direct, with a rhythm of revelation. Every sentence opens something. The listener feels they're about to discover what 99% of people walk right past.
 RULES:
@@ -115,7 +120,8 @@ RULES:
 - Third paragraph: the fact that changes how the listener will see this place forever
 - Active discovery tone — as if you're revealing it right now
 - No introductions, no greetings
-- Only verifiable historical facts`
+- Only verifiable historical facts
+- LENGTH: maximum 70 words per paragraph. Total: 180-220 words. Target: 30-40 seconds spoken.`
       },
       user: {
         es: (poi, topic) => `Estoy frente a "${poi.name}" en ${AppState.cityName}.
@@ -138,7 +144,8 @@ REGLAS:
 - Segundo párrafo: algo que solo sabe quien creció aquí — una anécdota del barrio, una tradición, un recuerdo colectivo
 - Tercer párrafo: lo que este lugar significa para la gente de aquí, no para los turistas
 - Voz personal y directa — nada de tono oficial
-- Sin presentaciones, sin saludos`,
+- Sin presentaciones, sin saludos
+- LONGITUD: máximo 70 palabras por párrafo. Total: 180-220 palabras. Objetivo: 30-40 segundos hablado.`,
         en: `You are someone who was born in this city and has known this place forever. You're not a guide or a historian — you're the neighbor who lived this.
 Your voice: close, direct, personal. You talk like you would to a friend who just arrived. You use real references: what locals call this place, what people do here, what people say.
 RULES:
@@ -148,7 +155,8 @@ RULES:
 - Second paragraph: something only someone who grew up here knows — a neighborhood anecdote, a tradition, a collective memory
 - Third paragraph: what this place means for the people from here, not for tourists
 - Personal and direct voice — nothing official
-- No introductions, no greetings`
+- No introductions, no greetings
+- LENGTH: maximum 70 words per paragraph. Total: 180-220 words. Target: 30-40 seconds spoken.`
       },
       user: {
         es: (poi, topic) => `Estoy frente a "${poi.name}" en ${AppState.cityName}.
@@ -188,6 +196,29 @@ What I know about it: ${poi.description || 'historic place in the city'}.`
     return fn(city);
   }
 
+  /* ── SANITIZAR TEXTO — eliminar markdown antes de hablar ── */
+  // Claude puede responder con **negrita**, # títulos, - listas aunque el prompt
+  // diga "narración continua". La voz lee esos caracteres literalmente.
+  function sanitizeNarration(text) {
+    return text
+      // Encabezados markdown
+      .replace(/^#{1,6}\s+/gm, '')
+      // Negrita y cursiva: **texto**, *texto*, __texto__, _texto_
+      .replace(/\*{1,3}([^*]+)\*{1,3}/g, '$1')
+      .replace(/_{1,3}([^_]+)_{1,3}/g, '$1')
+      // Código inline
+      .replace(/`([^`]+)`/g, '$1')
+      // Bloques de código
+      .replace(/```[\s\S]*?```/g, '')
+      // Listas: - item o * item al inicio de línea
+      .replace(/^[\-\*]\s+/gm, '')
+      // Listas numeradas: 1. item
+      .replace(/^\d+\.\s+/gm, '')
+      // Líneas vacías múltiples → una sola
+      .replace(/\n{3,}/g, '\n\n')
+      .trim();
+  }
+
   /* ── TEXTOS FALLBACK OFFLINE ── */
   const FALLBACK_TEXTS = {
     es: (poi) => `Estás frente a ${poi.name}, uno de los lugares más destacados de ${AppState.cityName}. 
@@ -217,7 +248,7 @@ Take a moment to observe the details — every stone, every arch, has a story to
     try {
       const body = {
         model:      CONFIG.API_MODEL,
-        max_tokens: 450,
+        max_tokens: 350,
         messages: [{ role: 'user', content: userPrompt }]
       };
       if (systemPrompt) body.system = systemPrompt;
@@ -408,6 +439,9 @@ Take a moment to observe the details — every stone, every arch, has a story to
     if (totalId) {
       Debug.metricEnd(totalId, source || 'ok', { poi: poi.name, style, lang, topic });
     }
+
+    // Sanitizar antes de mostrar y hablar — elimina markdown que la voz leería
+    text = sanitizeNarration(text);
 
     updateNarrationUI(text);
 

@@ -25,7 +25,7 @@ const Voice = (() => {
 
   /* ── MAPA DE IDIOMAS → código BCP-47 ── */
   const LANG_MAP = {
-    es: 'es-ES',
+    es: 'es-419',   // Latam genérico — prioridad sobre es-ES
     en: 'en-US',
     fr: 'fr-FR',
     it: 'it-IT',
@@ -38,6 +38,10 @@ const Voice = (() => {
     ru: 'ru-RU',
     ar: 'ar-SA'
   };
+
+  /* ── PRIORIDAD DE VARIANTES PARA ESPAÑOL ── */
+  // España siempre última opción — priorizar acento latinoamericano
+  const ES_PRIORITY = ['es-CO', 'es-MX', 'es-US', 'es-419', 'es-AR', 'es-CL', 'es-PE', 'es-VE', 'es-ES'];
 
   /* ── VERIFICAR SOPORTE ── */
   function isSupported() {
@@ -52,25 +56,62 @@ const Voice = (() => {
     if (_voices.length === 0) {
       window.speechSynthesis.onvoiceschanged = () => {
         _voices = window.speechSynthesis.getVoices();
+        _logAvailableVoices();
       };
+    } else {
+      _logAvailableVoices();
     }
+  }
+
+  /* ── LOG DIAGNÓSTICO DE VOCES — solo al cargar ── */
+  function _logAvailableVoices() {
+    if (typeof Debug === 'undefined') return;
+    const esVoices = _voices.filter(v => v.lang.startsWith('es'));
+    const allLangs = [...new Set(_voices.map(v => v.lang))].sort().join(', ');
+    if (esVoices.length > 0) {
+      Debug.log('info', `Voice: voces ES disponibles → ${esVoices.map(v => `${v.name}[${v.lang}]`).join(', ')}`);
+    } else {
+      Debug.log('warn', `Voice: sin voces ES — idiomas disponibles: ${allLangs}`);
+    }
+    Debug.log('info', `Voice: total voces en dispositivo → ${_voices.length}`);
   }
 
   /* ── SELECCIONAR MEJOR VOZ para el idioma ── */
   function getBestVoice(lang) {
     if (_voices.length === 0) loadVoices();
 
-    const bcp47 = LANG_MAP[lang] || LANG_MAP.es;
-    const base  = bcp47.split('-')[0]; // 'es', 'en', etc.
+    const base = (LANG_MAP[lang] || 'es-419').split('-')[0]; // 'es', 'en', etc.
+    let voice  = null;
 
-    // Prioridad: voz exacta → mismo idioma → default
-    return (
-      _voices.find(v => v.lang === bcp47 && !v.localService) ||  // online exacta
-      _voices.find(v => v.lang === bcp47) ||                      // local exacta
-      _voices.find(v => v.lang.startsWith(base)) ||               // mismo idioma
-      _voices[0] ||                                               // cualquier voz
-      null
-    );
+    if (lang === 'es') {
+      // Para español: recorrer prioridad latam en orden
+      for (const code of ES_PRIORITY) {
+        voice = _voices.find(v => v.lang === code);
+        if (voice) break;
+      }
+      // Fallback: cualquier voz con base 'es'
+      if (!voice) voice = _voices.find(v => v.lang.startsWith('es'));
+    } else {
+      const bcp47 = LANG_MAP[lang] || LANG_MAP.es;
+      voice = (
+        _voices.find(v => v.lang === bcp47 && !v.localService) ||  // online exacta
+        _voices.find(v => v.lang === bcp47) ||                      // local exacta
+        _voices.find(v => v.lang.startsWith(base))                  // mismo idioma
+      ) || null;
+    }
+
+    // Fallback final: cualquier voz disponible
+    if (!voice) voice = _voices[0] || null;
+
+    // Log de voz seleccionada — diagnóstico en campo
+    if (typeof Debug !== 'undefined') {
+      const motor = voice
+        ? `${voice.name} [${voice.lang}] ${voice.localService ? 'local' : 'online'}`
+        : 'ninguna';
+      Debug.log('info', `Voice: voz seleccionada → ${motor} · lang solicitado=${lang}`);
+    }
+
+    return voice;
   }
 
   /* ── HABLAR ── */
@@ -266,7 +307,8 @@ const Voice = (() => {
     isSpeaking,
     isPaused,
     isSupported,
-    getAvailableLangs
+    getAvailableLangs,
+    getVoiceList: () => _voices   // diagnóstico — lista completa de voces del dispositivo
   };
 
 })();

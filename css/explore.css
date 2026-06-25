@@ -54,15 +54,21 @@
   opacity: 0;
   pointer-events: none;
   transition: opacity 0.6s ease;
+  /* visibility:hidden en vez de display:none para que la transición funcione */
+  visibility: hidden;
 }
 
 .city-welcome.visible {
   opacity: 1;
   pointer-events: auto;
+  visibility: visible;
 }
 
 .city-welcome.hidden {
-  display: none !important;
+  /* Mantener en el DOM para la transición — solo invisible */
+  opacity: 0;
+  pointer-events: none;
+  visibility: hidden;
 }
 
 .cs-item {

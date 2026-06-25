@@ -309,7 +309,7 @@ const POI = (() => {
 
     // Iniciar narración
     if (typeof Narration !== 'undefined') {
-      Narration.trigger(poi, Config.get('mood'), Config.get('lang'));
+      Narration.trigger(poi, Config.get('narrator'), Config.get('lang'));
     }
 
     // Marcar como visitado
@@ -329,9 +329,7 @@ const POI = (() => {
     if (typeof Narration !== 'undefined') {
       Narration.stop();
     }
-    if (typeof Music !== 'undefined') {
-      Music.fadeToAmbient();
-    }
+    // Music.stop() no hace falta — las intros son cortas y ya terminaron
   }
 
   /* ── MOSTRAR INFO POI EN BOTTOM BAR ── */
@@ -390,7 +388,7 @@ const POI = (() => {
     const badge   = document.getElementById('poiMoodBadge');
 
     if (title)   title.textContent   = poi.name;
-    if (badge)   badge.textContent   = `${Config.getMoodLabel()} · diástole`;
+    if (badge)   badge.textContent   = `${Config.getNarratorLabel()} · diástole`;
 
     if (metaRow) {
       const year = poi.tags?.['start_date']
@@ -404,17 +402,11 @@ const POI = (() => {
       `;
     }
 
-    // Player music
+    // Player music — intro por narrador (sin mood)
     const musicName = document.getElementById('playerMusicName');
     const musicMood = document.getElementById('playerMusicMood');
-    const MUSIC_NAMES = {
-      epic:     'Cinematic Suite',
-      romantic: 'La Dolce Vita',
-      mystery:  'Dark Ambient',
-      curious:  'Light Jazz'
-    };
-    if (musicName) musicName.textContent = MUSIC_NAMES[Config.get('mood')] || '';
-    if (musicMood) musicMood.textContent = Config.getMoodLabel();
+    if (musicName) musicName.textContent = Config.getNarratorLabel();
+    if (musicMood) musicMood.textContent = '';
 
     // Narración en curso
     const narText = document.getElementById('narrationText');

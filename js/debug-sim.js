@@ -217,6 +217,12 @@ const DebugSim = (() => {
     }
     if (typeof GPS === 'undefined') return;
 
+    // Limpiar métricas de la sesión anterior — sesión nueva, pizarra limpia
+    if (typeof Debug !== 'undefined') {
+      Debug.clearExpMetrics();
+      Debug.log('info', 'DebugSim: métricas de experiencia reiniciadas — nueva simulación');
+    }
+
     GPS.stop();
     _walking     = true;
     _walkStartTs = null;

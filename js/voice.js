@@ -231,6 +231,26 @@ const Voice = (() => {
     return Object.keys(LANG_MAP).filter(l => available.has(l));
   }
 
+  /* ── UNLOCK DESDE GESTO — llamar desde un tap del usuario (iOS Safari 18+) ──
+     iOS requiere que speechSynthesis.speak() sea llamado al menos una vez
+     desde un trusted event (tap/click directo). Sin esto, speak() se ignora
+     silenciosamente — no hay error, no hay onstart, no pasa nada.
+     Se hace con un utterance vacío que no produce audio. */
+  function unlockFromGesture() {
+    if (!isSupported()) return;
+    try {
+      const silent = new SpeechSynthesisUtterance('');
+      silent.volume = 0;
+      silent.rate   = 10; // tan rápido que no produce audio
+      window.speechSynthesis.speak(silent);
+      if (typeof Debug !== 'undefined') {
+        Debug.log('info', 'Voice: unlock desde gesto — speechSynthesis desbloqueado');
+      }
+    } catch (e) {
+      // silencioso — si falla no importa
+    }
+  }
+
   /* ── INICIALIZAR ── */
   if (isSupported()) {
     loadVoices();
@@ -242,6 +262,7 @@ const Voice = (() => {
     stop,
     pause,
     resume,
+    unlockFromGesture,
     isSpeaking,
     isPaused,
     isSupported,

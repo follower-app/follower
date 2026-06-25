@@ -340,6 +340,9 @@ function initExplore() {
   updateStats();
   initCompass();
 
+  // Resetear bienvenida de ciudad — nueva sesión, nueva bienvenida
+  AppState._cityWelcomeDone = false;
+
   // Marcar inicio de sesión — base para "tiempo hasta primera narración"
   AppState._sessionStart = performance.now();
   AppState._phaseStart   = performance.now();
@@ -355,6 +358,9 @@ function initExplore() {
 
   // Iniciar cuidado contextual
   if (typeof Care !== 'undefined') Care.start();
+
+  // Fallback: si Nominatim no responde en 10s, mostrar bienvenida genérica
+  _scheduleWelcomeFallback();
 }
 
 /* ── BIENVENIDA DE CIUDAD — texto sobre el mapa, una vez por sesión ── */
@@ -395,6 +401,17 @@ function welcomeCity(city) {
     clearTimeout(autoClose);
     dismissCityWelcome(el);
   }, { once: true });
+}
+
+/* ── FALLBACK: mostrar bienvenida genérica si no hay ciudad en 10s ── */
+function _scheduleWelcomeFallback() {
+  setTimeout(() => {
+    if (!AppState._cityWelcomeDone) {
+      const lang = AppState.lang || 'es';
+      const fallback = lang === 'es' ? 'Tu ciudad te espera.' : 'Your city awaits.';
+      welcomeCity(fallback);
+    }
+  }, 10000);
 }
 
 function dismissCityWelcome(el) {
@@ -439,9 +456,12 @@ function initConfigModal() {
     btnStart.addEventListener('click', () => {
       Config.setLang(AppState.lang);
       Config.setNarrator(AppState.narrationStyle);
-      // Inicializar AudioContext desde gesto del usuario (requerido en iOS Safari)
+      // Desbloquear AudioContext y speechSynthesis desde gesto del usuario (iOS Safari)
       if (typeof Music !== 'undefined' && typeof Music.initFromGesture === 'function') {
         Music.initFromGesture();
+      }
+      if (typeof Voice !== 'undefined' && typeof Voice.unlockFromGesture === 'function') {
+        Voice.unlockFromGesture();
       }
       hideModal('config');
       setTimeout(() => showModal('mode'), 300);

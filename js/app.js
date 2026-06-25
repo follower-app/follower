@@ -333,6 +333,27 @@ function expandHeart(heart, splashId) {
   }, 720);
 }
 
+/* ── UNLOCK DE AUDIO EN PRIMER TAP — iOS Safari requiere gesto del usuario ──
+   En flujo returning-user, btnStartExplore nunca se toca.
+   Este listener captura el primer tap sobre cualquier punto de la app
+   después de llegar a exploración y desbloquea speechSynthesis y AudioContext. */
+let _audioUnlocked = false;
+function _unlockAudioOnFirstTap() {
+  if (_audioUnlocked) return;
+  _audioUnlocked = true;
+
+  if (typeof Voice !== 'undefined' && typeof Voice.unlockFromGesture === 'function') {
+    Voice.unlockFromGesture();
+  }
+  if (typeof Music !== 'undefined' && typeof Music.initFromGesture === 'function') {
+    Music.initFromGesture();
+  }
+
+  if (typeof Debug !== 'undefined') {
+    Debug.log('info', 'Audio: desbloqueado desde primer tap en exploración');
+  }
+}
+
 /* ── INICIALIZAR EXPLORACIÓN ── */
 function initExplore() {
   setPhase('systole');
@@ -340,8 +361,9 @@ function initExplore() {
   updateStats();
   initCompass();
 
-  // Resetear bienvenida de ciudad — nueva sesión, nueva bienvenida
+  // Resetear flags de sesión
   AppState._cityWelcomeDone = false;
+  _audioUnlocked = false;
 
   // Marcar inicio de sesión — base para "tiempo hasta primera narración"
   AppState._sessionStart = performance.now();
@@ -361,6 +383,12 @@ function initExplore() {
 
   // Fallback: si Nominatim no responde en 10s, mostrar bienvenida genérica
   _scheduleWelcomeFallback();
+
+  // Unlock de audio en primer tap — cubre flujo returning-user (saltea btnStartExplore)
+  if (!_audioUnlocked) {
+    document.addEventListener('touchstart', _unlockAudioOnFirstTap, { once: true, passive: true });
+    document.addEventListener('click',      _unlockAudioOnFirstTap, { once: true });
+  }
 }
 
 /* ── BIENVENIDA DE CIUDAD — texto sobre el mapa, una vez por sesión ── */
@@ -371,8 +399,10 @@ function welcomeCity(city) {
   const style = AppState.narrationStyle || 'storyteller';
   const lang  = AppState.lang || 'es';
 
+  // Si es el fallback genérico, no pasar por getCityWelcome
+  const isFallback = (city === 'Tu ciudad te espera.' || city === 'Your city awaits.');
   let text = city;
-  if (typeof Narration !== 'undefined' && typeof Narration.getCityWelcome === 'function') {
+  if (!isFallback && typeof Narration !== 'undefined' && typeof Narration.getCityWelcome === 'function') {
     text = Narration.getCityWelcome(city, style, lang);
   }
 
@@ -380,23 +410,17 @@ function welcomeCity(city) {
   if (!el) return;
 
   el.textContent = text;
-  // Quitar hidden primero, luego en el siguiente frame añadir visible
-  // (si se hace en el mismo frame, la transición de opacity no funciona)
   el.classList.remove('hidden');
+  // Un solo rAF es suficiente — visibility:hidden no bloquea transiciones CSS
   requestAnimationFrame(() => {
-    requestAnimationFrame(() => {
-      el.classList.add('visible');
-    });
+    el.classList.add('visible');
   });
 
   if (typeof Debug !== 'undefined') {
     Debug.log('info', `Bienvenida ciudad: "${text}" · narrador=${style}`);
   }
 
-  // Auto-cerrar a los 5 segundos
   const autoClose = setTimeout(() => dismissCityWelcome(el), 5000);
-
-  // Tap para cerrar antes
   el.addEventListener('click', () => {
     clearTimeout(autoClose);
     dismissCityWelcome(el);

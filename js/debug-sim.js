@@ -150,8 +150,10 @@ const DebugSim = (() => {
     // es la primera posición y watchPosition aún no corrió)
     if (GPS.getMap()) GPS.stop();
 
-    // Limpiar POIs de la posición anterior — evita marcadores fantasma
-    if (typeof POI !== 'undefined' && typeof POI.resetPOIs === 'function') {
+    // Reset de POIs SOLO en teletransporte (cambio de ciudad),
+    // no al agregar waypoints de ruta — eso causaba 15 resets en cadena
+    // y 429s de Overpass (BUG-014)
+    if (_mode === 'teleport' && typeof POI !== 'undefined' && typeof POI.resetPOIs === 'function') {
       POI.resetPOIs();
     }
 

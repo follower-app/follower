@@ -1332,4 +1332,103 @@ Fallback silencioso si el MP3 no existe.
 
 ---
 
-*Follower — Bitácora v0.7 | Sesión 10 | Junio 2026*
+## Sesión 11 — Junio 2026
+
+### Contexto
+Sesión de corrección post-deploy. Cinco bugs encontrados en pruebas
+después del rediseño de narradores/música/UI de la sesión anterior.
+Todos resueltos en un solo commit (BUG-029..033).
+
+### Bugs resueltos
+
+**BUG-029 — Narración sin audio (Music bloquea Voice, segunda ocurrencia)**
+
+Causa raíz: `await Music.playNarratorIntro()` en `narration.js` podía
+bloquear hasta 16s (safety timer) cuando los MP3 no existen. Además,
+en iOS Safari el `AudioContext` solo se puede activar desde un gesto
+directo del usuario — y `playNarratorIntro()` se llama de forma
+programática desde el pipeline de narración, no desde un tap.
+`_context.resume()` falla silenciosamente y devuelve `resolve()`, pero
+`Voice.speak()` nunca llega porque el await de música no resuelve hasta
+que expira el safety timer.
+
+Tres fixes coordinados:
+- `narration.js`: `await Music.playNarratorIntro()` reemplazado por
+  `Promise.race([playNarratorIntro(), timeout(3000)])` — si la música
+  no resuelve en 3s, la voz arranca igual
+- `music.js`: nueva función `initFromGesture()` que llama
+  `_context.resume()` desde el contexto de un gesto del usuario
+- `app.js`: `Music.initFromGesture()` llamado en el listener de
+  `btnStartExplore` — único punto del flujo con gesto directo del usuario
+
+Lección: `AudioContext` en iOS Safari solo se puede activar desde un
+`addEventListener` de tap/click disparado directamente por el usuario.
+Cualquier llamada programática posterior (setTimeout, callback async,
+Promise) cae fuera del "trusted event" y el resume falla.
+
+**BUG-030 — Bienvenida de ciudad no aparecía**
+
+Causa: `welcomeCity()` en `app.js` hacía `classList.remove('hidden')` +
+`classList.add('visible')` en el mismo frame de ejecución. El CSS usa
+`display: none !important` en `.city-welcome.hidden` — al quitar `hidden`
+y añadir `visible` en el mismo frame, el browser no genera transición de
+opacity porque el repaint ocurre después de ambos cambios juntos.
+Fix: doble `requestAnimationFrame` entre quitar `hidden` y añadir
+`visible`, forzando que el display cambie un frame antes de la transición.
+
+**BUG-031 — "Cuentero" en lugar del narrador activo**
+
+Dos causas simultáneas:
+- `index.html`: texto "Cuentero" hardcodeado en `#barStyleName` y
+  `#barStyleLbl` (vestigio de un nombre anterior del narrador)
+- `app.js`: `initStyleSelector()` solo actualizaba el label al cambiar
+  el narrador, no al cargar — el narrador guardado en Config nunca se
+  reflejaba en el pill al abrir la app
+
+Fix en `index.html`: texto cambiado a "Narrador" como placeholder.
+Fix en `app.js`: `init()` sincroniza label e icono del pill con
+`AppState.narrationStyle` (ya cargado desde Config) antes de `runSplash()`.
+
+**BUG-032 — Íconos 🔖 y 📤 sin función en pantalla POI**
+
+`btnBookmark` y `btnShare` presentes en `index.html` sin listeners ni
+lógica implementada. Eliminados del markup. Registrado como DT-17 (renombrado).
+
+**BUG-033 — Debug: POIs fijos entre teletransportes, mapa no inicializaba**
+
+Causa: `teleportTo()` en `debug-sim.js` no limpiaba los marcadores
+Leaflet ni el estado de POIs al cambiar de posición — los marcadores de
+la ciudad anterior quedaban fijos en el mapa.
+
+Fix: nueva función `POI.resetPOIs()` en `poi.js` que limpia marcadores
+Leaflet, `_pois`, `_lastFetchPos`, `AppState.nearbyPOIs`, `activePOI`
+y `poisVisited`. `teleportTo()` la llama automáticamente. Botón manual
+"🗑️ Limpiar POIs" agregado al panel del simulador.
+
+### Archivos modificados — 1 commit
+
+| Archivo | Cambio |
+|---------|--------|
+| `narration.js` | Promise.race 3s en await de música |
+| `music.js` | initFromGesture() + expuesta en API pública |
+| `app.js` | initFromGesture en tap, doble rAF en welcomeCity, sync pill en init() |
+| `index.html` | "Cuentero" → "Narrador", btnBookmark/btnShare eliminados |
+| `poi.js` | resetPOIs() nueva función, expuesta en API pública |
+| `debug-sim.js` | teleportTo() llama resetPOIs(), botón Limpiar POIs |
+
+### Deuda técnica actualizada
+
+| ID | Descripción | Prioridad |
+|----|-------------|-----------|
+| DT-17 | Implementar bookmark y share (Web Share API) en pantalla POI | Baja |
+
+### Próxima sesión
+
+1. Verificar en iPhone que la voz arranca (BUG-029 el más crítico)
+2. Verificar bienvenida de ciudad con la transición de fade
+3. Verificar que el pill muestra el narrador correcto al abrir
+4. Test de teletransporte en simulador — buscar ciudad, teletransportar, verificar POIs nuevos
+
+---
+
+*Follower — Bitácora v0.7 | Sesión 11 | Junio 2026*

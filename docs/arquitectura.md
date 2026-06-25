@@ -503,15 +503,17 @@ assets/sounds/
 
 `epic.mp3`, `romantic.mp3`, `mystery.mp3`, `curious.mp3` → **eliminados**
 
-### DA-3 actualizada — Funciones únicas por responsabilidad (v0.7)
+### DA-3 actualizada — Funciones únicas por responsabilidad (v0.7 · Sesión 11)
 
-| Función | Archivo | Nota v0.7 |
-|---------|---------|-----------|
+| Función | Archivo | Nota |
+|---------|---------|------|
 | `detectNearby()` | poi.js | sin cambios |
-| `trigger(poi, _unused, lang, topic)` | narration.js | llama `Music.playNarratorIntro()` con await |
+| `resetPOIs()` | poi.js | nuevo sesión 11 — limpia marcadores y estado al teletransportar |
+| `trigger(poi, _unused, lang, topic)` | narration.js | Promise.race 3s en await de música |
 | `playNarratorIntro(narrator)` | music.js | reemplaza `fadeMusic/dip/restore` |
-| `welcomeCity(city)` | app.js | nuevo v0.7 |
-| `getCityWelcome(city, style, lang)` | narration.js | nuevo v0.7 |
+| `initFromGesture()` | music.js | nuevo sesión 11 — activa AudioContext desde tap del usuario |
+| `welcomeCity(city)` | app.js | doble rAF para transición CSS correcta |
+| `getCityWelcome(city, style, lang)` | narration.js | sin cambios |
 | `checkCareContext()` | care.js | sin cambios |
 | `setPhase(phase)` | app.js | sin cambios |
 | `navigateTo(screen)` | app.js | sin cambios |
@@ -533,7 +535,7 @@ watchPosition() → onPosition()
                     └── Voice.speak(text, lang, callback)
 ```
 
-### Deuda técnica actualizada (v0.7)
+### Deuda técnica actualizada (v0.7 · Sesión 11)
 
 | ID | Descripción | Prioridad |
 |----|-------------|-----------|
@@ -545,15 +547,27 @@ watchPosition() → onPosition()
 | DT-9 | Revocar key OpenAI expuesta (commits `a249fee8`–`a303f110`) | Alta |
 | DT-10 | Error IndexedDB `"connection is closing"` — Safari backgrounding | Media |
 | DT-12 | Atribución CARTO/OSM no visible | Baja |
-| DT-13 | Botones `btnBookmark`/`btnShare` huérfanos en splash | Baja |
 | DT-16 | Pantalla POI expandida: rediseñar con nuevo sistema visual | Media |
+| DT-17 | Implementar bookmark y share (Web Share API) en pantalla POI | Baja |
 | DT-19 | 4 MP3 de intro por narrador (storyteller/historian/explorer/local) | Alta |
 | DT-20 | Test en campo con brújula real — verificar DeviceOrientation iOS | Alta |
 | DT-21 | Worker 400 al inicio — pendiente diagnóstico | Baja |
 | ~~DT-2~~ | ~~Archivos de música por mood~~ — reemplazado por DT-19 | — |
+| ~~DT-13~~ | ~~Botones btnBookmark/btnShare huérfanos~~ — eliminados del HTML en BUG-032, reimplementar como DT-17 | — |
 | ~~DT-15~~ | ~~Prompts de estilos~~ — resuelto en v0.7 con 4 narradores definitivos | — |
-| ~~DT-17~~ | ~~Config modal: selector de estilo~~ — resuelto en v0.7 | — |
 | ~~DT-18~~ | ~~Track historiador~~ — eliminado junto con sistema de música continua | — |
+
+### Nota de arquitectura — AudioContext en iOS Safari (BUG-029)
+
+`AudioContext` en iOS Safari solo puede activarse desde un `addEventListener`
+de tap/click disparado directamente por el usuario (trusted event). Cualquier
+llamada programática posterior (setTimeout, callback async, Promise chain)
+cae fuera del trusted event y `resume()` falla silenciosamente.
+
+**Patrón establecido:** `Music.initFromGesture()` se llama desde el listener
+de `btnStartExplore` — único punto del flujo con gesto directo. El pipeline
+de narración (`trigger()`) usa `Promise.race` con timeout 3s para que un
+fallo de música nunca bloquee la voz.
 
 ---
 

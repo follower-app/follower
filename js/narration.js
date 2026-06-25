@@ -336,10 +336,12 @@ Take a moment to observe the details — every stone, every arch, has a story to
     // Usar estilo activo — narrationStyle tiene prioridad sobre mood
     const style = AppState.narrationStyle || 'storyteller';
 
-    // Guard: no interrumpir una narración en curso del mismo POI y tema
-    if (_isNarrating && _currentPOI?.id === poi.id && _currentTopic === topic) {
+    // Guard: no interrumpir una narración en curso
+    // Si ya está narrando, ignorar el trigger — la narración actual debe terminar
+    if (_isNarrating) {
       if (typeof Debug !== 'undefined') {
-        Debug.log('info', `Narration: ya narrando ${poi.name} — ignorando trigger duplicado`);
+        const mismo = _currentPOI?.id === poi.id ? 'mismo POI' : `POI diferente: ${poi.name}`;
+        Debug.log('info', `Narration: narrando en curso (${_currentPOI?.name}) — ignorando trigger [${mismo}]`);
       }
       return;
     }

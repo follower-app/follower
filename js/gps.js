@@ -17,7 +17,7 @@ const GPS = (() => {
   /* ── CONFIGURACIÓN ── */
   const CONFIG = {
     POI_CHECK_INTERVAL: 5000,    // ms entre chequeos de POIs cercanos
-    POI_RADIUS_METERS:  80,      // radio para activar narración
+    POI_RADIUS_METERS:  120,     // radio para activar narración (era 80 — muy estricto con GPS urbano)
     NEARBY_RADIUS:      300,     // radio para mostrar pin como "cercano"
     STEPS_PER_METER:    1.3,     // pasos por metro (estimado)
     CITY_UPDATE_KM:     0.5,     // actualizar nombre de ciudad cada 500m

@@ -401,19 +401,23 @@ Take a moment to observe the details — every stone, every arch, has a story to
 
     updateNarrationUI(text);
 
-    // Reproducir intro del narrador — await garantiza que termina antes de hablar
-    // Si no hay MP3 o falla, playNarratorIntro resuelve silenciosamente (fallback)
-    try {
-      if (typeof Music !== 'undefined') {
-        const introId = (typeof Debug !== 'undefined')
-          ? Debug.metricStart('narration', `intro musical [${style}]`)
-          : null;
-        await Music.playNarratorIntro(style);
+    // Reproducir intro del narrador — con timeout de 3s para no bloquear la voz
+    // Si los MP3 no existen o el AudioContext falla, seguimos directo a la voz
+    if (typeof Music !== 'undefined') {
+      const introId = (typeof Debug !== 'undefined')
+        ? Debug.metricStart('narration', `intro musical [${style}]`)
+        : null;
+      try {
+        await Promise.race([
+          Music.playNarratorIntro(style),
+          new Promise(resolve => setTimeout(resolve, 3000))
+        ]);
         if (introId) Debug.metricEnd(introId, 'ok');
-      }
-    } catch (e) {
-      if (typeof Debug !== 'undefined') {
-        Debug.log('warn', `Music intro falló — continuando con narración · ${e.message}`);
+      } catch (e) {
+        if (typeof Debug !== 'undefined') {
+          Debug.log('warn', `Music intro falló — continuando con narración · ${e.message}`);
+        }
+        if (introId) Debug.metricEnd(introId, 'error');
       }
     }
 

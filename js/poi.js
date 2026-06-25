@@ -525,6 +525,23 @@ const POI = (() => {
 
   init();
 
+  /* ── RESET POIs — para uso desde debug-sim cuando se teletransporta a otra ciudad ── */
+  function resetPOIs() {
+    // Limpiar marcadores del mapa
+    Object.values(_markers).forEach(m => m.remove());
+    _markers = {};
+
+    // Resetear estado
+    _pois         = [];
+    _lastFetchPos = null;
+    AppState.nearbyPOIs  = [];
+    AppState.activePOI   = null;
+    AppState.poisVisited = 0;
+
+    if (typeof updateHistCount === 'function') updateHistCount();
+    if (typeof Debug !== 'undefined') Debug.log('info', 'POI: reset — listo para nueva ciudad');
+  }
+
   /* ── API PÚBLICA ── */
   return {
     detectNearby,
@@ -532,6 +549,7 @@ const POI = (() => {
     onMarkerTap,
     onDepthPill,
     activateFromBar,
+    resetPOIs,
     getPOIs: () => _pois
   };
 

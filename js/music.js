@@ -176,6 +176,19 @@ const Music = (() => {
     }, CONFIG.FADE_OUT_MS);
   }
 
+  /* ── INICIALIZAR DESDE GESTO — llamar desde un tap del usuario (iOS Safari) ── */
+  function initFromGesture() {
+    if (!initContext()) return;
+    // Reanudar contexto suspendido — solo funciona desde un gesto directo del usuario
+    if (_context && _context.state === 'suspended') {
+      _context.resume().catch(e => {
+        if (typeof Debug !== 'undefined') {
+          Debug.log('warn', `Music: resume desde gesto falló · ${e.message}`);
+        }
+      });
+    }
+  }
+
   /* ── GETTERS ── */
   function isPlaying()       { return _isPlaying; }
   function currentNarrator() { return _currentNarrator; }
@@ -183,6 +196,7 @@ const Music = (() => {
   /* ── API PÚBLICA ── */
   return {
     playNarratorIntro,
+    initFromGesture,
     stop,
     isPlaying,
     currentNarrator

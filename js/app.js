@@ -374,8 +374,14 @@ function welcomeCity(city) {
   if (!el) return;
 
   el.textContent = text;
+  // Quitar hidden primero, luego en el siguiente frame añadir visible
+  // (si se hace en el mismo frame, la transición de opacity no funciona)
   el.classList.remove('hidden');
-  el.classList.add('visible');
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      el.classList.add('visible');
+    });
+  });
 
   if (typeof Debug !== 'undefined') {
     Debug.log('info', `Bienvenida ciudad: "${text}" · narrador=${style}`);
@@ -433,6 +439,10 @@ function initConfigModal() {
     btnStart.addEventListener('click', () => {
       Config.setLang(AppState.lang);
       Config.setNarrator(AppState.narrationStyle);
+      // Inicializar AudioContext desde gesto del usuario (requerido en iOS Safari)
+      if (typeof Music !== 'undefined' && typeof Music.initFromGesture === 'function') {
+        Music.initFromGesture();
+      }
       hideModal('config');
       setTimeout(() => showModal('mode'), 300);
     });
@@ -735,6 +745,15 @@ function init() {
   initConfigModal();
   initModeModal();
   initExploreListeners();
+
+  // Sincronizar label del pill con el narrador ya guardado en Config
+  const nameEl = document.getElementById('barStyleName');
+  const lblEl  = document.getElementById('barStyleLbl');
+  const iconEl = document.getElementById('barStyleIcon');
+  const STYLE_ICONS = { storyteller: '🎭', historian: '🏛️', explorer: '🔎', local: '❤️' };
+  if (nameEl) nameEl.textContent = AppState.narrationStyleLabel;
+  if (lblEl)  lblEl.textContent  = AppState.narrationStyleLabel;
+  if (iconEl) iconEl.textContent = STYLE_ICONS[AppState.narrationStyle] || '🎭';
 
   runSplash();
 }

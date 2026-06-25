@@ -150,6 +150,11 @@ const DebugSim = (() => {
     // es la primera posición y watchPosition aún no corrió)
     if (GPS.getMap()) GPS.stop();
 
+    // Limpiar POIs de la posición anterior — evita marcadores fantasma
+    if (typeof POI !== 'undefined' && typeof POI.resetPOIs === 'function') {
+      POI.resetPOIs();
+    }
+
     GPS.simulatePosition(lat, lng, 5);
 
     // Adjuntar el listener de clic DESPUÉS de simulatePosition(),
@@ -556,6 +561,7 @@ const DebugSim = (() => {
 
       <div class="dbg-poi-btn-row" style="margin-top:12px;">
         <button class="dbg-poi-action map" onclick="DebugSim.backToRealGPS()">📡 Volver a GPS real</button>
+        <button class="dbg-poi-action" style="background:rgba(192,57,43,.15);color:#e74c3c;border:1px solid rgba(192,57,43,.3);" onclick="if(typeof POI!=='undefined'){POI.resetPOIs();}">🗑️ Limpiar POIs</button>
       </div>
       <div class="dbg-poi-btn-row" style="margin-top:6px;">
         <button class="dbg-poi-action narrate" onclick="DebugSim.skipToFreeMode()">🚀 Saltar a Modo Libre</button>

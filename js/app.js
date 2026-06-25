@@ -362,8 +362,16 @@ function initExplore() {
   initCompass();
 
   // Resetear flags de sesión
-  AppState._cityWelcomeDone = false;
+  AppState._cityWelcomeDone  = false;
+  AppState._firstNarrationTs = null;
+  AppState._lastNarrationTs  = null;
+  AppState._narrationCount   = 0;
   _audioUnlocked = false;
+
+  // Limpiar métricas de experiencia — cada sesión empieza limpia
+  if (typeof Debug !== 'undefined') {
+    Debug.clearExpMetrics();
+  }
 
   // Marcar inicio de sesión — base para "tiempo hasta primera narración"
   AppState._sessionStart = performance.now();

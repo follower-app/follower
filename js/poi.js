@@ -11,7 +11,8 @@ const POI = (() => {
   let _pois         = [];       // POIs cargados para la zona actual
   let _markers      = {};       // marcadores Leaflet { poi.id: marker }
   let _lastFetchPos = null;     // última posición donde se hicieron fetch
-  let _db           = null;     // instancia IndexedDB
+  let _db            = null;     // instancia IndexedDB
+  let _isFetchingPOIs = false;   // candado — evita fetches paralelos a Overpass (BUG-014)
 
   /* ── CONFIGURACIÓN ── */
   const CONFIG = {
@@ -25,18 +26,35 @@ const POI = (() => {
 
   /* ── CATEGORÍAS OSM → icono + tipo ── */
   const OSM_CATEGORIES = {
-    'historic':      { icon: '🏛️', type: 'historic' },
-    'tourism':       { icon: '📍', type: 'tourism'  },
-    'amenity':       { icon: '☕', type: 'amenity'  },
-    'museum':        { icon: '🖼️', type: 'museum'   },
-    'church':        { icon: '⛪', type: 'church'   },
-    'castle':        { icon: '🏰', type: 'castle'   },
-    'ruins':         { icon: '🏚️', type: 'ruins'    },
-    'monument':      { icon: '🗿', type: 'monument' },
-    'fountain':      { icon: '⛲', type: 'fountain' },
-    'artwork':       { icon: '🎨', type: 'artwork'  },
-    'viewpoint':     { icon: '🔭', type: 'viewpoint'},
-    'archaeological_site': { icon: '⚱️', type: 'archaeological' }
+    'historic':            { icon: '🏛️', type: 'historic'       },
+    'tourism':             { icon: '📍', type: 'tourism'        },
+    'museum':              { icon: '🖼️', type: 'museum'         },
+    'church':              { icon: '⛪', type: 'church'         },
+    'cathedral':           { icon: '⛪', type: 'church'         },
+    'chapel':              { icon: '⛪', type: 'church'         },
+    'mosque':              { icon: '🕌', type: 'church'         },
+    'temple':              { icon: '🛕', type: 'church'         },
+    'castle':              { icon: '🏰', type: 'castle'         },
+    'ruins':               { icon: '🏚️', type: 'ruins'          },
+    'monument':            { icon: '🗿', type: 'monument'       },
+    'memorial':            { icon: '🗿', type: 'monument'       },
+    'statue':              { icon: '🗿', type: 'monument'       },
+    'fountain':            { icon: '⛲', type: 'fountain'       },
+    'artwork':             { icon: '🎨', type: 'artwork'        },
+    'viewpoint':           { icon: '🔭', type: 'viewpoint'      },
+    'archaeological_site': { icon: '⚱️', type: 'archaeological' },
+    'theatre':             { icon: '🎭', type: 'theatre'        },
+    'cinema':              { icon: '🎬', type: 'theatre'        },
+    'arts_centre':         { icon: '🎨', type: 'artwork'        },
+    'library':             { icon: '📚', type: 'amenity'        },
+    'university':          { icon: '🎓', type: 'amenity'        },
+    'college':             { icon: '🎓', type: 'amenity'        },
+    'stadium':             { icon: '🏟️', type: 'leisure'        },
+    'park':                { icon: '🌳', type: 'leisure'        },
+    'garden':              { icon: '🌳', type: 'leisure'        },
+    'tower':               { icon: '🗼', type: 'monument'       },
+    'mall':                { icon: '🏬', type: 'amenity'        },
+    'amenity':             { icon: '📍', type: 'amenity'        },
   };
 
   /* ── INICIALIZAR INDEXEDDB ── */
@@ -85,6 +103,15 @@ const POI = (() => {
 
   /* ── FETCH POIs DESDE OVERPASS (OSM) ── */
   async function fetchPOIsFromOSM(lat, lng, radiusKm) {
+    // Candado — evita fetches paralelos que causan 429 en cadena (BUG-014)
+    if (_isFetchingPOIs) {
+      if (typeof Debug !== 'undefined') {
+        Debug.log('info', 'POI: fetch en curso — ignorando llamada paralela (BUG-014)');
+      }
+      return _pois.length > 0 ? _pois : [];
+    }
+    _isFetchingPOIs = true;
+
     const radius = radiusKm * 1000; // metros
 
     // Query optimizada: usa (around:...) UNA sola vez por bloque
@@ -93,12 +120,17 @@ const POI = (() => {
       [out:json][timeout:25];
       (
         node(around:${radius},${lat},${lng})["historic"];
-        node(around:${radius},${lat},${lng})["tourism"~"museum|attraction|artwork|viewpoint|gallery"];
-        node(around:${radius},${lat},${lng})["amenity"~"place_of_worship|fountain|theatre|cinema"];
-        node(around:${radius},${lat},${lng})["leisure"~"park|garden"];
-        node(around:${radius},${lat},${lng})["man_made"~"monument|memorial|statue"];
+        node(around:${radius},${lat},${lng})["tourism"~"museum|attraction|artwork|viewpoint|gallery|hotel"];
+        node(around:${radius},${lat},${lng})["amenity"~"place_of_worship|fountain|theatre|cinema|arts_centre|library|university|college"];
+        node(around:${radius},${lat},${lng})["leisure"~"park|garden|stadium"];
+        node(around:${radius},${lat},${lng})["man_made"~"monument|memorial|statue|tower"];
+        node(around:${radius},${lat},${lng})["building"~"cathedral|church|mosque|temple|synagogue|chapel"];
+        node(around:${radius},${lat},${lng})["shop"~"mall"];
         way(around:${radius},${lat},${lng})["historic"];
         way(around:${radius},${lat},${lng})["tourism"~"museum|attraction"];
+        way(around:${radius},${lat},${lng})["building"~"cathedral|church|mosque|temple|synagogue|chapel"];
+        way(around:${radius},${lat},${lng})["leisure"~"park|garden|stadium"];
+        way(around:${radius},${lat},${lng})["amenity"~"university|college|theatre|cinema"];
       );
       out center;
     `;
@@ -162,6 +194,8 @@ const POI = (() => {
     } catch (e) {
       if (dbgId) Debug.metricEnd(dbgId, 'error', { message: e.message });
       throw e;
+    } finally {
+      _isFetchingPOIs = false;   // liberar candado siempre, éxito o error
     }
   }
 

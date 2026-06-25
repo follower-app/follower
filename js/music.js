@@ -179,14 +179,36 @@ const Music = (() => {
   /* ── INICIALIZAR DESDE GESTO — llamar desde un tap del usuario (iOS Safari) ── */
   function initFromGesture() {
     if (!initContext()) return;
-    // Reanudar contexto suspendido — solo funciona desde un gesto directo del usuario
-    if (_context && _context.state === 'suspended') {
-      _context.resume().catch(e => {
+
+    // iOS Safari: speechSynthesis solo funciona mientras AudioContext está en estado
+    // 'running' con audio activo. Un contexto silencioso o suspendido bloquea la voz.
+    // Solución: reproducir 1s de silencio real desde el gesto del usuario.
+    // Esto mantiene el contexto 'running' y desbloquea speechSynthesis para llamadas
+    // async posteriores (ej: después de que Claude devuelve el texto ~6s más tarde).
+    const resume = (_context.state === 'suspended')
+      ? _context.resume()
+      : Promise.resolve();
+
+    resume.then(() => {
+      try {
+        const silenceBuffer = _context.createBuffer(1, _context.sampleRate, _context.sampleRate);
+        const silenceSource = _context.createBufferSource();
+        silenceSource.buffer = silenceBuffer;
+        silenceSource.connect(_context.destination);
+        silenceSource.start(0);
         if (typeof Debug !== 'undefined') {
-          Debug.log('warn', `Music: resume desde gesto falló · ${e.message}`);
+          Debug.log('info', `Music: AudioContext desbloqueado · state=${_context.state}`);
         }
-      });
-    }
+      } catch (e) {
+        if (typeof Debug !== 'undefined') {
+          Debug.log('warn', `Music: initFromGesture falló · ${e.message}`);
+        }
+      }
+    }).catch(e => {
+      if (typeof Debug !== 'undefined') {
+        Debug.log('warn', `Music: resume desde gesto falló · ${e.message}`);
+      }
+    });
   }
 
   /* ── GETTERS ── */

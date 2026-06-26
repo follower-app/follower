@@ -737,3 +737,110 @@ way["amenity"~"university|college|theatre|cinema"]
 
 *Follower — Arquitectura v0.7s | Sesión 12 | 25 Junio 2026*
 
+---
+
+## Auditoría quirúrgica poi.js — v0.7s (26 Junio 2026)
+
+### DA-36 — Content-Type obligatorio en POST a Overpass
+
+Todo fetch a Overpass debe incluir `Content-Type: application/x-www-form-urlencoded`. Sin este header, bajo carga los mirrors ignoran el body silenciosamente y devuelven `elements: []` con HTTP 200.
+
+```javascript
+fetch(mirrorUrl, {
+  method:  'POST',
+  headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+  body:    `data=${encodeURIComponent(query)}`,
+  signal:  controller.signal
+})
+```
+
+Este es el patrón correcto para todos los futuros fetches a Overpass en el proyecto.
+
+---
+
+### DA-37 — Sintaxis `nwr` para queries Overpass
+
+`nwr` (node + way + relation) reemplaza las cláusulas `node`/`way` separadas. Una sola pasada por el dataset en lugar de N pasadas independientes. Reducción de tiempo de servidor ~3x bajo carga.
+
+```
+// Patrón incorrecto (lento)
+node(around:R,LAT,LNG)["historic"];
+way(around:R,LAT,LNG)["historic"];
+
+// Patrón correcto (rápido)
+nwr(around:R,LAT,LNG)["historic"];
+```
+
+`relation` está incluido automáticamente — captura áreas OSM como parques y plazas que solo existen como relaciones.
+
+---
+
+### DA-38 — Cache IndexedDB particionado por proximidad geográfica
+
+`loadPOIsFromDB()` devuelve todos los POIs del store. Sin filtro, una sesión en Madrid cargaba 601 POIs de Cali como fallback.
+
+El filtro se aplica en `loadPOIs()` antes de asignar a `_pois`:
+
+```javascript
+const CACHE_RADIUS_M = CONFIG.FETCH_RADIUS_KM * 1500;
+const nearby = cached.filter(p =>
+  GPS.distanceMeters(lat, lng, p.lat, p.lng) <= CACHE_RADIUS_M
+);
+```
+
+No requiere cambios en el schema de IndexedDB. Los POIs de otras ciudades permanecen almacenados y se activan si el usuario regresa a esa ciudad.
+
+Radio del filtro: `FETCH_RADIUS_KM × 1500` (3km para FETCH_RADIUS_KM=2) — 50% de margen sobre el radio de fetch para no descartar POIs en los bordes.
+
+---
+
+### DA-39 — Sistema de mirrors Overpass con fallback automático
+
+Tres mirrors en orden de prioridad. Si uno falla (429, 504, timeout, error de red), el siguiente se prueba automáticamente. Timeout de 20s por mirror via `AbortController`.
+
+```javascript
+const OVERPASS_MIRRORS = [
+  'https://overpass.kumi.systems/api/interpreter',  // más estable
+  'https://overpass-api.de/api/interpreter',         // oficial
+  'https://lz4.overpass-api.de/api/interpreter',     // último recurso
+];
+```
+
+Tiempo máximo total: 20s × 3 = 60s. Antes: un solo mirror bloqueaba hasta 131s.
+
+Si todos los mirrors fallan → `throw` → `loadPOIs()` cae al cache geográfico (DA-38).
+
+Si Overpass devuelve HTTP 200 con `elements: []` → se trata como fallo del servidor (no como zona sin POIs) → mismo path al cache.
+
+---
+
+### Deuda técnica actualizada (v0.7s · Sesión 13)
+
+| ID | Descripción | Prioridad |
+|----|-------------|-----------|
+| DT-1 | Logo SVG final + iconos PWA | Alta |
+| DT-3 | sw.js — service worker (siempre último) | Alta |
+| DT-4 | Pantalla resumen del paseo | Media |
+| DT-5 | Más ciudades en routes.js | Baja |
+| DT-8 | debug.js + debug-sim.js deshabilitados antes de v1.0 | Media |
+| DT-9 | Revocar key OpenAI expuesta en commits históricos | Alta |
+| DT-10 | Error IndexedDB "connection is closing" — Safari backgrounding | Media |
+| DT-12 | Atribución CARTO/OSM no visible | Baja |
+| DT-16 | Pantalla POI expandida: rediseñar con nuevo sistema visual | Media |
+| DT-17 | Implementar bookmark y share (Web Share API) en pantalla POI | Baja |
+| DT-19 | 4 MP3 de intro por narrador | Alta |
+| DT-20 | Test en campo con brújula real — verificar DeviceOrientation iOS | Alta |
+| DT-21 | Worker 400 en arranque — endpoint /weather sin key configurada | Baja |
+| DT-22 | `visited = true` al completar narración, no al activar POI | Alta |
+| DT-23 | Cola narrativa — POIs encolados durante narración, no perdidos | Alta |
+| DT-25 | Backoff Overpass — esperar 30-60s después de 429 | Media |
+| DT-26 | Weather.invalidateCache() en modo ruta — solo debe dispararse en teleport | Media |
+| DT-27 | clearCache() en debug.js no recarga la página — estado inconsistente | Media |
+| DT-28 | Verificar que `nwr` no supera el cap de 80 POIs en ciudades muy densas | Baja |
+| ~~DT-24~~ | ~~Cache agresivo Overpass~~ — resuelto: filtro geográfico + raw=0 como fallo | — |
+
+---
+
+*Follower — Arquitectura v0.7s | Sesión 13 | 26 Junio 2026*
+
+

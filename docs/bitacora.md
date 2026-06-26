@@ -1690,3 +1690,122 @@ Prueba en Firefox/Windows con simulación de ruta sobre el Centro Histórico de 
 
 *Follower — Bitácora v0.7s | Sesión 12 | 25 Junio 2026*
 
+---
+
+## Sesión 13 — 26 Junio 2026
+
+### Contexto
+Auditoría quirúrgica de `poi.js` motivada por evidencia de campo: simulación en la Calle de Alcalá (Madrid) devolvió 0 POIs a pesar de que Overpass respondía HTTP 200. Primer POI cargado desde cache era "Bestial" en Barcelona (lat=41.38, lng=2.19) — confirma contaminación geográfica del cache.
+
+Alcance estricto: solo `poi.js`. Sin tocar narración, UX, debug ni arquitectura general.
+
+---
+
+### BUG-039 — `raw=0` en Madrid, Cali y cualquier zona bajo carga
+
+**Síntoma:** Overpass responde HTTP 200 con `elements: []`. El log muestra `raw=0 normalizados=0`. El pipeline cae al cache de IndexedDB, que devuelve POIs de otra ciudad.
+
+**Causa raíz — tres factores apilados:**
+
+**Factor 1 (principal): `Content-Type` ausente en el POST**
+
+```javascript
+// Antes — body enviado como text/plain (default del browser)
+const res = await fetch(url, {
+  method: 'POST',
+  body:   `data=${encodeURIComponent(query)}`
+});
+
+// Después — Content-Type correcto
+const res = await fetch(mirrorUrl, {
+  method:  'POST',
+  headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+  body:    `data=${encodeURIComponent(query)}`,
+  signal:  controller.signal
+});
+```
+
+Overpass espera `application/x-www-form-urlencoded`. Sin ese header, bajo carga el servidor ignora el body silenciosamente, procesa una query vacía y devuelve `elements: []` con HTTP 200. Esto explica exactamente `raw=0` con status 200 (no con 400).
+
+**Factor 2: query con 13 cláusulas `node`/`way` separadas**
+
+13 pasadas independientes sobre el dataset de OSM. Bajo carga, el timeout del servidor (`[timeout:25]`) se alcanza antes de completar todos los scans. Reemplazado por 6 cláusulas `nwr` (node + way + relation en una sola pasada). Reducción estimada: 3x en tiempo de servidor.
+
+```
+// Antes: 13 cláusulas
+node(around:...)["historic"];
+node(around:...)["tourism"~"..."];
+way(around:...)["historic"];
+way(around:...)["tourism"~"..."];
+...
+
+// Después: 6 cláusulas nwr
+nwr(around:...)["historic"];
+nwr(around:...)["tourism"~"..."];
+...
+```
+
+**Factor 3: un solo mirror sin timeout**
+
+`lz4.overpass-api.de` bloqueaba hasta 131 segundos antes de responder vacío. Sin fallback ni timeout, toda la sesión quedaba bloqueada. Sistema reemplazado por 3 mirrors con AbortController de 20s cada uno.
+
+**Fix completo implementado:**
+- `Content-Type: application/x-www-form-urlencoded` en todos los fetches
+- Query `nwr` de 6 cláusulas
+- 3 mirrors: `overpass.kumi.systems` → `overpass-api.de` → `lz4.overpass-api.de`
+- `raw=0` con HTTP 200 tratado como fallo del servidor (no como zona sin POIs) → activa fallback al cache
+- Archivo: `js/poi.js`
+
+---
+
+### BUG-040 — Cache IndexedDB carga POIs de otra ciudad
+
+**Síntoma:** usuario en Madrid (lat=40.41, lng=-3.68), cache devuelve "Bestial" de Barcelona (lat=41.38, lng=2.19) como primer POI. `detectPOI()` no activa nada porque todos los POIs están a ~1000km.
+
+**Causa raíz:** `loadPOIsFromDB()` hace `store.getAll()` — devuelve todos los POIs del store sin filtro geográfico. El store acumula POIs de todas las ciudades visitadas en la misma IndexedDB.
+
+**Fix:** filtro por `GPS.distanceMeters()` antes de asignar a `_pois`:
+
+```javascript
+const CACHE_RADIUS_M = CONFIG.FETCH_RADIUS_KM * 1500; // 3km
+const nearby = typeof GPS !== 'undefined'
+  ? cached.filter(p => GPS.distanceMeters(lat, lng, p.lat, p.lng) <= CACHE_RADIUS_M)
+  : cached; // fallback si GPS no está listo
+```
+
+No requiere cambios en el schema de IndexedDB. Los POIs de otras ciudades permanecen en la DB (útiles si el usuario vuelve) pero no se cargan en la sesión actual.
+
+Log diagnóstico: `POI: cache IndexedDB tiene 601 POIs · 0 en radio 3km` → zona sin datos locales confirmada limpiamente.
+
+- Archivo: `js/poi.js`
+
+---
+
+### Deuda técnica resuelta
+
+| ID | Descripción |
+|----|-------------|
+| BUG-014 | Candado `_isFetchingPOIs` — confirmado funcionando en campo |
+| DT-24 | Cache Overpass — resuelto vía filtro geográfico + `raw=0` como fallo |
+
+### Deuda técnica actualizada
+
+| ID | Descripción | Prioridad |
+|----|-------------|-----------|
+| DT-28 | Verificar que `nwr` no supera el cap de 80 POIs en ciudades muy densas (Roma, Madrid centro) | Baja |
+
+---
+
+### Próxima sesión — Sprint S2 (sin bloqueos)
+
+Con BUG-039 y BUG-040 resueltos, el pipeline de POIs es ahora confiable. Se puede proceder:
+
+1. `visited = true` al completar narración — no al activar (DT-22)
+2. Cola narrativa (DT-23)
+3. Prueba en iPhone del fix de AudioContext (BUG-036)
+
+---
+
+*Follower — Bitácora v0.7s | Sesión 13 | 26 Junio 2026*
+
+

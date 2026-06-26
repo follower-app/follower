@@ -945,5 +945,120 @@ Cobertura esperada por región:
 
 *Follower — Arquitectura v0.8 | Sesión 14 | 26 Junio 2026*
 
+---
+
+## Sprint S2 — v0.8 (26 Junio 2026)
+
+### DA-44 — visited = true al completar narración, no al activar
+
+**Decisión:** `poi.visited = true` se marca en el callback de `Voice.speak()`, no en `activatePOI()`.
+
+**Razón:** marcar visited al activar quemaba el POI antes de que el usuario recibiera la narración. Cualquier interrupción — error de voz, salida del radio, error de red, iOS suspendiendo el AudioContext — dejaba el POI marcado como visitado aunque nunca se narrara.
+
+**Implementación:**
+
+```javascript
+// poi.js — activatePOI(): visited removido de aquí
+// narration.js — Voice.speak() callback:
+if (poi && !poi.visited) {
+  poi.visited = true;
+  AppState.poisVisited++;
+  if (typeof updateStats === 'function') updateStats();
+}
+```
+
+**Invariante establecida:** `AppState.poisVisited` solo incrementa cuando `Voice.speak()` completó. Si la narración se interrumpe, el POI vuelve a estar disponible en la próxima detección GPS.
+
+---
+
+### DA-45 — Cola narrativa básica
+
+**Decisión:** POIs detectados durante una narración activa entran a una cola con TTL y validación de proximidad al procesar. No se ignoran ni se narran inmediatamente.
+
+**Parámetros de la cola:**
+```javascript
+QUEUE_MAX_SIZE = 3       // máximo entradas simultáneas
+QUEUE_TTL_MS   = 240000  // 4 minutos por entrada
+RADIO_VALIDACION = 180m  // activeRadius × 1.5 al procesar
+```
+
+**Flujo de la cola:**
+```
+detectPOI() → Narration.isNarrating() → enqueuePOI(poi)
+Voice.speak() onEnd → POI.processQueue()
+processQueue() → filtrar expirados → verificar distancia actual
+               → dentro de 180m → activatePOI()
+               → fuera de 180m  → descartar, probar siguiente
+```
+
+**Regla de descarte en enqueuePOI:**
+- Duplicado del mismo POI → ignorar
+- POI ya visitado → ignorar
+- Cola llena (>3) → descartar el más antiguo (FIFO), agregar nuevo
+
+**Integración con DA-44:** `processQueue()` solo activa POIs no visitados. Como visited se marca al completar (DA-44), los POIs de la cola que fueron activados pero interrumpidos siguen disponibles.
+
+**API pública:** `POI.processQueue()` expuesto para que `narration.js` lo llame sin acoplamiento directo al estado interno.
+
+---
+
+### DA-46 — Música de placeholder con Web Audio API (DT-19 desbloqueado)
+
+**Decisión:** En ausencia de archivos MP3, `music.js` genera un tono sintético de 2.5s usando `OscillatorNode` del Web Audio API en lugar de fallar silenciosamente.
+
+**Frecuencias por narrador:**
+```javascript
+historian:   220 Hz  // La2 — tono sobrio, académico
+local:       294 Hz  // Re3 — tono cálido, cercano
+storyteller: 261 Hz  // Do3 — tono narrativo, neutro
+explorer:    330 Hz  // Mi3 — tono curioso, activo
+```
+
+**Razón de la elección sobre placeholder MP3:**
+- Sin dependencia de archivos externos
+- Sin cambios cuando lleguen los MP3 definitivos — el sistema los usará automáticamente
+- Permite validar el sistema de música en campo (AudioContext, volumen, timing)
+- Diferenciación auditiva por narrador desde el primer día
+
+**Ruta de migración a MP3 definitivos:** cero cambios de código. Cuando `loadTrack(url)` tenga éxito, el oscilador no se ejecuta. Los MP3 pueden agregarse en cualquier momento.
+
+---
+
+### Deuda técnica actualizada (v0.8 · Sesión 15)
+
+| ID | Descripción | Prioridad |
+|----|-------------|-----------|
+| DT-1 | Logo SVG final + iconos PWA | Alta |
+| DT-3 | sw.js — service worker | Alta |
+| DT-4 | Pantalla resumen del paseo | Media |
+| DT-5 | Más ciudades en routes.js | Baja |
+| DT-8 | debug.js deshabilitado antes de v1.0 | Media |
+| DT-9 | Revocar key OpenAI de commits históricos | Alta |
+| DT-10 | IndexedDB "connection is closing" Safari | Media |
+| DT-12 | Atribución CARTO/OSM | Baja |
+| DT-16 | Pantalla POI expandida | Media |
+| DT-17 | Bookmark y share | Baja |
+| DT-19 | MP3 definitivos 4 narradores (tono sintético como placeholder activo) | Media |
+| DT-20 | Test en campo con brújula real — iOS | Alta |
+| DT-21 | Worker 400 en arranque | Baja |
+| DT-25 | Backoff Overpass 30-60s después de 429 | Media |
+| DT-26 | Weather.invalidateCache en modo ruta — solo en teleport | Media |
+| DT-27 | clearCache() sin reload de página | Media |
+| DT-28 | Cap 80 POIs con nwr en ciudades densas | Baja |
+| DT-29 | Cobertura Wikipedia Cali — confirmado ✅ | — |
+| DT-30 | TTF desde sesión nueva sin cache previo | Alta |
+| DT-31 | Mejorar type/icon POIs Wikipedia con Wikidata | Baja |
+| DT-32 | Confirmar cola narrativa en prueba de campo real | Alta |
+| DT-33 | MP3 definitivos 4 narradores (reemplazar tono sintético) | Media |
+| DT-34 | Cooldown mínimo entre narraciones — evaluar post prueba de campo | Media |
+| ~~DT-22~~ | ~~visited = true al activar~~ — resuelto: movido al callback de voz | — |
+| ~~DT-23~~ | ~~Sin cola narrativa~~ — resuelto: cola básica implementada | — |
+| ~~DT-24~~ | ~~Cache agresivo Overpass~~ — resuelto: Wikipedia + filtro geográfico | — |
+
+---
+
+*Follower — Arquitectura v0.8 | Sesión 15 | 26 Junio 2026*
+
+
 
 

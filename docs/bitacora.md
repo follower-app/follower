@@ -1964,5 +1964,197 @@ Con Wikipedia funcionando, el pipeline es confiable. Las prioridades de Sprint S
 
 *Follower — Bitácora v0.8 | Sesión 14 | 26 Junio 2026*
 
+---
+
+## Sesión 15 — 26 Junio 2026
+
+### Contexto
+Sprint S2 arranca. Con el pipeline validado (Wikipedia + Claude + Voice), el foco pasa de "¿funciona?" a "¿se siente cinematográfico?". Sesión dedicada a resolver los dos problemas más impactantes en la experiencia real: POIs perdidos durante narraciones, y ausencia de música.
+
+---
+
+### Decisiones de producto — Sprint S2
+
+**Aprobado:**
+- S2-A1 — `visited = true` al completar narración
+- S2-A2 — Cola narrativa básica
+- DT-19 — Placeholder musical para desbloquear pruebas
+
+**No aprobado todavía:**
+- Cooldown fijo de 4 minutos (sin evidencia de campo suficiente)
+- Scoring de POIs
+- Provider Layer formal
+- Foursquare / Google Places
+- Cambios de UI
+
+**Principio aplicado:** cambios mínimos y medibles. No abrir nuevos frentes.
+
+---
+
+### S2-A1 — visited = true al completar narración
+
+**Problema resuelto:** `activatePOI()` marcaba `poi.visited = true` inmediatamente al activar el POI — antes de que la voz hablara. Un POI con narración interrumpida (por error de voz, salida del radio, error de red) quedaba quemado para siempre en la sesión.
+
+**Evidencia de campo:**
+```
+Narration: narrando en curso (Calle de Barcelona) — ignorando trigger [Calle de Cádiz]
+Narration: narrando en curso (Calle de Barcelona) — ignorando trigger [Pasaje de Matheu]
+```
+Dos POIs perdidos en una sola narración. Con narraciones de 67s y el usuario caminando, esto ocurría sistemáticamente.
+
+**Fix implementado:**
+
+*Antes:*
+```javascript
+// activatePOI() — se ejecuta antes de que la voz hable
+if (!poi.visited) {
+  poi.visited = true;
+  AppState.poisVisited++;
+}
+```
+
+*Después:*
+```javascript
+// Voice.speak() callback — se ejecuta cuando la voz termina correctamente
+if (poi && !poi.visited) {
+  poi.visited = true;
+  AppState.poisVisited++;
+  updateStats();
+}
+```
+
+- Archivo: `js/poi.js` y `js/narration.js`
+- Un POI interrumpido vuelve a estar disponible en la próxima detección
+- `AppState.poisVisited` solo sube cuando la narración llegó al usuario
+
+---
+
+### S2-A2 — Cola narrativa básica
+
+**Problema resuelto:** POIs detectados durante una narración activa eran ignorados con `return` inmediato en `Narration.trigger()`. El log mostraba `ignorando trigger [POI diferente: X]` — sin ninguna posibilidad de recuperación.
+
+**Diseño de la cola:**
+
+```
+Comportamiento anterior:
+POI A narrando → POI B detectado → ignorado para siempre (visited=true)
+
+Comportamiento nuevo:
+POI A narrando → POI B detectado → entra a cola
+POI A termina → processQueue() → ¿B sigue cerca? → sí → narrar B
+                                                  → no → descartar B
+```
+
+**Parámetros:**
+- `QUEUE_MAX_SIZE = 3` — máximo POIs simultáneos en cola
+- `QUEUE_TTL_MS = 4min` — TTL por entrada
+- Radio de validación: `120m × 1.5 = 180m` — margen sobre el radio de activación
+
+**Implementación:**
+
+`poi.js`:
+- Estado: `_narrationQueue[]`, `QUEUE_MAX_SIZE`, `QUEUE_TTL_MS`
+- `enqueuePOI(poi)` — valida duplicados, visited, cap de tamaño
+- `processQueue()` — limpia expirados, verifica distancia actual, activa o descarta
+- `detectPOI()` modificado: si `Narration.isNarrating()` → `enqueuePOI()` en lugar de ignorar
+- `processQueue` expuesto en API pública
+
+`narration.js`:
+- Callback de `Voice.speak()`: al completar → `visited = true` + `POI.processQueue()`
+
+**Logs de diagnóstico:**
+```
+Cola: encolado Café Universal · cola=[Café Universal]
+Cola: narrando Café Universal (85m del usuario)
+Cola: descartando Pasaje de Matheu — usuario se alejó (245m > 180m)
+Cola: expirado Real Casa de la Aduana (>4min en cola)
+```
+
+---
+
+### DT-19 — Tono sintético placeholder (música desbloqueada)
+
+**Problema resuelto:** Los cuatro MP3 de intro daban 404. El sistema continuaba en silencio (fallback silencioso existente). La regla fundacional "narración siempre sobre música" no se cumplía en ninguna prueba de campo.
+
+**Análisis de opciones:**
+- Opción A: un único MP3 placeholder reutilizado — requiere archivo externo
+- Opción B: fallback silencioso controlado — ya existía, no resuelve el problema
+- **Opción C elegida:** tono sintético generado por Web Audio API — sin archivos externos
+
+**Implementación en `music.js`:**
+
+```javascript
+// Oscilador de 2.5s con frecuencia diferenciada por narrador
+osc.frequency.value = narrator === 'historian'   ? 220   // La2 — sobrio
+                    : narrator === 'explorer'    ? 330   // Mi3 — curioso
+                    : narrator === 'local'       ? 294   // Re3 — cálido
+                    : 261;                                // Do3 — storyteller
+
+// Fade in/out suave, volumen 0.15
+gain.gain.linearRampToValueAtTime(0.15, _context.currentTime + 0.3);
+gain.gain.linearRampToValueAtTime(0, _context.currentTime + oscDuration);
+```
+
+**Ventaja clave:** los MP3 definitivos pueden llegar en cualquier momento sin cambiar una línea de código. El sistema intentará el MP3 primero, y solo usará el oscilador si el archivo no existe.
+
+---
+
+### Diseño conceptual aprobado — Sprint S2 completo
+
+**Checklist técnico de validación (para siguiente prueba de campo):**
+```
+□ "Cola: encolado [X]" → POI detectado durante narración entró a cola
+□ "POI: visited=true al completar narración · [X]" → visited en momento correcto
+□ "Cola: narrando [X] (Ym del usuario)" → segunda narración desde cola
+□ "Cola: descartando [X] — usuario se alejó" → descarte limpio
+□ Tono suave audible antes de cada narración (o log "usando tono sintético")
+□ Sin líneas "ignorando trigger [POI diferente: X]" en logs normales
+```
+
+---
+
+### Deuda técnica resuelta
+
+| ID | Descripción |
+|----|-------------|
+| DT-22 | `visited = true` al completar narración — implementado |
+| DT-23 | Cola narrativa básica — implementada |
+| DT-19 | Música de intro — desbloqueada con tono sintético |
+
+### Deuda técnica nueva
+
+| ID | Descripción | Prioridad |
+|----|-------------|-----------|
+| DT-32 | Confirmar cola narrativa en prueba de campo — Madrid o Cali con ruta real | Alta |
+| DT-33 | MP3 definitivos para los 4 narradores (reemplazar tono sintético) | Media |
+| DT-34 | Cooldown mínimo entre narraciones — evaluar después de prueba de campo con cola | Media |
+
+### Pendientes de Sprint S2 (no implementados todavía)
+
+| ID | Descripción | Razón de espera |
+|----|-------------|-----------------|
+| DT-25 | Backoff Overpass 30-60s | Baja prioridad con Wikipedia como fuente primaria |
+| DT-26 | Weather.invalidateCache en modo ruta | Fix de una línea — próxima sesión |
+| DT-27 | clearCache() sin reload | Fix menor — próxima sesión |
+| DT-30 | TTF desde sesión nueva sin cache | Pendiente de prueba en campo |
+| BUG-036 | AudioContext iOS — confirmar en iPhone | Pendiente de prueba física |
+
+---
+
+### Próxima sesión — S2-C: Validación real
+
+Con S2-A1, S2-A2 y DT-19 implementados:
+
+1. Prueba de campo en Madrid o Cali con ruta de 25-30 minutos
+2. Confirmar cola narrativa funcionando en logs
+3. Confirmar música audible (tono sintético)
+4. Confirmar TTF desde sesión completamente nueva
+5. Prueba en iPhone — confirmar BUG-036 resuelto
+
+---
+
+*Follower — Bitácora v0.8 | Sesión 15 | 26 Junio 2026*
+
+
 
 

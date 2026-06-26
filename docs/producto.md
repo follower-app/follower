@@ -299,4 +299,50 @@ Los prompts de narradores tienen versiones en español e inglés. Otros idiomas 
 
 ---
 
+
+
+---
+
+## Sprint S2 — Ritmo emocional (26 Junio 2026)
+
+### La pregunta cambió
+
+Antes del laboratorio: **¿funciona el pipeline?**
+Después del laboratorio: **¿se siente cinematográfico?**
+
+El pipeline funciona. Wikipedia entrega 50 POIs en 237-513ms. Claude narra en 5s. La voz habla en 195ms. Ahora el trabajo es editorial, no técnico.
+
+### Lo que implementamos
+
+**Cola narrativa** — Follower ya no ignora los lugares que encuentra mientras habla. Los anota, espera, y los narra si el usuario sigue cerca. Como haría un guía humano.
+
+**visited on complete** — Un lugar solo se considera "visitado" cuando su historia llegó completa al usuario. Si algo interrumpe la narración, el lugar vuelve a estar disponible.
+
+**Música desbloqueada** — La regla "narración siempre sobre música" ahora se cumple. Mientras llegan los MP3 definitivos, cada narración arranca con un tono diferenciado por narrador.
+
+### Lo que no implementamos todavía
+
+**Cooldown fijo de 4 minutos.** La idea es correcta — el silencio es parte del producto. Pero el valor exacto necesita evidencia de campo. La cola narrativa puede hacer ese trabajo de forma más elegante que un temporizador fijo.
+
+**Scoring de POIs.** Wikipedia ya filtra por relevancia. El scoring es una optimización de segundo orden que agregaremos cuando tengamos datos reales de qué POIs generan las mejores narraciones.
+
+### Roadmap actualizado
+
+| Versión | Foco | Estado |
+|---------|------|--------|
+| v0.7s | Estabilización técnica — voz, narraciones, laboratorio | ✅ |
+| v0.8 | Wikipedia GeoSearch + ritmo narrativo (cola + visited + música) | 🔄 En pruebas |
+| v0.9 | Cooldown, scoring, MP3 definitivos, resumen de sesión | 🔲 |
+| v1.0 | Piloto con viajeros reales | 🔲 |
+
+### Métricas de éxito para v0.8
+
+Una sesión de v0.8 es exitosa si:
+- ⏱ TTF ≤ 90s desde arranque en frío
+- 🎬 Cinematic Score ≥ 65/100
+- Al menos 3 narraciones completas en 30 minutos
+- Al menos 1 POI narrado desde la cola (no solo el primero detectado)
+- La música sonó antes de cada narración
+- 0 líneas "ignorando trigger [POI diferente]" en los logs
+
 *Follower — Documento de Producto v0.8 | Junio 2026*

@@ -50,12 +50,12 @@ RULES:
 - LENGTH: maximum 70 words per paragraph. Total: 180-220 words. Target: 30-40 seconds spoken.`
       },
       user: {
-        es: (poi, topic) => `Estoy parado frente a "${poi.name}" en ${AppState.cityName}.
+        es: (poi, topic, context) => `Estoy parado en "${poi.name}" en ${AppState.cityName}.
 Cuéntame la historia de alguien que vivió algo aquí. Un personaje real, un momento específico, con emoción y suspenso.
-Lo que sé del lugar: ${poi.description || 'lugar histórico de la ciudad'}.`,
-        en: (poi, topic) => `I'm standing in front of "${poi.name}" in ${AppState.cityName}.
+Usa el entorno completo — no solo este lugar, sino todo lo que hay alrededor para encontrar el ángulo humano más memorable.${context || ''}`,
+        en: (poi, topic, context) => `I'm standing at "${poi.name}" in ${AppState.cityName}.
 Tell me the story of someone who lived something here. A real character, a specific moment, with emotion and suspense.
-What I know about it: ${poi.description || 'historic place in the city'}.`
+Use the full surroundings — not just this place, but everything nearby to find the most memorable human angle.${context || ''}`
       }
     },
 
@@ -87,12 +87,12 @@ RULES:
 - LENGTH: maximum 70 words per paragraph. Total: 180-220 words. Target: 30-40 seconds spoken.`
       },
       user: {
-        es: (poi, topic) => `Estoy frente a "${poi.name}" en ${AppState.cityName}.
-Dame su historia — cuándo se construyó, qué estilo arquitectónico tiene, qué contexto histórico lo explica y qué significa para la ciudad.
-Lo que sé del lugar: ${poi.description || 'lugar histórico de la ciudad'}.`,
-        en: (poi, topic) => `I'm standing in front of "${poi.name}" in ${AppState.cityName}.
-Give me its history — when it was built, what architectural style it has, what historical context explains it and what it means for the city.
-What I know about it: ${poi.description || 'historic place in the city'}.`
+        es: (poi, topic, context) => `Estoy en "${poi.name}" en ${AppState.cityName}.
+Cuéntame la historia de este lugar y su entorno — cuándo fue construido, qué contexto histórico lo explica, qué revela de la ciudad y su época.
+Considera todo lo que hay alrededor para dar el contexto histórico más rico.${context || ''}`,
+        en: (poi, topic, context) => `I'm at "${poi.name}" in ${AppState.cityName}.
+Tell me the history of this place and its surroundings — when it was built, what historical context explains it, what it reveals about the city and its era.
+Consider everything nearby to give the richest historical context.${context || ''}`
       }
     },
 
@@ -124,12 +124,12 @@ RULES:
 - LENGTH: maximum 70 words per paragraph. Total: 180-220 words. Target: 30-40 seconds spoken.`
       },
       user: {
-        es: (poi, topic) => `Estoy frente a "${poi.name}" en ${AppState.cityName}.
-Revélame algo sobre ${topic} de este lugar que la mayoría no nota — una curiosidad, un secreto, un detalle oculto que cambia cómo se ve este sitio.
-Lo que sé del lugar: ${poi.description || 'lugar histórico de la ciudad'}.`,
-        en: (poi, topic) => `I'm standing in front of "${poi.name}" in ${AppState.cityName}.
-Reveal something about the ${topic} of this place that most people don't notice — a curiosity, a secret, a hidden detail that changes how you see it.
-What I know about it: ${poi.description || 'historic place in the city'}.`
+        es: (poi, topic, context) => `Estoy en "${poi.name}" en ${AppState.cityName}.
+Revélame algo que la mayoría no nota — una curiosidad, un secreto, un detalle oculto de este lugar o de todo lo que lo rodea.
+Busca el ángulo que cambia cómo se ve este rincón de la ciudad.${context || ''}`,
+        en: (poi, topic, context) => `I'm at "${poi.name}" in ${AppState.cityName}.
+Reveal something most people don't notice — a curiosity, a secret, a hidden detail about this place or everything surrounding it.
+Find the angle that changes how you see this corner of the city.${context || ''}`
       }
     },
 
@@ -159,12 +159,12 @@ RULES:
 - LENGTH: maximum 70 words per paragraph. Total: 180-220 words. Target: 30-40 seconds spoken.`
       },
       user: {
-        es: (poi, topic) => `Estoy frente a "${poi.name}" en ${AppState.cityName}.
-Cuéntame cómo vive la gente de aquí este lugar — las costumbres reales, cómo lo llaman, qué hacen, qué significa para ellos. No la historia oficial.
-Lo que sé del lugar: ${poi.description || 'lugar histórico de la ciudad'}.`,
-        en: (poi, topic) => `I'm standing in front of "${poi.name}" in ${AppState.cityName}.
-Tell me how the people from here experience this place — the real customs, what they call it, what they do, what it means to them. Not the official history.
-What I know about it: ${poi.description || 'historic place in the city'}.`
+        es: (poi, topic, context) => `Estoy en "${poi.name}" en ${AppState.cityName}.
+Cuéntame cómo vive la gente de aquí este rincón — las costumbres reales, los nombres coloquiales, lo que significan estos lugares para quienes crecieron aquí.
+No la historia oficial. La memoria viva del barrio.${context || ''}`,
+        en: (poi, topic, context) => `I'm at "${poi.name}" in ${AppState.cityName}.
+Tell me how people from here experience this corner of the city — the real customs, the local names, what these places mean to those who grew up here.
+Not the official history. The living memory of the neighborhood.${context || ''}`
       }
     }
   };
@@ -230,13 +230,42 @@ Take a moment to observe the details — every stone, every arch, has a story to
   };
 
   /* ── CONSTRUIR PROMPT ── */
+  /* ── CONSTRUIR CONTEXTO DEL ENTORNO ──
+     Recopila los POIs Wikipedia cercanos para dárselos a Claude como
+     materia prima narrativa. El POI activado es el detonante geográfico;
+     el entorno es donde viven las historias.
+  ── */
+  function buildContext(lang) {
+    // Obtener todos los POIs cargados con su distancia actual
+    const nearby = (typeof POI !== 'undefined' && typeof POI.getPOIs === 'function')
+      ? POI.getPOIs()
+          .filter(p => p._distanceMeters != null && p._distanceMeters <= 500)
+          .sort((a, b) => a._distanceMeters - b._distanceMeters)
+          .slice(0, 6)
+      : [];
+
+    if (nearby.length === 0) return '';
+
+    const lines = nearby.map(p => `  - ${p.name} (${p._distanceMeters}m)`).join('
+');
+
+    return lang === 'en'
+      ? `
+Nearby places within 500m:
+${lines}`
+      : `
+Lugares cercanos en un radio de 500m:
+${lines}`;
+  }
+
   function buildPrompt(poi, style, lang, topic) {
     const s        = STYLE_PROMPTS[style] || STYLE_PROMPTS.storyteller;
     const systemFn = s.system[lang]  || s.system.es;
     const userFn   = s.user[lang]    || s.user.es;
+    const context  = buildContext(lang);
     return {
       system: typeof systemFn === 'function' ? systemFn() : systemFn,
-      user:   userFn(poi, topic)
+      user:   userFn(poi, topic, context)
     };
   }
 

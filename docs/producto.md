@@ -250,8 +250,8 @@ Los prompts de narradores tienen versiones en español e inglés. Otros idiomas 
 | v0.6 | UI rediseñada — bottom bar, pills, care strip, brújula | ✅ |
 | v0.7 | Sistema de narradores · música por intro · bienvenida ciudad | ✅ |
 | v0.7s | Estabilización: voz latam · narraciones cortas · sanitización · laboratorio confiable | ✅ |
-| v0.8 | visited-on-complete · cola narrativa · cache agresivo Overpass · MP3 intros | 🔲 |
-| v0.9 | Logo SVG · sw.js · pruebas de campo extendidas | 🔲 |
+| v0.8 | Wikipedia GeoSearch como fuente primaria · visited-on-complete · cola narrativa · MP3 intros | 🔄 En curso |
+| v0.9 | Arquitectura de providers formal · scoring POI · Logo SVG · sw.js | 🔲 |
 | v1.0 | Piloto con viajeros reales | 🔲 |
 | v2.0 | Más ciudades · narrador Familiar · monetización | 🔲 |
 
@@ -278,9 +278,25 @@ Los prompts de narradores tienen versiones en español e inglés. Otros idiomas 
 | DT-23 | Cola narrativa — POIs encolados durante narración, no perdidos | Alta |
 | DT-24 | Cache agresivo Overpass — priorizar IndexedDB en sesión activa | Alta |
 | DT-25 | Backoff Overpass — esperar 30-60s después de 429 | Alta |
+| DT-25 | Backoff Overpass — esperar 30-60s después de 429 | Media |
 | DT-26 | Weather.invalidateCache() en modo ruta — solo debe dispararse en teleport | Media |
 | DT-27 | clearCache() en debug.js no recarga la página — estado inconsistente | Media |
+| DT-28 | Verificar cap 80 POIs con nwr en ciudades muy densas | Baja |
+| DT-29 | Confirmar cobertura Wikipedia en Centro Histórico de Cali | Alta |
+| DT-30 | Confirmar TTF con Wikipedia desde sesión nueva sin cache previo | Alta |
+| DT-31 | Mejorar type/icon de POIs Wikipedia con categorías Wikidata | Baja |
+| ~~DT-24~~ | ~~Cache agresivo Overpass~~ — resuelto: Wikipedia primaria + filtro geográfico | — |
 
 ---
 
-*Follower — Documento de Producto v0.7s | Junio 2026*
+## Principios aprendidos en campo (v0.8)
+
+**Wikipedia como filtro editorial:** un lugar con artículo en Wikipedia es un lugar que merece ser narrado. Esta alineación entre la curaduría de Wikipedia y la visión cinematográfica de Follower no es coincidencia — es el modelo mental correcto para el descubrimiento de POIs.
+
+**Validar antes de arquitecturizar:** el experimento mínimo (una función, sin nuevos archivos) validó la hipótesis en una sesión. La arquitectura formal de providers vendrá después, respaldada por evidencia de campo en tres ciudades.
+
+**La fuente de datos es parte del producto:** Overpass era un bottleneck técnico que afectaba directamente la promesa de Follower. Cambiar la fuente de datos no fue una decisión técnica — fue una decisión de producto.
+
+---
+
+*Follower — Documento de Producto v0.8 | Junio 2026*

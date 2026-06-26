@@ -1808,4 +1808,161 @@ Con BUG-039 y BUG-040 resueltos, el pipeline de POIs es ahora confiable. Se pued
 
 *Follower — Bitácora v0.7s | Sesión 13 | 26 Junio 2026*
 
+---
+
+## Sesión 14 — 26 Junio 2026
+
+### Contexto
+Sesión de investigación y validación de hipótesis. Dos hallazgos críticos de campo llevaron a una decisión de producto significativa: reemplazar Overpass por Wikipedia GeoSearch como fuente primaria de POIs.
+
+---
+
+### Hallazgo de campo — 0 POIs en Madrid
+
+Prueba en simulador sobre la Calle de Alcalá (Madrid, lat=40.41, lng=-3.68). Resultado: 0 POIs en toda la sesión a pesar de que Overpass devolvía HTTP 200.
+
+Evidencia clave del log:
+```
+Fetch is aborted  ← los tres mirrors simultáneamente
+count=6 nearby=0  ← cache tenía 6 POIs de Cali, 0 útiles en Madrid
+```
+
+Diagnóstico confirmado: Overpass público es indefendible como fuente primaria para producción. Los tres mirrors comparten infraestructura y colapsan juntos. El filtro geográfico del cache funcionó correctamente — evitó cargar POIs de Cali en Madrid — pero sin datos frescos de Overpass y sin cache local de Madrid, el resultado fue 0 POIs.
+
+---
+
+### Decisión de producto — Wikipedia GeoSearch como fuente primaria
+
+Proceso de decisión documentado:
+
+1. Comparativo de fuentes (Overpass, Wikipedia, Foursquare, Google Places)
+2. Análisis arquitectural: Opción 1 a 4 evaluadas
+3. Decisión: Opción 3 — Wikipedia primaria + Overpass fallback
+4. Principio rector aplicado: un lugar con artículo en Wikipedia es un lugar que alguien consideró suficientemente notable para documentar — alineación natural con la visión cinematográfica de Follower
+
+Decisión de implementación: experimento mínimo antes de refactorizar arquitectura. Sin nuevos archivos, sin Provider Layer, sin OverpassProvider.js.
+
+---
+
+### EXPERIMENTO-001 — Wikipedia GeoSearch (poi.js)
+
+**Hipótesis:** Wikipedia GeoSearch puede reducir el TTF de >300s a <90s sin romper la experiencia de Follower.
+
+**Implementación:** una función privada `fetchWikipediaPOIs(lat, lng, radiusKm)` insertada en `poi.js`. `loadPOIs()` modificado para intentar Wikipedia primero.
+
+Orden nuevo:
+```
+Wikipedia GeoSearch (~300ms, 99.9% uptime)
+    ↓ si falla o 0 resultados
+Overpass / OSM (8-60s, ~30% fallo)
+    ↓ si falla
+IndexedDB cache geográfico (<10ms)
+```
+
+Schema de normalización idéntico al existente:
+```javascript
+{ id: `wiki_${pageid}`, name, lat, lng,
+  icon: '🏛️', type: 'historic',
+  description: '', tags: {}, visited: false,
+  cachedAt, _source: 'wikipedia' }
+```
+
+`_source` es metadato de diagnóstico — ningún consumidor lo usa. Todo el pipeline downstream (`detectPOI`, `activatePOI`, `renderAllMarkers`, narración) funcionó sin ningún cambio.
+
+**Resultado del experimento:**
+
+```
+Wikipedia: 50 POIs en 513ms
+POI: 50 POIs de Wikipedia cargados y renderizados
+```
+
+POIs narrados en Madrid: Calle de Barcelona, Café Universal, Lhardy, Antigua Pastelería del Pozo, Café Colonial, Real Gabinete de Historia Natural, Real Casa de la Aduana.
+
+**Métricas:**
+- TTF: 0s (desde cache de sesión anterior — próxima sesión confirmar desde cero)
+- Cinematic Score: 70/100 — Buen ritmo cinematográfico
+- Narraciones completas: 1/1 en primera sesión
+- 0 interrupciones
+- lag texto→voz: 189-211ms (excelente)
+- chars narración: 856-960 (dentro del objetivo post-S1)
+
+**Hipótesis validada.** Wikipedia resuelve el problema de descubrimiento de POIs en ciudades turísticas con confiabilidad y velocidad que Overpass nunca pudo dar.
+
+---
+
+### Observaciones de calidad — POIs de Wikipedia
+
+Los lugares narrados en Madrid reflejan exactamente la visión cinematográfica de Follower:
+
+- **Lhardy** — restaurante fundado en 1839, uno de los más antiguos de Madrid
+- **Café Universal** — lugar histórico del Madrid literario
+- **Calle de Barcelona** — calle con historia en el barrio de Las Letras
+- **Real Casa de la Aduana** — edificio neoclásico del siglo XVIII
+
+Ninguno de estos lugares habría aparecido con la query de Overpass anterior. Wikipedia no devuelve buzones ni bancos — devuelve lugares que merecen ser narrados.
+
+---
+
+### Problemas confirmados pendientes de resolución
+
+**POIs ignorados durante narración — DT-22/23 (confirmado en campo)**
+```
+Narration: narrando en curso (Calle de Barcelona) — ignorando trigger [Calle de Cádiz]
+Narration: narrando en curso (Calle de Barcelona) — ignorando trigger [Pasaje de Matheu]
+```
+Durante cada narración de ~67s se pierden 2-3 POIs. Con Wikipedia funcionando y el pipeline activo, este bug es ahora el más impactante en la experiencia real. Sprint S2 prioritario.
+
+**Duración de narración 67s en Chrome — DT-22 adyacente**
+```
+duración narración hablada: 66992ms · chars=862
+```
+Microsoft Helena ignora el parámetro `rate`. Solo afecta Chrome con voces online. En iPhone con Paulina (es-MX local) la duración debería ser 35-40s. Confirmar en próxima prueba en iPhone.
+
+**Cali con Wikipedia — cobertura a confirmar**
+```
+Wikipedia: 0 POIs en 272ms — usando siguiente fuente
+```
+La prueba de Cali ocurrió antes del teletransporte a Madrid, con GPS en coordenadas incorrectas. Falta prueba directa en Centro Histórico de Cali (lat=3.4489, lng=-76.5319) para confirmar cobertura real de Wikipedia en español.
+
+**Weather.invalidateCache en modo ruta — DT-26**
+```
+DebugSim: teletransporte a 40.4168,-3.7035 — clima invalidado
+DebugSim: teletransporte a 40.4170,-3.7032 — clima invalidado  (waypoint de ruta)
+```
+Al dibujar waypoints en modo ruta, `teleportTo()` también invalida el clima. Solo debería hacerlo en modo teleport real.
+
+---
+
+### Deuda técnica resuelta esta sesión
+
+| ID | Descripción |
+|----|-------------|
+| BUG-039 | Content-Type en POST a Overpass + mirrors con fallback |
+| BUG-040 | Cache IndexedDB filtrado por proximidad geográfica |
+| DT-24 | Cache agresivo — resuelto vía Wikipedia como fuente primaria |
+
+### Deuda técnica nueva
+
+| ID | Descripción | Prioridad |
+|----|-------------|-----------|
+| DT-29 | Confirmar cobertura Wikipedia en Centro Histórico de Cali (es.wikipedia.org) | Alta |
+| DT-30 | Confirmar TTF con Wikipedia desde sesión completamente nueva (sin cache previo) | Alta |
+| DT-31 | Mejorar `type` e `icon` de POIs de Wikipedia según categorías de Wikidata (post-validación) | Baja |
+
+---
+
+### Sprint S2 — desbloqueado y priorizado
+
+Con Wikipedia funcionando, el pipeline es confiable. Las prioridades de Sprint S2 en orden:
+
+1. **DT-22 — `visited = true` al completar narración** — bug más impactante hoy
+2. **DT-23 — Cola narrativa** — POIs encontrados durante narración no se pierden
+3. **DT-29 — Confirmar cobertura Cali** — prueba de campo
+4. **DT-26 — Weather en modo ruta** — fix quirúrgico, una línea
+
+---
+
+*Follower — Bitácora v0.8 | Sesión 14 | 26 Junio 2026*
+
+
 

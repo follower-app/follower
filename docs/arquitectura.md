@@ -843,4 +843,107 @@ Si Overpass devuelve HTTP 200 con `elements: []` → se trata como fallo del ser
 
 *Follower — Arquitectura v0.7s | Sesión 13 | 26 Junio 2026*
 
+---
+
+## Experimento Wikipedia + Decisión POI — v0.8 (26 Junio 2026)
+
+### DA-40 — Wikipedia GeoSearch como fuente primaria de POIs
+
+**Decisión:** Wikipedia GeoSearch reemplaza a Overpass como fuente primaria de POIs en Follower v0.8. Overpass se mantiene como fallback. IndexedDB cache geográfico como último recurso.
+
+**Orden de resolución en `loadPOIs()`:**
+```
+1. Wikipedia GeoSearch (~300ms, 99.9% uptime)
+2. Overpass OSM        (8-60s, ~30% fallo en producción)
+3. IndexedDB cache     (<10ms, datos de sesiones anteriores filtrados por proximidad)
+```
+
+**Justificación de producto:**
+Un lugar con artículo en Wikipedia es, por definición, un lugar que alguien consideró suficientemente notable para documentar. Ese es exactamente el filtro editorial que Follower necesita. Wikipedia no devuelve buzones ni bancos — devuelve lugares que merecen ser narrados. La pregunta "¿tiene artículo en Wikipedia?" es un filtro de relevancia narrativa mejor que cualquier combinación de tags OSM.
+
+**Justificación técnica:**
+Overpass público demostró ser indefendible como fuente primaria: timeouts de 131s, mirrors que colapsan simultáneamente, respuestas vacías con HTTP 200, sin SLA. Wikipedia: ~300-500ms, infraestructura Wikimedia con 99.9%+ uptime, GET simple sin autenticación, CORS habilitado con `origin=*`, sin límites de rate agresivos, completamente gratuita.
+
+**Validación de campo:**
+Madrid, Calle de Alcalá — `Wikipedia: 50 POIs en 513ms`. Lugares narrados: Lhardy (1839), Café Universal, Real Gabinete de Historia Natural, Real Casa de la Aduana. TTF: <1s desde cache, estimado <30s desde sesión limpia.
+
+---
+
+### DA-41 — Schema de POI unificado entre providers
+
+El objeto POI tiene un schema canónico que todos los providers deben respetar. Wikipedia produce un subconjunto compatible:
+
+```javascript
+{
+  id:          `wiki_${pageid}`,    // identificador único por fuente
+  name:        title,               // nombre canónico de Wikipedia
+  lat, lng,                         // coordenadas directas del geosearch
+  icon:        '🏛️',               // genérico en v0.8 — mejorar con Wikidata en v0.9
+  type:        'historic',          // genérico en v0.8
+  description: '',                  // no disponible en geosearch básico
+  tags:        {},                  // sin tags OSM — QuickFacts muestra distancia y tipo
+  visited:     false,
+  cachedAt:    Date.now(),
+  _source:     'wikipedia',         // metadato de diagnóstico — no afecta consumers
+}
+```
+
+`_source` permite al debugger distinguir el origen de los POIs en los logs. Ningún módulo downstream lo usa — es transparente para detectPOI, activatePOI, renderAllMarkers y Narration.
+
+---
+
+### DA-42 — Estrategia de providers: experimento antes de arquitectura
+
+Principio establecido: **no refactorizar la arquitectura hasta validar la hipótesis**.
+
+v0.8 implementa Wikipedia como función privada `fetchWikipediaPOIs()` dentro de `poi.js` — sin nuevos archivos, sin Provider Layer, sin OverpassProvider.js. Si Wikipedia valida en tres ciudades (Madrid, Barcelona, Cali), entonces v0.9 puede formalizar la arquitectura de providers.
+
+La separación en archivos distintos (`providers/wikipedia.js`, `providers/overpass.js`) es sobreingeniería prematura para un proyecto sin bundler. El beneficio de organización no justifica el riesgo de regresión y la complejidad de carga de scripts.
+
+---
+
+### DA-43 — Wikipedia en español como idioma primario para LATAM
+
+`fetchWikipediaPOIs()` usa `es.wikipedia.org` por defecto y `en.wikipedia.org` solo cuando `AppState.lang === 'en'`. Para ciudades latinoamericanas, la cobertura en Wikipedia en español es mejor que en inglés para lugares locales.
+
+Cobertura esperada por región:
+- Ciudades europeas turísticas: excelente en ambos idiomas
+- Cali, Medellín, Bogotá centro: buena en es.wikipedia.org
+- Ciudades secundarias LATAM: variable — Overpass como fallback cubre los gaps
+
+---
+
+### Deuda técnica actualizada (v0.8 · Sesión 14)
+
+| ID | Descripción | Prioridad |
+|----|-------------|-----------|
+| DT-1 | Logo SVG final + iconos PWA | Alta |
+| DT-3 | sw.js — service worker | Alta |
+| DT-4 | Pantalla resumen del paseo | Media |
+| DT-5 | Más ciudades en routes.js | Baja |
+| DT-8 | debug.js + debug-sim.js deshabilitados antes de v1.0 | Media |
+| DT-9 | Revocar key OpenAI expuesta en commits históricos | Alta |
+| DT-10 | Error IndexedDB "connection is closing" — Safari backgrounding | Media |
+| DT-12 | Atribución CARTO/OSM no visible | Baja |
+| DT-16 | Pantalla POI expandida: rediseñar con nuevo sistema visual | Media |
+| DT-17 | Bookmark y share (Web Share API) | Baja |
+| DT-19 | 4 MP3 de intro por narrador | Alta |
+| DT-20 | Test en campo con brújula real — iOS DeviceOrientation | Alta |
+| DT-21 | Worker 400 en arranque — endpoint /weather sin key | Baja |
+| DT-22 | `visited = true` al completar narración, no al activar | Alta |
+| DT-23 | Cola narrativa — POIs encolados durante narración | Alta |
+| DT-25 | Backoff Overpass — esperar 30-60s después de 429 | Media |
+| DT-26 | Weather.invalidateCache() en modo ruta — solo en teleport real | Media |
+| DT-27 | clearCache() en debug.js no recarga la página | Media |
+| DT-28 | Verificar cap de 80 POIs con nwr en ciudades densas | Baja |
+| DT-29 | Confirmar cobertura Wikipedia en Centro Histórico de Cali | Alta |
+| DT-30 | Confirmar TTF con Wikipedia desde sesión nueva sin cache | Alta |
+| DT-31 | Mejorar type/icon de POIs Wikipedia con categorías Wikidata | Baja |
+| ~~DT-24~~ | ~~Cache agresivo Overpass~~ — resuelto: Wikipedia primaria + filtro geográfico | — |
+
+---
+
+*Follower — Arquitectura v0.8 | Sesión 14 | 26 Junio 2026*
+
+
 

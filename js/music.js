@@ -95,12 +95,41 @@ const Music = (() => {
 
       const buffer = await loadTrack(url);
 
-      // Fallback silencioso si el MP3 no existe aún
+      // DT-19: si el MP3 no existe, reproducir tono sintético de placeholder
+      // Desbloquea pruebas de campo sin necesitar archivos de audio definitivos
       if (!buffer) {
         if (typeof Debug !== 'undefined') {
-          Debug.log('warn', `Music: intro no disponible para [${narrator}] — continuando sin música`);
+          Debug.log('info', `Music: MP3 no encontrado para [${narrator}] — usando tono sintético placeholder`);
         }
-        resolve();
+        try {
+          // Tono suave de 2.5s: pad ambiental generado con oscilador
+          const oscDuration = 2.5;
+          const osc         = _context.createOscillator();
+          const gain        = _context.createGain();
+
+          osc.type      = 'sine';
+          osc.frequency.value = narrator === 'historian'   ? 220  // La2 — sobrio
+                              : narrator === 'explorer'    ? 330  // Mi3 — curioso
+                              : narrator === 'local'       ? 294  // Re3 — cálido
+                              : 261;                               // Do3 — storyteller
+
+          gain.gain.setValueAtTime(0, _context.currentTime);
+          gain.gain.linearRampToValueAtTime(0.15, _context.currentTime + 0.3);
+          gain.gain.linearRampToValueAtTime(0.10, _context.currentTime + oscDuration - 0.5);
+          gain.gain.linearRampToValueAtTime(0, _context.currentTime + oscDuration);
+
+          osc.connect(gain);
+          gain.connect(_context.destination);
+          osc.start(_context.currentTime);
+          osc.stop(_context.currentTime + oscDuration);
+
+          osc.onended = () => resolve();
+        } catch (synthErr) {
+          if (typeof Debug !== 'undefined') {
+            Debug.log('warn', `Music: tono sintético falló (${synthErr.message}) — continuando sin música`);
+          }
+          resolve();
+        }
         return;
       }
 

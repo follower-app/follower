@@ -361,23 +361,30 @@ function initExplore() {
   updateStats();
   initCompass();
 
-  // Resetear flags de sesión
-  AppState._cityWelcomeDone  = false;
-  AppState._firstNarrationTs = null;
-  AppState._lastNarrationTs  = null;
-  AppState._narrationCount   = 0;
-  _audioUnlocked = false;
-
-  // Limpiar métricas de experiencia — cada sesión empieza limpia
+  // Reset completo de sesión — todos los contadores desde cero
+  // Usar startTestSession si Debug está disponible (reset centralizado)
+  // o hacer el reset manual como fallback
   if (typeof Debug !== 'undefined') {
-    Debug.clearExpMetrics();
+    Debug.startTestSession();
+  } else {
+    // Fallback sin Debug
+    AppState.kmWalked          = 0;
+    AppState.poisVisited       = 0;
+    AppState._msTotalSystole   = 0;
+    AppState._msTotalDiastole  = 0;
+    AppState._narrationCount   = 0;
+    AppState._firstNarrationTs = null;
+    AppState._lastNarrationTs  = null;
+    AppState._sessionStart     = performance.now();
+    AppState._phaseStart       = performance.now();
+    AppState.activePOI         = null;
   }
 
-  // Marcar inicio de sesión — base para "tiempo hasta primera narración"
-  AppState._sessionStart = performance.now();
-  AppState._phaseStart   = performance.now();
+  AppState._cityWelcomeDone = false;
+  _audioUnlocked = false;
+
   if (typeof Debug !== 'undefined') {
-    Debug.log('info', 'Sesión iniciada — tracking de fases activo');
+    Debug.log('info', 'Sesión iniciada — todos los contadores desde cero');
   }
 
   // GPS ya tiene permiso — solo iniciar el watch continuo

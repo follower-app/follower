@@ -270,6 +270,29 @@ const Weather = (() => {
     }
   }
 
+  /* ── INVALIDAR CACHE — forzar fetch en la próxima llamada ──
+     Usado al teletransportar a otra ciudad: el clima anterior
+     no es válido para la nueva posición. */
+  function invalidateCache() {
+    _weather   = null;
+    _lastFetch = 0;
+    _alertShown = false;
+    try {
+      localStorage.removeItem('follower_weather');
+    } catch (e) {}
+    if (typeof Debug !== 'undefined') {
+      Debug.log('info', 'Weather: cache invalidado — próximo fetch será forzado');
+    }
+  }
+
+  /* ── REFRESH — invalidar y disparar fetch inmediato con posición actual ── */
+  async function refresh() {
+    invalidateCache();
+    if (AppState.gps) {
+      await check();
+    }
+  }
+
   /* ── GETTERS ── */
   function getWeather() { return _weather; }
 
@@ -278,6 +301,8 @@ const Weather = (() => {
     start,
     stop,
     check,
+    refresh,
+    invalidateCache,
     getWeather
   };
 

@@ -135,34 +135,84 @@ const POI = (() => {
       out center;
     `;
 
-    const url = 'https://lz4.overpass-api.de/api/interpreter';
-    console.log(`POI: fetching lat=${lat} lng=${lng} radius=${radius}m`);
+    // Mirrors de Overpass en orden de prioridad
+    // Si el primero falla (429, 504, timeout), se intenta el siguiente
+    const OVERPASS_MIRRORS = [
+      'https://overpass.kumi.systems/api/interpreter',
+      'https://overpass-api.de/api/interpreter',
+      'https://lz4.overpass-api.de/api/interpreter',
+    ];
+
+    if (typeof Debug !== 'undefined') {
+      Debug.log('info', `POI: fetching lat=${lat.toFixed(4)} lng=${lng.toFixed(4)} radius=${radius}m`);
+    }
 
     const dbgId = (typeof Debug !== 'undefined')
       ? Debug.metricStart('poi', 'Overpass fetch')
       : null;
 
+    // Fetch con fallback automático entre mirrors
+    let data     = null;
+    let lastError = null;
+
     try {
-      const res = await fetch(url, {
-        method: 'POST',
-        body:   `data=${encodeURIComponent(query)}`
-      });
+      for (const mirrorUrl of OVERPASS_MIRRORS) {
+        try {
+          const controller = new AbortController();
+          const timeoutId  = setTimeout(() => controller.abort(), 20000); // 20s por mirror
 
-      console.log(`POI: Overpass respondió status=${res.status}`);
+          const res = await fetch(mirrorUrl, {
+            method: 'POST',
+            body:   `data=${encodeURIComponent(query)}`,
+            signal: controller.signal
+          });
 
-      if (!res.ok) {
-        const errText = await res.text();
-        console.warn(`POI: Overpass API error ${res.status} — ${errText.slice(0, 200)}`);
-        if (dbgId) Debug.metricEnd(dbgId, 'error', { httpStatus: res.status });
-        throw new Error('Overpass API error');
+          clearTimeout(timeoutId);
+
+          if (typeof Debug !== 'undefined') {
+            Debug.log('info', `POI: ${mirrorUrl.split('/')[2]} respondió status=${res.status}`);
+          }
+
+          if (!res.ok) {
+            const errText = await res.text();
+            if (typeof Debug !== 'undefined') {
+              Debug.log('warn', `POI: mirror ${mirrorUrl.split('/')[2]} error ${res.status} — probando siguiente`);
+              Debug.metricEnd(dbgId, 'error', { httpStatus: res.status });
+            }
+            lastError = new Error(`Overpass API error ${res.status}`);
+            continue; // probar siguiente mirror
+          }
+
+          data = await res.json();
+
+          if (typeof Debug !== 'undefined') {
+            Debug.log('info', `POI: mirror ${mirrorUrl.split('/')[2]} OK — ${(data.elements||[]).length} elementos`);
+          }
+          break; // éxito — salir del loop
+
+        } catch (mirrorErr) {
+          lastError = mirrorErr;
+          if (typeof Debug !== 'undefined') {
+            Debug.log('warn', `POI: mirror ${mirrorUrl.split('/')[2]} falló (${mirrorErr.message}) — probando siguiente`);
+          }
+          continue;
+        }
       }
 
-      const data     = await res.json();
+      if (!data) {
+        if (dbgId) Debug.metricEnd(dbgId, 'error', { message: lastError?.message || 'all mirrors failed' });
+        throw lastError || new Error('All Overpass mirrors failed');
+      }
+
       const elements = data.elements || [];
-      console.log(`POI: Overpass devolvió ${elements.length} elementos crudos`);
+      if (typeof Debug !== 'undefined') {
+        Debug.log('info', `POI: Overpass devolvió ${elements.length} elementos crudos`);
+      }
 
       const withName = elements.filter(el => el.tags?.name);
-      console.log(`POI: ${withName.length} elementos tienen nombre`);
+      if (typeof Debug !== 'undefined') {
+        Debug.log('info', `POI: ${withName.length} elementos tienen nombre`);
+      }
 
       let normalized = withName
         .map(el => normalizePOI(el))
@@ -183,7 +233,9 @@ const POI = (() => {
         }
       }
 
-      console.log(`POI: ${normalized.length} POIs normalizados correctamente`);
+      if (typeof Debug !== 'undefined') {
+        Debug.log('info', `POI: ${normalized.length} POIs normalizados correctamente`);
+      }
 
       if (dbgId) {
         Debug.metricEnd(dbgId, 'ok', { raw: elements.length, normalizados: normalized.length, radiusKm });
@@ -252,28 +304,60 @@ const POI = (() => {
           await savePOIsToDB(fresh);
           _lastFetchPos = { lat, lng };
           renderAllMarkers();
-          console.log(`POI: ${fresh.length} POIs cargados y renderizados`);
+          if (typeof Debug !== 'undefined') {
+            Debug.log('info', `POI: ${fresh.length} POIs cargados y renderizados`);
+          }
           return;
         } else {
-          console.warn('POI: Overpass respondió OK pero 0 POIs normalizados — revisar query/zona');
+          // raw=0 con status 200 = Overpass bajo carga extrema devuelve vacío.
+          // Tratar como fallo y caer al cache local.
+          if (typeof Debug !== 'undefined') {
+            Debug.log('warn', 'POI: Overpass devolvió 0 elementos — posible sobrecarga del servidor, usando cache');
+          }
+          throw new Error('Overpass returned empty response');
         }
       } catch (e) {
-        console.warn('POI: error fetching desde OSM, usando cache —', e.message);
+        if (typeof Debug !== 'undefined') {
+        Debug.log('error', `POI: error fetching desde OSM, usando cache — ${e.message}`);
+      }
       }
     } else {
-      console.log('POI: AppState.offline=true, saltando fetch a OSM');
+      if (typeof Debug !== 'undefined') {
+        Debug.log('info', 'POI: AppState.offline=true, saltando fetch a OSM');
+      }
     }
 
-    // Fallback: cargar desde IndexedDB
+    // Fallback: cargar desde IndexedDB — filtrado por proximidad geográfica
+    // CRÍTICO: el cache puede tener POIs de otra ciudad. Sin filtro, los 601 POIs
+    // de Cali aparecen cuando el usuario está en Madrid → 0 detecciones.
     const dbgId = (typeof Debug !== 'undefined')
       ? Debug.metricStart('poi', 'cache IndexedDB load')
       : null;
     const cached = await loadPOIsFromDB();
-    if (dbgId) Debug.metricEnd(dbgId, 'fallback', { count: cached.length });
-    console.log(`POI: cache IndexedDB tiene ${cached.length} POIs`);
-    if (cached.length > 0) {
-      _pois = cached;
+
+    // Filtrar solo POIs dentro del radio de fetch × 1.5 (margen generoso)
+    const CACHE_RADIUS_M = CONFIG.FETCH_RADIUS_KM * 1500;
+    const nearby = typeof GPS !== 'undefined'
+      ? cached.filter(p => GPS.distanceMeters(lat, lng, p.lat, p.lng) <= CACHE_RADIUS_M)
+      : cached; // si GPS no está listo, usar todos como antes
+
+    if (dbgId) Debug.metricEnd(dbgId, 'fallback', { count: cached.length, nearby: nearby.length });
+
+    if (typeof Debug !== 'undefined') {
+      Debug.log('info', `POI: cache IndexedDB tiene ${cached.length} POIs · ${nearby.length} en radio ${CACHE_RADIUS_M/1000}km`);
+    }
+
+    if (nearby.length > 0) {
+      _pois = nearby;
+      _lastFetchPos = { lat, lng };
       renderAllMarkers();
+      if (typeof Debug !== 'undefined') {
+        Debug.log('info', `POI: ${nearby.length} POIs del cache cargados para ${lat.toFixed(4)},${lng.toFixed(4)}`);
+      }
+    } else if (cached.length > 0) {
+      if (typeof Debug !== 'undefined') {
+        Debug.log('warn', `POI: cache tiene ${cached.length} POIs pero ninguno cerca — zona sin datos locales`);
+      }
     }
   }
 

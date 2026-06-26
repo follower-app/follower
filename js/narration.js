@@ -469,9 +469,28 @@ Take a moment to observe the details — every stone, every arch, has a story to
       Voice.speak(text, lang, () => {
         _isNarrating = false;
         stopWaves();
+
+        // S2-A1: marcar visitado al COMPLETAR, no al activar
+        // Un POI interrumpido vuelve a estar disponible en la próxima detección
+        if (poi && !poi.visited) {
+          poi.visited = true;
+          if (typeof AppState !== 'undefined') {
+            AppState.poisVisited++;
+            if (typeof updateStats === 'function') updateStats();
+          }
+          if (typeof Debug !== 'undefined') {
+            Debug.log('info', `POI: visited=true al completar narración · ${poi.name}`);
+          }
+        }
+
         if (typeof Debug !== 'undefined') Debug.trackExp('narration_completed');
         if (AppState.activePOI?.id === poi.id) {
           setPhase('systole');
+        }
+
+        // S2-A2: procesar cola narrativa después de completar
+        if (typeof POI !== 'undefined' && typeof POI.processQueue === 'function') {
+          POI.processQueue();
         }
       });
     }

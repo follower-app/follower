@@ -14,6 +14,11 @@ const POI = (() => {
   let _db            = null;     // instancia IndexedDB
   let _isFetchingPOIs = false;   // candado — evita fetches paralelos a Overpass (BUG-014)
 
+  /* ── COLA NARRATIVA (S2-A2) ── */
+  const QUEUE_MAX_SIZE = 3;          // máximo POIs en cola simultáneamente
+  const QUEUE_TTL_MS   = 4 * 60000; // 4 minutos — después el lugar quedó atrás
+  let _narrationQueue  = [];         // [{ poi, enqueuedAt }]
+
   /* ── CONFIGURACIÓN ── */
   const CONFIG = {
     FETCH_RADIUS_KM:    2,      // radio de fetch de POIs desde OSM
@@ -518,14 +523,103 @@ const POI = (() => {
     // Actualizar marcadores en el mapa
     updateMarkersState();
 
-    // Si hay un POI activo y no es el mismo que ya narrabamos
+    // Si hay un POI nuevo dentro del radio
     if (closestPOI && closestPOI.id !== AppState.activePOI?.id) {
       if (typeof Debug !== 'undefined') Debug.trackExp('poi_eligible');
-      activatePOI(closestPOI);
+
+      // S2-A2: si hay narración activa, encolar en lugar de ignorar
+      const narrando = typeof Narration !== 'undefined' && Narration.isNarrating();
+      if (narrando) {
+        enqueuePOI(closestPOI);
+      } else {
+        activatePOI(closestPOI);
+      }
     } else if (!closestPOI && AppState.activePOI) {
       // Nos alejamos del POI activo
       deactivatePOI();
     }
+  }
+
+  /* ── ENCOLAR POI — detectado durante narración activa (S2-A2) ──
+     Solo encola si la narración está activa y el POI es nuevo y no visitado.
+     Máximo QUEUE_MAX_SIZE entradas — descarta el más antiguo si se supera.
+  ── */
+  function enqueuePOI(poi) {
+    // No encolar si ya está en la cola
+    if (_narrationQueue.some(e => e.poi.id === poi.id)) return;
+
+    // No encolar si ya fue visitado
+    if (poi.visited) return;
+
+    // Si la cola está llena, descartar el más antiguo (FIFO)
+    if (_narrationQueue.length >= QUEUE_MAX_SIZE) {
+      const descartado = _narrationQueue.shift();
+      if (typeof Debug !== 'undefined') {
+        Debug.log('info', `Cola: descartando ${descartado.poi.name} (cola llena)`);
+      }
+    }
+
+    _narrationQueue.push({ poi, enqueuedAt: Date.now() });
+
+    if (typeof Debug !== 'undefined') {
+      Debug.log('info', `Cola: encolado ${poi.name} · cola=[${_narrationQueue.map(e => e.poi.name).join(', ')}]`);
+    }
+  }
+
+  /* ── PROCESAR COLA — se llama al terminar cada narración (S2-A2) ──
+     Verifica expiración y proximidad antes de narrar el siguiente.
+     Si el usuario se alejó, descarta silenciosamente.
+  ── */
+  function processQueue() {
+    // Limpiar entradas expiradas (TTL)
+    const now = Date.now();
+    const antes = _narrationQueue.length;
+    _narrationQueue = _narrationQueue.filter(e => {
+      const expired = (now - e.enqueuedAt) > QUEUE_TTL_MS;
+      if (expired && typeof Debug !== 'undefined') {
+        Debug.log('info', `Cola: expirado ${e.poi.name} (>${QUEUE_TTL_MS/60000}min en cola)`);
+      }
+      return !expired;
+    });
+
+    if (antes !== _narrationQueue.length && typeof Debug !== 'undefined') {
+      Debug.log('info', `Cola: ${antes - _narrationQueue.length} entradas expiradas eliminadas`);
+    }
+
+    if (_narrationQueue.length === 0) return;
+
+    // Tomar el primero y verificar proximidad actual
+    const entry = _narrationQueue[0];
+    const poi   = entry.poi;
+
+    // Calcular distancia actual al POI
+    const lat = AppState.gps?.lat;
+    const lng = AppState.gps?.lng;
+    if (!lat || !lng) {
+      _narrationQueue.shift();
+      return;
+    }
+
+    const distActual = GPS.distanceMeters(lat, lng, poi.lat, poi.lng);
+    const radioActivo = 120; // metros — mismo que activeRadius en detectNearby
+
+    if (distActual > radioActivo * 1.5) {
+      // Usuario se alejó — descartar
+      _narrationQueue.shift();
+      if (typeof Debug !== 'undefined') {
+        Debug.log('info', `Cola: descartando ${poi.name} — usuario se alejó (${Math.round(distActual)}m > ${radioActivo * 1.5}m)`);
+      }
+      // Intentar con el siguiente de la cola
+      if (_narrationQueue.length > 0) processQueue();
+      return;
+    }
+
+    // Usuario sigue cerca — narrar
+    _narrationQueue.shift();
+    if (typeof Debug !== 'undefined') {
+      Debug.log('info', `Cola: narrando ${poi.name} (${Math.round(distActual)}m del usuario)`);
+    }
+    activatePOI(poi);
   }
 
   /* ── ACTIVAR POI — iniciar narración ── */
@@ -550,12 +644,8 @@ const POI = (() => {
       Narration.trigger(poi, Config.get('narrator'), Config.get('lang'));
     }
 
-    // Marcar como visitado
-    if (!poi.visited) {
-      poi.visited = true;
-      AppState.poisVisited++;
-      updateStats();
-    }
+    // visited = true se marca en narration.js al completar la narración (S2-A1)
+    // Aquí ya NO se marca — un POI interrumpido no debe quemarse para siempre
   }
 
   /* ── DESACTIVAR POI — usuario se alejó ── */
@@ -775,6 +865,7 @@ const POI = (() => {
   /* ── API PÚBLICA ── */
   return {
     detectNearby,
+    processQueue,      // S2-A2 — llamado desde narration.js al completar narración
     renderExpanded,
     onMarkerTap,
     onDepthPill,

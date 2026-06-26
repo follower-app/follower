@@ -157,7 +157,23 @@ const DebugSim = (() => {
       POI.resetPOIs();
     }
 
+    // Invalidar cache de clima al teletransportar — la nueva ciudad tiene otro clima
+    // REQ-5: sin esto, Care strip mostraba temperatura de la ciudad anterior
+    if (_mode === 'teleport' && typeof Weather !== 'undefined') {
+      Weather.invalidateCache();
+      if (typeof Debug !== 'undefined') {
+        Debug.log('info', `DebugSim: teletransporte a ${lat.toFixed(4)},${lng.toFixed(4)} — clima invalidado`);
+      }
+    }
+
     GPS.simulatePosition(lat, lng, 5);
+
+    // Refrescar clima con la nueva posición (async, no bloquea)
+    if (_mode === 'teleport' && typeof Weather !== 'undefined') {
+      setTimeout(() => {
+        if (typeof Weather !== 'undefined') Weather.check();
+      }, 1500); // pequeño delay para que GPS.simulatePosition actualice AppState.gps primero
+    }
 
     // Adjuntar el listener de clic DESPUÉS de simulatePosition(),
     // que es cuando initMap() crea el mapa si aún no existía
@@ -219,10 +235,10 @@ const DebugSim = (() => {
     }
     if (typeof GPS === 'undefined') return;
 
-    // Limpiar métricas de la sesión anterior — sesión nueva, pizarra limpia
+    // Iniciar sesión de prueba limpia — reset completo de todos los contadores
+    // REQ-2: cada simulación es una sesión aislada e independiente
     if (typeof Debug !== 'undefined') {
-      Debug.clearExpMetrics();
-      Debug.log('info', 'DebugSim: métricas de experiencia reiniciadas — nueva simulación');
+      Debug.startTestSession();
     }
 
     GPS.stop();

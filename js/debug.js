@@ -9,10 +9,12 @@
 const Debug = (() => {
 
   /* ── ESTADO DEL PANEL ── */
-  let _visible       = true;
-  let _logs          = [];       // historial de eventos
-  let _metrics       = [];       // historial de mediciones de tiempo
-  let _metricStarts  = {};       // mediciones en curso { id: { t, category, label } }
+  let _visible          = true;
+  let _logs             = [];       // historial de eventos
+  let _metrics          = [];       // historial de mediciones de tiempo (todas las sesiones)
+  let _sessionMetrics   = [];       // métricas de la sesión de prueba actual
+  let _sessionStartedAt = null;     // Date.now() cuando inició la sesión actual
+  let _metricStarts     = {};       // mediciones en curso { id: { t, category, label } }
 
   /* ── ESTADO DE EXPERIENCIA ── */
   let _exp = {
@@ -777,9 +779,26 @@ const Debug = (() => {
       </div>`;
     }
 
-    // Agrupar por categoría + label
+    // Indicador de sesión activa
+    const sessionBadge = _sessionStartedAt
+      ? (() => {
+          const d = new Date(_sessionStartedAt);
+          const t = `${d.getHours().toString().padStart(2,'0')}:${d.getMinutes().toString().padStart(2,'0')}`;
+          const sessionCount = _sessionMetrics.length;
+          return `<div style="font-size:9px; padding:4px 8px; background:rgba(46,204,113,0.12); border:1px solid rgba(46,204,113,0.25); border-radius:4px; color:#2ecc71; margin-bottom:8px;">
+            ✅ Sesión activa desde ${t} · ${sessionCount} medición${sessionCount !== 1 ? 'es' : ''} en esta sesión
+          </div>`;
+        })()
+      : `<div style="font-size:9px; padding:4px 8px; background:rgba(192,57,43,0.12); border:1px solid rgba(192,57,43,0.25); border-radius:4px; color:#e74c3c; margin-bottom:8px;">
+          ⚠️ Sin sesión activa — los promedios son históricos. Presiona ▶ Caminar para iniciar una sesión limpia.
+        </div>`;
+
+    // Agrupar por categoría + label — SOLO métricas de la sesión actual
+    const sourceMetrics = _sessionMetrics.length > 0 ? _sessionMetrics : _metrics;
+    const isHistoric    = _sessionMetrics.length === 0;
+
     const groups = {};
-    _metrics.forEach(m => {
+    sourceMetrics.forEach(m => {
       const key = `${m.category}|${m.label}`;
       (groups[key] = groups[key] || []).push(m);
     });
@@ -820,13 +839,14 @@ const Debug = (() => {
     }).join('');
 
     return `
-      <div class="dbg-section-label">Promedios por medición</div>
+      ${sessionBadge}
+      <div class="dbg-section-label">${isHistoric ? '📦 Histórico — promedios acumulados (sin sesión activa)' : '📊 Sesión actual — promedios'}</div>
       ${summaryRows}
-      <div class="dbg-section-label">Últimas mediciones</div>
+      <div class="dbg-section-label">Últimas mediciones ${isHistoric ? '(histórico)' : '(sesión actual)'}</div>
       ${recentRows}
       <div class="dbg-actions-row">
         <button id="dbg-export-btn" onclick="Debug.exportLog()">📤 Exportar .txt</button>
-        <button id="dbg-clear-btn" onclick="Debug.clearTimings()">Limpiar tiempos</button>
+        <button id="dbg-clear-btn" onclick="Debug.clearTimings()">Limpiar histórico</button>
       </div>
     `;
   }
@@ -849,10 +869,12 @@ const Debug = (() => {
   function persistState() {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify({
-        logs:    _logs,
-        metrics: _metrics,
-        exp:     _exp,
-        savedAt: Date.now()
+        logs:             _logs,
+        metrics:          _metrics,
+        sessionMetrics:   _sessionMetrics,
+        sessionStartedAt: _sessionStartedAt,
+        exp:              _exp,
+        savedAt:          Date.now()
       }));
     } catch (e) {
       // localStorage lleno o no disponible — no romper la app por esto
@@ -866,6 +888,12 @@ const Debug = (() => {
       const parsed = JSON.parse(saved);
       if (Array.isArray(parsed.logs))    _logs    = parsed.logs.slice(-MAX_LOGS);
       if (Array.isArray(parsed.metrics)) _metrics = parsed.metrics.slice(-MAX_METRICS);
+      if (Array.isArray(parsed.sessionMetrics)) {
+        _sessionMetrics = parsed.sessionMetrics.slice(-MAX_METRICS);
+      }
+      if (parsed.sessionStartedAt) {
+        _sessionStartedAt = parsed.sessionStartedAt;
+      }
       if (parsed.exp && typeof parsed.exp === 'object') {
         if (parsed.exp.funnel)     Object.assign(_exp.funnel, parsed.exp.funnel);
         if (Array.isArray(parsed.exp.narrations)) _exp.narrations = parsed.exp.narrations;
@@ -914,6 +942,13 @@ const Debug = (() => {
 
     _metrics.push(record);
     if (_metrics.length > MAX_METRICS) _metrics.shift();
+
+    // También guardar en métricas de sesión actual (se limpian con startTestSession)
+    if (_sessionStartedAt !== null) {
+      _sessionMetrics.push(record);
+      if (_sessionMetrics.length > MAX_METRICS) _sessionMetrics.shift();
+    }
+
     delete _metricStarts[id];
 
     const metaStr = meta ? ' · ' + metaToString(meta) : '';
@@ -1020,6 +1055,56 @@ const Debug = (() => {
 
   function getExp() { return _exp; }
 
+  /* ── START TEST SESSION — reset completo para sesión de prueba aislada ──
+     Reinicia TODO: AppState de sesión, métricas de experiencia, métricas de
+     tiempo de sesión, y clima. Es la única forma de garantizar que los números
+     del dashboard representen exactamente UNA caminata.
+     No toca: _logs, _metrics histórico, GPS, POIs cargados, exploración activa. */
+  function startTestSession() {
+    // 1. Reset de AppState — todos los contadores de sesión
+    if (typeof AppState !== 'undefined') {
+      AppState.kmWalked          = 0;
+      AppState.poisVisited       = 0;
+      AppState._msTotalSystole   = 0;
+      AppState._msTotalDiastole  = 0;
+      AppState._narrationCount   = 0;
+      AppState._firstNarrationTs = null;
+      AppState._lastNarrationTs  = null;
+      AppState._sessionStart     = performance.now();
+      AppState._phaseStart       = performance.now();
+      AppState._cityWelcomeDone  = false;
+      AppState.activePOI         = null;
+    }
+
+    // 2. Reset de métricas de experiencia (_exp)
+    _exp = {
+      funnel: {
+        poi_checks: 0, pois_detected: 0, pois_eligible: 0,
+        pois_narrated: 0, narrations_completed: 0, narrations_interrupted: 0,
+      },
+      narrations: [],
+      music: {
+        activeSince: null, totalActiveMs: 0,
+        dipStartTs: null, totalDipMs: 0,
+        dipCount: 0, restoreCount: 0,
+      },
+    };
+
+    // 3. Reset de métricas de tiempo de la sesión actual
+    _sessionMetrics   = [];
+    _sessionStartedAt = Date.now();
+
+    // 4. Invalidar cache de clima — la nueva ciudad necesita datos frescos
+    if (typeof Weather !== 'undefined' && typeof Weather.invalidateCache === 'function') {
+      Weather.invalidateCache();
+    }
+
+    persistState();
+    renderTab('exp');
+
+    log('info', 'LAB: sesión de prueba iniciada — todos los contadores desde cero');
+  }
+
   /* ── HELPERS DE EXPERIENCIA ── */
   function _getNarrationIntervalsSec() {
     const ts = _exp.narrations.map(n => n.ts);
@@ -1102,15 +1187,15 @@ const Debug = (() => {
         <span style="font-size:12px; font-weight:600; color:#c8d4e0;">${f.poi_checks}</span>
       </div>
       <div class="dbg-timing-row" style="padding-left:10px;">
-        <span class="dbg-timing-label">↳ POIs detectados</span>
+        <span class="dbg-timing-label">↳ Chequeos con POI cercano</span>
         <span style="font-size:12px; font-weight:600; color:#c8d4e0;">${fmtConv(f.pois_detected, f.poi_checks)}</span>
       </div>
       <div class="dbg-timing-row" style="padding-left:10px;">
-        <span class="dbg-timing-label">↳ POIs elegibles</span>
+        <span class="dbg-timing-label">↳ POIs elegibles (nuevo activo)</span>
         <span style="font-size:12px; font-weight:600; color:#c8d4e0;">${fmtConv(f.pois_eligible, f.pois_detected)}</span>
       </div>
       <div class="dbg-timing-row" style="padding-left:10px;">
-        <span class="dbg-timing-label">↳ POIs narrados</span>
+        <span class="dbg-timing-label">↳ POIs activados (narración disparada)</span>
         <span style="font-size:12px; font-weight:600; color:#c8d4e0;">${fmtConv(f.pois_narrated, f.pois_eligible)}</span>
       </div>
       <div class="dbg-timing-row" style="padding-left:20px;">
@@ -1217,49 +1302,51 @@ const Debug = (() => {
       ${longSilences > 0 ? `<div style="color:#f39c12; font-size:10px; padding:4px 0;">⚠️ ${longSilences} silencio${longSilences !== 1 ? 's' : ''} > 5min · ${critSilences} crítico${critSilences !== 1 ? 's' : ''} > 10min</div>` : ''}
       ${saturations > 0 ? `<div style="color:#f39c12; font-size:10px; padding:4px 0;">⚠️ ${saturations} intervalo${saturations !== 1 ? 's' : ''} < 2min (posible saturación)</div>` : ''}
 
-      <div class="dbg-section-label">Calidad de caminata</div>
-      <div class="dbg-grid">
-        <div class="dbg-cell">
-          <div class="dbg-cell-label">Duración sesión</div>
-          <div class="dbg-cell-value">${sessionMin}min</div>
-        </div>
-        <div class="dbg-cell">
-          <div class="dbg-cell-label">Km caminados</div>
-          <div class="dbg-cell-value">${kmWalked.toFixed(2)}</div>
-        </div>
-        <div class="dbg-cell">
-          <div class="dbg-cell-label">Narraciones/hora</div>
-          <div class="dbg-cell-value">${narPerHour}</div>
-        </div>
-        <div class="dbg-cell">
-          <div class="dbg-cell-label">Metros/narración</div>
-          <div class="dbg-cell-value">${mPerNar !== null ? mPerNar + 'm' : '—'}</div>
-        </div>
-      </div>
+      <!-- Sección avanzada plegable — datos técnicos, no responden la pregunta rectora -->
+      <details style="margin-top:8px;">
+        <summary style="font-size:9px; color:#4a5568; letter-spacing:0.12em; text-transform:uppercase; cursor:pointer; padding:4px 0; list-style:none;">
+          ▶ Datos avanzados
+        </summary>
 
-      <div class="dbg-section-label">Música</div>
-      <div class="dbg-grid">
-        <div class="dbg-cell">
-          <div class="dbg-cell-label">Presencia música</div>
-          <div class="dbg-cell-value ${musicPct >= 70 ? 'ok' : musicPct >= 40 ? 'warn' : 'error'}">${musicPct}%</div>
+        <div class="dbg-section-label" style="margin-top:6px;">Calidad de caminata</div>
+        <div class="dbg-grid">
+          <div class="dbg-cell">
+            <div class="dbg-cell-label">Duración sesión</div>
+            <div class="dbg-cell-value">${sessionMin}min</div>
+          </div>
+          <div class="dbg-cell">
+            <div class="dbg-cell-label">Km caminados</div>
+            <div class="dbg-cell-value">${kmWalked.toFixed(2)}</div>
+          </div>
+          <div class="dbg-cell">
+            <div class="dbg-cell-label">Narr./hora (sesión)</div>
+            <div class="dbg-cell-value">${narPerHour}</div>
+          </div>
+          <div class="dbg-cell">
+            <div class="dbg-cell-label">Metros/activación</div>
+            <div class="dbg-cell-value ${mPerNar !== null ? '' : 'warn'}">${mPerNar !== null ? mPerNar + 'm' : '⚠️ acumula entre sesiones'}</div>
+          </div>
         </div>
-        <div class="dbg-cell">
-          <div class="dbg-cell-label">Tiempo en dip</div>
-          <div class="dbg-cell-value">${dipPct}%</div>
+
+        <div class="dbg-section-label">Música</div>
+        <div style="font-size:9px; color:#4a5568; padding:2px 0 6px;">
+          ℹ️ MP3s pendientes (DT-19) — métricas siempre en 0 hasta implementar
         </div>
-        <div class="dbg-cell">
-          <div class="dbg-cell-label">Dips</div>
-          <div class="dbg-cell-value">${music.dipCount}</div>
+        <div class="dbg-grid">
+          <div class="dbg-cell">
+            <div class="dbg-cell-label">Presencia música</div>
+            <div class="dbg-cell-value">${musicPct}%</div>
+          </div>
+          <div class="dbg-cell">
+            <div class="dbg-cell-label">Dips / Restores</div>
+            <div class="dbg-cell-value">${music.dipCount} / ${music.restoreCount}</div>
+          </div>
         </div>
-        <div class="dbg-cell">
-          <div class="dbg-cell-label">Restores</div>
-          <div class="dbg-cell-value">${music.restoreCount}</div>
-        </div>
-      </div>
+      </details>
 
       <div class="dbg-actions-row">
         <button id="dbg-export-btn" onclick="Debug.exportLog()">📤 Exportar .txt</button>
-        <button id="dbg-clear-btn" onclick="Debug.clearExpMetrics()">Reset exp.</button>
+        <button id="dbg-clear-btn" onclick="Debug.startTestSession()">🔄 Nueva sesión</button>
       </div>
     `;
   }
@@ -1385,9 +1472,9 @@ const Debug = (() => {
       lines.push(`  ${label}: ${val}${pctStr}`);
     };
     lines.push(`  Chequeos POI:            ${ef.poi_checks}`);
-    fmtConvExport(ef.pois_detected,         ef.poi_checks,         '  ↳ POIs detectados     ');
+    fmtConvExport(ef.pois_detected,         ef.poi_checks,         '  ↳ Chequeos con POI   ');
     fmtConvExport(ef.pois_eligible,         ef.pois_detected,      '  ↳ POIs elegibles      ');
-    fmtConvExport(ef.pois_narrated,         ef.pois_eligible,      '  ↳ POIs narrados       ');
+    fmtConvExport(ef.pois_narrated,         ef.pois_eligible,      '  ↳ POIs activados      ');
     fmtConvExport(ef.narrations_completed,  ef.pois_narrated,      '  ↳ Narraciones completas');
     lines.push(`  ↳ Narraciones interrumpidas: ${ef.narrations_interrupted}`);
     lines.push('');
@@ -1686,6 +1773,9 @@ const Debug = (() => {
     trackExp,
     getExp,
     clearExpMetrics,
+    startTestSession,
+    getSessionMetrics: () => _sessionMetrics,
+    getSessionStartedAt: () => _sessionStartedAt,
     exportLog,
     switchTab,
     activatePOI,

@@ -101,6 +101,102 @@ const POI = (() => {
     });
   }
 
+  /* ── FETCH POIs DESDE WIKIPEDIA GEOSEARCH ──
+     Experimento v0.8: validar si Wikipedia puede reemplazar Overpass
+     como fuente primaria. Schema de salida idéntico a normalizePOI()
+     para que todo el pipeline downstream funcione sin cambios.
+
+     Wikipedia GeoSearch devuelve: pageid, title, lat, lon, dist
+     No devuelve tags OSM — se usan valores por defecto compatibles.
+  ── */
+  async function fetchWikipediaPOIs(lat, lng, radiusKm) {
+    const radius  = radiusKm * 1000; // metros
+    const lang    = (typeof AppState !== 'undefined' && AppState.lang === 'en') ? 'en' : 'es';
+    const limit   = 50;
+
+    // Intentar Wikipedia en el idioma del usuario, con fallback a español
+    const WIKI_URLS = [
+      `https://${lang}.wikipedia.org/w/api.php`,
+      `https://es.wikipedia.org/w/api.php`,
+    ];
+
+    // Eliminar duplicados si lang ya es 'es'
+    const urls = lang === 'es' ? [WIKI_URLS[0]] : WIKI_URLS;
+
+    const params = new URLSearchParams({
+      action:   'query',
+      list:     'geosearch',
+      gscoord:  `${lat}|${lng}`,
+      gsradius: radius,
+      gslimit:  limit,
+      format:   'json',
+      origin:   '*',     // CORS — necesario para llamadas desde el browser
+    });
+
+    const t0 = performance.now();
+    let places = [];
+
+    for (const baseUrl of urls) {
+      try {
+        const controller = new AbortController();
+        const tid        = setTimeout(() => controller.abort(), 8000); // 8s — mucho menos que Overpass
+
+        const res = await fetch(`${baseUrl}?${params}`, {
+          method: 'GET',
+          signal: controller.signal
+        });
+
+        clearTimeout(tid);
+
+        if (!res.ok) {
+          if (typeof Debug !== 'undefined') {
+            Debug.log('warn', `Wikipedia: ${baseUrl.split('/')[2]} → status=${res.status} — probando siguiente`);
+          }
+          continue;
+        }
+
+        const data = await res.json();
+        places = data?.query?.geosearch || [];
+
+        if (places.length > 0) break; // éxito
+
+      } catch (err) {
+        if (typeof Debug !== 'undefined') {
+          Debug.log('warn', `Wikipedia: fetch falló (${err.message}) — probando siguiente`);
+        }
+        continue;
+      }
+    }
+
+    const elapsed = Math.round(performance.now() - t0);
+
+    if (typeof Debug !== 'undefined') {
+      if (places.length > 0) {
+        Debug.log('info', `Wikipedia: ${places.length} POIs en ${elapsed}ms`);
+      } else {
+        Debug.log('warn', `Wikipedia: 0 POIs en ${elapsed}ms — usando siguiente fuente`);
+      }
+    }
+
+    if (places.length === 0) return [];
+
+    // Normalizar al mismo schema que normalizePOI() produce
+    // para que detectPOI(), activatePOI() y el cache no noten la diferencia
+    return places.map(p => ({
+      id:          `wiki_${p.pageid}`,
+      name:        p.title,
+      lat:         p.lat,
+      lng:         p.lon,
+      icon:        '🏛️',          // icono genérico — Wikipedia no tiene tipo OSM
+      type:        'historic',    // tipo por defecto — el más narrable
+      description: '',            // Wikipedia no devuelve descripción en geosearch
+      tags:        {},            // sin tags OSM — QuickFacts mostrará solo distancia y tipo
+      visited:     false,
+      cachedAt:    Date.now(),
+      _source:     'wikipedia',   // metadato de diagnóstico — no lo usa ningún consumidor
+    }));
+  }
+
   /* ── FETCH POIs DESDE OVERPASS (OSM) ── */
   async function fetchPOIsFromOSM(lat, lng, radiusKm) {
     // Candado — evita fetches paralelos que causan 429 en cadena (BUG-014)
@@ -290,10 +386,38 @@ const POI = (() => {
     };
   }
 
-  /* ── CARGAR POIs — con fallback a cache ── */
+  /* ── CARGAR POIs — Wikipedia → Overpass → IndexedDB ──
+     Orden v0.8: Wikipedia primero (rápida, confiable, narrativa).
+     Overpass como fallback (lento, inestable, más completo).
+     IndexedDB como último recurso (cache geográfico).
+  ── */
   async function loadPOIs(lat, lng) {
-    // Intentar desde OSM si hay conexión
     if (!AppState.offline) {
+
+      // ── 1. WIKIPEDIA GEOSEARCH (fuente primaria en v0.8) ──
+      try {
+        const wikiPOIs = await fetchWikipediaPOIs(lat, lng, CONFIG.FETCH_RADIUS_KM);
+        if (wikiPOIs.length > 0) {
+          _pois = wikiPOIs;
+          await savePOIsToDB(wikiPOIs);
+          _lastFetchPos = { lat, lng };
+          renderAllMarkers();
+          if (typeof Debug !== 'undefined') {
+            Debug.log('info', `POI: ${wikiPOIs.length} POIs de Wikipedia cargados y renderizados`);
+          }
+          return;
+        }
+        // 0 resultados en Wikipedia — zona sin cobertura, intentar Overpass
+        if (typeof Debug !== 'undefined') {
+          Debug.log('info', 'Wikipedia: sin resultados en esta zona — intentando Overpass');
+        }
+      } catch (wikiErr) {
+        if (typeof Debug !== 'undefined') {
+          Debug.log('warn', `Wikipedia falló (${wikiErr.message}) — intentando Overpass`);
+        }
+      }
+
+      // ── 2. OVERPASS / OSM (fallback) ──
       try {
         const fresh = await fetchPOIsFromOSM(lat, lng, CONFIG.FETCH_RADIUS_KM);
         if (fresh.length > 0) {
@@ -302,12 +426,10 @@ const POI = (() => {
           _lastFetchPos = { lat, lng };
           renderAllMarkers();
           if (typeof Debug !== 'undefined') {
-            Debug.log('info', `POI: ${fresh.length} POIs cargados y renderizados`);
+            Debug.log('info', `POI: ${fresh.length} POIs de Overpass cargados y renderizados`);
           }
           return;
         } else {
-          // raw=0 con status 200 = Overpass bajo carga extrema devuelve vacío.
-          // Tratar como fallo y caer al cache local.
           if (typeof Debug !== 'undefined') {
             Debug.log('warn', 'POI: Overpass devolvió 0 elementos — posible sobrecarga del servidor, usando cache');
           }
@@ -315,12 +437,13 @@ const POI = (() => {
         }
       } catch (e) {
         if (typeof Debug !== 'undefined') {
-        Debug.log('error', `POI: error fetching desde OSM, usando cache — ${e.message}`);
+          Debug.log('error', `POI: Overpass falló (${e.message}) — usando cache IndexedDB`);
+        }
       }
-      }
+
     } else {
       if (typeof Debug !== 'undefined') {
-        Debug.log('info', 'POI: AppState.offline=true, saltando fetch a OSM');
+        Debug.log('info', 'POI: AppState.offline=true, saltando fetch a red');
       }
     }
 

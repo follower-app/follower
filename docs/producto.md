@@ -67,6 +67,8 @@ La ciudad siempre es la protagonista. Follower nunca debe sentirse más importan
 
 > ¿La experiencia fue memorable?
 
+**Métrica técnica principal:** ⏱ Tiempo hasta primera historia. Responde: ¿cuándo demuestra Follower su valor? Semáforo: verde ≤90s / amarillo 90-300s / rojo >300s. Más importante que el Cinematic Score.
+
 ---
 
 ## 6. Principios del Producto
@@ -187,7 +189,9 @@ El ritmo de la app replica el latido del corazón. Es la metáfora de diseño fu
 
 Web Speech API — 12 idiomas BCP-47:
 
-`es-ES` · `en-US` · `fr-FR` · `it-IT` · `de-DE` · `pt-BR` · `ja-JP` · `zh-CN` · `ko-KR` · `nl-NL` · `ru-RU` · `ar-SA`
+`es-419` (latam) · `es-MX` · `es-CO` · `es-ES` (último recurso) · `en-US` · `fr-FR` · `it-IT` · `de-DE` · `pt-BR` · `ja-JP` · `zh-CN` · `ko-KR` · `nl-NL` · `ru-RU` · `ar-SA`
+
+Prioridad de selección en español: `es-CO → es-MX → es-US → es-419 → (otras latam) → es-ES`. Voces locales siempre sobre voces online (las online ignoran el parámetro `rate`).
 
 Los prompts de narradores tienen versiones en español e inglés. Otros idiomas usan el prompt en inglés como base.
 
@@ -244,9 +248,10 @@ Los prompts de narradores tienen versiones en español e inglés. Otros idiomas 
 | v0.4 | Código base completo | ✅ |
 | v0.5 | Panel de debug + métricas de experiencia | ✅ |
 | v0.6 | UI rediseñada — bottom bar, pills, care strip, brújula | ✅ |
-| v0.7 | Sistema de narradores · música por intro · bienvenida ciudad | ✅ En pruebas |
-| v0.8 | Logo SVG · MP3 de intros · sw.js | 🔲 |
-| v0.9 | Pruebas de campo en iPhone · debugging iOS | 🔲 |
+| v0.7 | Sistema de narradores · música por intro · bienvenida ciudad | ✅ |
+| v0.7s | Estabilización: voz latam · narraciones cortas · sanitización · laboratorio confiable | ✅ |
+| v0.8 | visited-on-complete · cola narrativa · cache agresivo Overpass · MP3 intros | 🔲 |
+| v0.9 | Logo SVG · sw.js · pruebas de campo extendidas | 🔲 |
 | v1.0 | Piloto con viajeros reales | 🔲 |
 | v2.0 | Más ciudades · narrador Familiar · monetización | 🔲 |
 
@@ -269,7 +274,13 @@ Los prompts de narradores tienen versiones en español e inglés. Otros idiomas 
 | DT-19 | 4 MP3 de intro por narrador | Alta |
 | DT-20 | Test en campo con brújula real — verificar DeviceOrientation iOS | Alta |
 | DT-21 | Worker 400 en arranque — endpoint /weather sin key configurada | Baja |
+| DT-22 | `visited = true` al completar narración, no al activar POI | Alta |
+| DT-23 | Cola narrativa — POIs encolados durante narración, no perdidos | Alta |
+| DT-24 | Cache agresivo Overpass — priorizar IndexedDB en sesión activa | Alta |
+| DT-25 | Backoff Overpass — esperar 30-60s después de 429 | Alta |
+| DT-26 | Weather.invalidateCache() en modo ruta — solo debe dispararse en teleport | Media |
+| DT-27 | clearCache() en debug.js no recarga la página — estado inconsistente | Media |
 
 ---
 
-*Follower — Documento de Producto v0.7 | Junio 2026*
+*Follower — Documento de Producto v0.7s | Junio 2026*

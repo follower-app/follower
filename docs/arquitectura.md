@@ -572,3 +572,168 @@ fallo de música nunca bloquee la voz.
 ---
 
 *Follower — Arquitectura v0.7 | Junio 2026*
+---
+
+## Sprint S1 + LAB-01 — v0.7s (25 Junio 2026)
+
+### DA-27 — Selección de voz: prioridad latinoamericana con dos pasadas
+
+`getBestVoice()` en `voice.js` opera en dos pasadas para español:
+
+1. Primera pasada: voces **locales** (`localService=true`) en orden `ES_PRIORITY`
+2. Segunda pasada: si no hay ninguna local, acepta online en el mismo orden
+
+```
+ES_PRIORITY = ['es-CO', 'es-MX', 'es-US', 'es-419', 'es-AR', 'es-CL', 'es-PE', 'es-VE', 'es-ES']
+```
+
+Razón de las dos pasadas: voces online (Google TTS) ignoran el parámetro `rate` de SpeechSynthesisUtterance — la duración es impredecible. Una voz local `es-ES` es preferible a una voz online `es-US`.
+
+`LANG_MAP.es` cambiado de `'es-ES'` a `'es-419'` como código BCP-47 preferido.
+
+Log de diagnóstico: `Voice.getVoiceList()` expuesto en API pública. Al arrancar, `_logAvailableVoices()` lista todas las voces ES del dispositivo en tab Logs.
+
+---
+
+### DA-28 — Sanitización de narraciones antes de la voz
+
+`sanitizeNarration(text)` en `narration.js` — función pura aplicada antes de `updateNarrationUI()` y `Voice.speak()`. Elimina: encabezados `#`, negritas `**`, cursivas `*`, código `` ` ``, listas `- ` y `* `, listas numeradas, saltos múltiples.
+
+Razón: Claude Haiku puede responder con formato markdown aunque el prompt lo prohíba. La voz lee esos caracteres literalmente. La sanitización es la única defensa confiable.
+
+---
+
+### DA-29 — Longitud de narraciones como decisión arquitectural
+
+Los prompts de narración tienen un límite explícito de longitud: **70 palabras por párrafo, 180-220 palabras total, objetivo 30-40 segundos hablado**. `max_tokens` bajó de 450 a 350.
+
+Razón arquitectural: una narración de 90 segundos no es solo un problema de UX — bloquea el sistema entero. Durante 90s, todos los POIs detectados se marcan como `visited` y se pierden. La longitud de narración es una decisión de pipeline, no solo de experiencia.
+
+---
+
+### DA-30 — AudioContext keep-alive para iOS Safari (fix definitivo)
+
+`initFromGesture()` en `music.js` reproduce un buffer de 1 segundo de silencio real desde el gesto del usuario:
+
+```javascript
+const silenceBuffer = _context.createBuffer(1, _context.sampleRate, _context.sampleRate);
+const silenceSource = _context.createBufferSource();
+silenceSource.buffer = silenceBuffer;
+silenceSource.connect(_context.destination);
+silenceSource.start(0);
+```
+
+Razón: iOS Safari suspende el AudioContext cuando no hay audio activo. El buffer de silencio mantiene el contexto en `state=running`. Mientras el contexto esté activo, `speechSynthesis` funciona después de operaciones async (ej: respuesta de Claude ~6s).
+
+Este fix extiende el patrón establecido en BUG-029 (sesión 11). El workaround anterior (solo `_context.resume()`) era insuficiente porque no producía audio real.
+
+---
+
+### DA-31 — Candado `_isFetchingPOIs` en Overpass (`poi.js`)
+
+```javascript
+let _isFetchingPOIs = false;
+
+async function fetchPOIsFromOSM(lat, lng, radiusKm) {
+  if (_isFetchingPOIs) { return _pois.length > 0 ? _pois : []; }
+  _isFetchingPOIs = true;
+  try {
+    // ... fetch
+  } finally {
+    _isFetchingPOIs = false;  // siempre liberar
+  }
+}
+```
+
+Razón: el simulador puede disparar múltiples llamadas a `loadPOIs()` antes de que Overpass responda (8-15s de latencia). Sin candado, las llamadas paralelas generan 429s en cadena. El `finally` garantiza liberación incluso en error/timeout.
+
+---
+
+### DA-32 — Reset de POIs solo en modo teleport (`debug-sim.js`)
+
+`teleportTo()` llama `POI.resetPOIs()` solo cuando `_mode === 'teleport'`. En modo `route`, los clicks del mapa agregan waypoints sin resetear.
+
+Razón: en modo `route`, cada click en el mapa disparaba un reset completo → 15 fetches paralelos → 429s en cadena (la misma causa que DA-31 pero desde el simulador).
+
+---
+
+### DA-33 — Laboratorio: sesión de prueba aislada (`startTestSession`)
+
+`Debug.startTestSession()` es la función centralizada de reset de sesión. Resetea en un solo lugar todos los contadores de sesión en AppState y en Debug.
+
+Todos los puntos de inicio de sesión la llaman:
+- `initExplore()` en `app.js` — exploración real en iPhone
+- `startWalking()` en `debug-sim.js` — simulación desde ▶ Caminar
+
+`_sessionMetrics[]` — array paralelo a `_metrics[]`. Contiene solo las mediciones de la sesión activa. El tab Tiempos lo usa como fuente principal cuando está disponible, con fallback al histórico.
+
+---
+
+### DA-34 — Invalidación de clima al teletransportar (`weather.js`)
+
+`Weather.invalidateCache()` — función pública que limpia `_weather`, `_lastFetch`, `_alertShown` y el localStorage. Se llama desde `teleportTo()` en modo teleport para que el Care strip muestre el clima de la nueva ciudad.
+
+`Weather.refresh()` — invalida y dispara `check()` inmediato con la posición actual.
+
+Nota: se detectó que `invalidateCache` también se dispara al dibujar waypoints en modo ruta (DT-26). Fix pendiente.
+
+---
+
+### DA-35 — Query Overpass ampliada para OSM Latinoamérica
+
+La query en `fetchPOIsFromOSM()` se amplió para capturar lugares frecuentes en OSM Colombia que antes no aparecían:
+
+```
+node["building"~"cathedral|church|mosque|temple|synagogue|chapel"]
+node["amenity"~"...arts_centre|library|university|college"]
+node["leisure"~"park|garden|stadium"]
+node["man_made"~"monument|memorial|statue|tower"]
+node["shop"~"mall"]
+way["building"~"cathedral|church|..."]
+way["leisure"~"park|garden|stadium"]
+way["amenity"~"university|college|theatre|cinema"]
+```
+
+`OSM_CATEGORIES` ampliado con 15 tipos nuevos: `cathedral`, `chapel`, `mosque`, `temple`, `memorial`, `statue`, `theatre`, `cinema`, `arts_centre`, `library`, `university`, `college`, `stadium`, `park`, `mall`.
+
+---
+
+### DA-3 actualizada — Funciones únicas (v0.7s · Sesión 12)
+
+| Función | Archivo | Nota |
+|---------|---------|------|
+| `startTestSession()` | debug.js | nuevo — reset centralizado de sesión completa |
+| `getBestVoice(lang)` | voice.js | dos pasadas: local primero, online como fallback |
+| `sanitizeNarration(text)` | narration.js | nuevo — elimina markdown antes de voice |
+| `invalidateCache()` | weather.js | nuevo — fuerza fetch en próxima llamada |
+| `refresh()` | weather.js | nuevo — invalida + check() inmediato |
+| `initFromGesture()` | music.js | ampliado — buffer de silencio real (iOS keep-alive) |
+
+### Deuda técnica actualizada (v0.7s · Sesión 12)
+
+| ID | Descripción | Prioridad |
+|----|-------------|-----------|
+| DT-1 | Logo SVG final + iconos PWA | Alta |
+| DT-3 | sw.js — service worker (siempre último) | Alta |
+| DT-4 | Pantalla resumen del paseo | Media |
+| DT-5 | Más ciudades en routes.js | Baja |
+| DT-8 | debug.js + debug-sim.js deshabilitados antes de v1.0 | Media |
+| DT-9 | Revocar key OpenAI expuesta en commits históricos | Alta |
+| DT-10 | Error IndexedDB "connection is closing" — Safari backgrounding | Media |
+| DT-12 | Atribución CARTO/OSM no visible | Baja |
+| DT-16 | Pantalla POI expandida: rediseñar con nuevo sistema visual | Media |
+| DT-17 | Implementar bookmark y share (Web Share API) en pantalla POI | Baja |
+| DT-19 | 4 MP3 de intro por narrador (Alta — DT-19 es el mayor gap de experiencia hoy) | Alta |
+| DT-20 | Test en campo con brújula real — verificar DeviceOrientation iOS | Alta |
+| DT-21 | Worker 400 en arranque — endpoint /weather sin key configurada | Baja |
+| DT-22 | `visited = true` al completar narración, no al activar POI | Alta |
+| DT-23 | Cola narrativa — POIs encolados durante narración, no perdidos | Alta |
+| DT-24 | Cache agresivo Overpass — priorizar IndexedDB en sesión activa | Alta |
+| DT-25 | Backoff Overpass — esperar 30-60s después de 429 | Alta |
+| DT-26 | Weather.invalidateCache() en modo ruta — solo debe dispararse en teleport | Media |
+| DT-27 | clearCache() en debug.js no recarga la página — estado inconsistente | Media |
+
+---
+
+*Follower — Arquitectura v0.7s | Sesión 12 | 25 Junio 2026*
+

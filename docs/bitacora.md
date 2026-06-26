@@ -1432,3 +1432,261 @@ y `poisVisited`. `teleportTo()` la llama automáticamente. Botón manual
 ---
 
 *Follower — Bitácora v0.7 | Sesión 11 | Junio 2026*
+---
+
+## Sesión 12 — 25 Junio 2026
+
+### Contexto
+Sesión de estabilización técnica post-v0.7. Se realizó una auditoría completa del pipeline de narración y del laboratorio de pruebas, seguida de implementación en sprints. Primer día de pruebas reales en campo (iPhone + Chrome).
+
+---
+
+### Sprint S1 — Calidad percibida inmediata
+
+Objetivo: corregir lo que el usuario nota primero — voz, longitud de narración, símbolos en el texto.
+
+**S1-1 · S1-2 — Voz latinoamericana + log de diagnóstico (`voice.js`)**
+
+Problema: `LANG_MAP.es = 'es-ES'` forzaba voz española en todos los dispositivos. En iPhone colombiano, seleccionaba Mónica [es-ES] en lugar de Paulina [es-MX].
+
+Fix:
+- `LANG_MAP.es` → `'es-419'`
+- `ES_PRIORITY`: `es-CO → es-MX → es-US → es-419 → es-AR → es-CL → es-PE → es-VE → es-ES`
+- Dos pasadas en `getBestVoice()`: primero voces **locales** en orden de prioridad, luego online
+- `_logAvailableVoices()`: log de todas las voces ES del dispositivo al arrancar
+- Log por cada narración: voz seleccionada, lang, motor (local/online)
+- `getVoiceList()` expuesto en API pública para diagnóstico desde consola
+
+Resultado en campo: iPhone selecciona Paulina [es-MX] local. Chrome Windows selecciona Microsoft Helena [es-ES] local (no hay voces latam instaladas — comportamiento correcto).
+
+**S1-3 — Sanitización de markdown (`narration.js`)**
+
+Problema: Claude Haiku respondía con `**negrita**`, `# títulos`, `- listas` a pesar del prompt. La voz leía los caracteres literalmente.
+
+Fix: `sanitizeNarration(text)` — función pura aplicada antes de `updateNarrationUI()` y `Voice.speak()`. Elimina: `#`, `**`, `*`, `` ` ``, listas `- `, listas numeradas `1.`, saltos múltiples.
+
+**S1-4 — Narraciones cortas (`narration.js`)**
+
+Problema: narraciones de 60-90s bloqueaban el sistema. Durante esa ventana, todos los POIs detectados se marcaban como `visited` y se perdían.
+
+Fix:
+- `max_tokens`: 450 → 350
+- Los 8 system prompts (4 estilos × 2 idiomas) reciben instrucción explícita: `LONGITUD: máximo 70 palabras por párrafo. Total: 180-220 palabras. Objetivo: 30-40 segundos hablado.`
+
+Resultado observado: 1048 chars en campo (vs ~1800 anterior). Duración real: 70s en Chrome con voz online (rate ignorado), estimado 35-40s con Paulina local en iPhone.
+
+**S1-5 — Métricas limpias al iniciar simulación (`debug-sim.js`)**
+
+`startWalking()` llamaba `clearExpMetrics()` — fix previo. Sesión 12 lo reemplaza con `startTestSession()` (ver LAB-01).
+
+**S1-6 — Tiempo hasta primera historia (`debug.js`)**
+
+Métrica nueva visible en tab `🎬 Exp`, encima del Cinematic Score. Semáforo: verde ≤90s / amarillo 90-300s / rojo >300s. También aparece en el reporte exportado antes del Cinematic Score.
+
+Resultado en campo: 82s (excelente) en primera simulación funcional, 358s (crítico) en sesión de teletransporte — causado por Overpass tardando 84-122s.
+
+---
+
+### Auditoría de pipeline — causas raíz identificadas
+
+Antes de Sprint S2, se realizó una auditoría de por qué la primera narración tardaba hasta 10 minutos y por qué se perdían POIs durante narraciones.
+
+**Causa 1 — Tiempo hasta primera historia**
+
+Cuatro factores apilados:
+1. Radio de activación 120m — usuario debe acercarse físicamente
+2. `loadPOIs()` no llama `detectPOI()` al completarse — espera el próximo tick de 5s
+3. Overpass tarda 8-192s en responder
+4. El simulador puede haber recorrido la zona de alta densidad antes de que Overpass respondiera
+
+Conclusión: el radio 120m no es el problema. El problema es la combinación de Overpass lento + narración larga + visited prematuro.
+
+**Causa 2 — POIs perdidos durante narraciones**
+
+`activatePOI()` marca `poi.visited = true` al **activar**, no al completar la narración. Durante 75s de narración, el usuario puede cruzar 2-3 POIs más — todos quedan marcados visited y nunca se narran. Estimado: hasta 40-60% de POIs elegibles se pierden en zona turística densa.
+
+Resolución planificada: `visited = true` solo en callback de `Voice.speak()` + cola narrativa (Sprint S2).
+
+**Simulación teórica: radio 120m vs 150m vs 200m**
+
+Zonas simuladas: Sagrada Família, Coliseo, Torre Eiffel, Centro Histórico Cali.
+
+Conclusión: 120m es correcto en todas las zonas excepto landmarks muy grandes (Torre Eiffel — coordenada OSM a >120m del borde). Con fixes de narración corta + visited-on-complete + cola, 120m funciona bien. Evaluar 150m solo en Sprint S4 post-fixes.
+
+---
+
+### BUG-034 — Candado Overpass ausente (BUG-014 reaparece) (`poi.js`)
+
+Causa: `_isFetchingPOIs` nunca existió — era una deuda pendiente. Múltiples fetches paralelos a Overpass durante simulación → 429s en cadena → sin POIs.
+
+Fix:
+- `_isFetchingPOIs = false` en estado interno de `poi.js`
+- Guard al inicio de `fetchPOIsFromOSM()`: si `_isFetchingPOIs`, retornar `_pois` actuales
+- `finally { _isFetchingPOIs = false }` — liberación garantizada en éxito y error
+- Resultado en campo: `POI: fetch en curso — ignorando llamada paralela (BUG-014)` confirmado en logs
+
+---
+
+### BUG-035 — Reset en cadena al dibujar ruta (`debug-sim.js`)
+
+Causa: `teleportTo()` llamaba `POI.resetPOIs()` incondicionalmente. Al dibujar una ruta en modo `route`, cada click en el mapa disparaba un reset → 15 resets en 8 segundos → 15 fetches paralelos → 429s en cadena.
+
+Fix: `resetPOIs()` en `teleportTo()` solo cuando `_mode === 'teleport'`. En modo `route`, los clicks agregan waypoints sin resetear.
+
+---
+
+### BUG-036 — speechSynthesis silencioso en iOS Safari (`music.js`)
+
+Causa raíz: `initFromGesture()` llamaba `_context.resume()` pero no reproducía ningún audio. iOS Safari suspende el AudioContext cuando no hay audio activo. Al llamar `Voice.speak()` 40s después (tras el async de Claude), el contexto ya estaba suspendido y `speechSynthesis` era bloqueado silenciosamente.
+
+Evidencia en log: `Voice: speak · speaking=false paused=false pending=false · 944 chars · lang=es` — speak() se llamó pero no hubo onstart.
+
+Fix: `initFromGesture()` reproduce un buffer de 1 segundo de silencio real desde el gesto del usuario. Mantiene el AudioContext en state=running. Con contexto activo, speechSynthesis funciona después del async de Claude.
+
+Resultado en campo (Firefox/Windows): `lag texto→voz: 199ms` — la voz arrancó. iPhone pendiente de confirmación.
+
+---
+
+### BUG-037 — Métricas contaminadas entre sesiones — cuatro fuentes (`debug.js`, `app.js`)
+
+Causa: cuatro campos de AppState nunca se reseteaban entre sesiones:
+- `kmWalked` — acumulaba entre sesiones → "metros por narración" siempre incorrecto
+- `poisVisited` — acumulaba → contador sin significado
+- `_msTotalSystole` — acumulaba → % sístole/diástole siempre incorrecto
+- `_msTotalDiastole` — ídem
+
+Adicionalmente, `_metrics[]` se restauraba de localStorage en cada arranque → promedios de Worker, voz y Overpass mezclaban sesiones de días anteriores.
+
+Fix en app.js: `initExplore()` delega reset a `Debug.startTestSession()`.
+Fix en debug.js: `startTestSession()` nueva función centralizada (ver LAB-01).
+
+---
+
+### BUG-038 — Query Overpass insuficiente para OSM Colombia (`poi.js`)
+
+Causa: la query solo pedía `historic`, `tourism` limitado, `amenity` básico. En Colombia, muchos lugares reales tienen tags `building=cathedral`, `amenity=university`, `leisure=stadium`, `shop=mall` — categorías no incluidas.
+
+Fix: query ampliada con 6 cláusulas adicionales:
+- `node/way["building"~"cathedral|church|mosque|temple|synagogue|chapel"]`
+- `node["amenity"~"...arts_centre|library|university|college"]`
+- `node["leisure"~"park|garden|stadium"]`
+- `node["man_made"~"monument|memorial|statue|tower"]`
+- `node["shop"~"mall"]`
+- `way["amenity"~"university|college|theatre|cinema"]`
+
+`OSM_CATEGORIES` ampliado con 15 tipos nuevos y sus íconos.
+
+---
+
+### Sprint LAB-01 — Laboratorio confiable
+
+**Contexto:** auditoría completa de `debug.js` y `debug-sim.js` reveló confiabilidad 4/10. Antes de implementar visited-on-complete, cola narrativa y backoff Overpass, se necesitaba un laboratorio confiable.
+
+Informe completo: `INFORME_AUDITORIA_LABORATORIO.md`
+
+**REQ-1 · REQ-2 — `startTestSession()` centralizada (`debug.js`, `app.js`, `debug-sim.js`)**
+
+Nueva función `Debug.startTestSession()` que resetea en un solo lugar:
+- AppState: `kmWalked`, `poisVisited`, `_msTotalSystole`, `_msTotalDiastole`, `_narrationCount`, `_firstNarrationTs`, `_lastNarrationTs`, `_sessionStart`, `_phaseStart`, `_cityWelcomeDone`, `activePOI`
+- `_exp` completo (funnel, narraciones, música)
+- `_sessionMetrics[]` — nuevo array de métricas de sesión actual
+- `_sessionStartedAt` — timestamp de inicio de sesión
+
+`startWalking()` en debug-sim → usa `startTestSession()`.
+`initExplore()` en app.js → usa `startTestSession()`.
+
+**REQ-3 — Separar sesión actual vs histórico (`debug.js`)**
+
+`_sessionMetrics[]` — array paralelo a `_metrics[]`. Recibe las mismas mediciones pero se limpia con cada `startTestSession()`.
+
+Tab Tiempos: badge verde "✅ Sesión activa desde HH:MM · N mediciones" cuando hay sesión. Badge rojo "⚠️ Sin sesión activa — promedios son históricos" cuando no. Los promedios se calculan desde `_sessionMetrics` cuando está disponible.
+
+**REQ-4 — Métricas renombradas (`debug.js`)**
+
+- `POIs detectados` → `Chequeos con POI cercano` (era conteo de chequeos exitosos, no de POIs individuales)
+- `POIs narrados` → `POIs activados (narración disparada)` (se incrementaba al activar, antes de que la voz hablara)
+
+**REQ-5 — Clima sincronizado con teletransporte (`weather.js`, `debug-sim.js`)**
+
+`Weather.invalidateCache()` — nueva función pública que limpia `_weather`, `_lastFetch`, `_alertShown` y el localStorage. `Weather.refresh()` — invalida y dispara `check()` inmediato.
+
+`teleportTo()` en debug-sim llama `Weather.invalidateCache()` en modo teleport y `Weather.check()` con 1500ms de delay (para que AppState.gps se actualice primero).
+
+Resultado en campo: `Weather: cache invalidado — próximo fetch será forzado` confirmado en cada teletransporte.
+
+Problema detectado: `invalidateCache` también se llama al dibujar waypoints en modo ruta (mismo path de código). Fix pendiente: verificar `_mode === 'teleport'` también para el invalidate.
+
+**REQ-6 — Dashboard de experiencia (`debug.js`)**
+
+Tab Exp: sección "▶ Datos avanzados" plegable (`<details>`). Contiene Calidad de caminata y Música — métricas técnicas que no responden la pregunta rectora.
+
+Dashboard principal visible: TTF, Cinematic Score, Embudo narrativo, Ritmo narrativo.
+
+Botón "Reset exp." → renombrado "🔄 Nueva sesión" → llama `startTestSession()`.
+
+---
+
+### Hallazgos de campo — log 2026-06-26
+
+Prueba en Firefox/Windows con simulación de ruta sobre el Centro Histórico de Cali.
+
+**Pipeline completo confirmado:**
+- Overpass devolvió POIs del cache (601 en IndexedDB)
+- Iglesia de San Francisco detectada y activada correctamente
+- Claude Worker respondió en 5327ms
+- Voz habló: Microsoft Helena [es-ES] local, lag 199ms
+- 1048 chars (objetivo: <1200)
+- Narración duró 70s (objetivo: 35-40s — Chrome con voz online ignora rate)
+- Narraciones completas: 1/1
+
+**Problemas observados:**
+- TTF 358s — crítico. Overpass tardó 84-122s (timeout/carga extrema). Cache de 601 POIs solo se activó después del timeout completo del fetch
+- `Narration: narrando en curso — ignorando trigger [POI diferente: Monumento a Joaquín de Cayzedo y Cuero]` — visited prematuro confirma Sprint S2 prioritario
+- `Weather: cache invalidado` disparado 12 veces seguidas en modo ruta — bug de condición (ver REQ-5 arriba)
+- Overpass en modo `raw=0` dos veces seguidas — API pública bajo carga extrema. Necesita backoff y uso agresivo del cache IndexedDB
+
+---
+
+### Deuda técnica nueva
+
+| ID | Descripción | Prioridad |
+|----|-------------|-----------|
+| DT-22 | `visited = true` debe ocurrir al completar narración, no al activar POI | Alta |
+| DT-23 | Cola narrativa — POIs detectados durante narración deben encolarse, no perderse | Alta |
+| DT-24 | Cache agresivo de Overpass — usar IndexedDB sin intentar refetch durante la misma sesión | Alta |
+| DT-25 | Backoff Overpass — esperar 30-60s después de 429 antes de reintentar | Alta |
+| DT-26 | Weather.invalidateCache() disparado en modo ruta (solo debería en modo teleport) | Media |
+| DT-27 | `clearCache()` en debug.js no recarga la página — deja app en estado inconsistente | Media |
+
+### Deuda técnica resuelta
+
+| ID | Descripción |
+|----|-------------|
+| BUG-014 | Candado `_isFetchingPOIs` — implementado finalmente en `poi.js` |
+
+---
+
+### Confiabilidad del laboratorio post-LAB-01
+
+| Componente | Antes | Después |
+|-----------|-------|---------|
+| Debugger | 5/10 | 7/10 |
+| Simulador | 6/10 | 8/10 |
+| Métricas | 3/10 | 7/10 |
+| Dashboard experiencia | 5/10 | 8/10 |
+| Laboratorio completo | 4/10 | 7-8/10 |
+
+---
+
+### Próxima sesión — Sprint S2
+
+1. `visited = true` al completar narración — no al activar (DT-22)
+2. Cola narrativa — POIs encontrados durante narración no se pierden (DT-23)
+3. Cache agresivo Overpass — priorizar IndexedDB en sesión activa (DT-24)
+4. Backoff exponencial en 429 (DT-25)
+5. Prueba en iPhone del fix de AudioContext (BUG-036) — confirmar voz
+
+---
+
+*Follower — Bitácora v0.7s | Sesión 12 | 25 Junio 2026*
+

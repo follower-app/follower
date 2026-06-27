@@ -204,6 +204,15 @@ const POI = (() => {
 
   /* ── FETCH POIs DESDE OVERPASS (OSM) ── */
   async function fetchPOIsFromOSM(lat, lng, radiusKm) {
+    // Si Wikipedia ya cargó POIs en esta sesión, no disparar Overpass
+    // Evita el ciclo: Wikipedia OK → Overpass lento → candado bloqueado → sin detección
+    if (_pois.length > 0 && _lastFetchPos) {
+      if (typeof Debug !== 'undefined') {
+        Debug.log('info', `POI: Overpass omitido — ya hay ${_pois.length} POIs cargados`);
+      }
+      return _pois;
+    }
+
     // Candado — evita fetches paralelos que causan 429 en cadena (BUG-014)
     if (_isFetchingPOIs) {
       if (typeof Debug !== 'undefined') {

@@ -236,27 +236,34 @@ Take a moment to observe the details — every stone, every arch, has a story to
      el entorno es donde viven las historias.
   ── */
   function buildContext(lang) {
-    // Obtener todos los POIs cargados con su distancia actual
-    const nearby = (typeof POI !== 'undefined' && typeof POI.getPOIs === 'function')
-      ? POI.getPOIs()
-          .filter(p => p._distanceMeters != null && p._distanceMeters <= 500)
-          .sort((a, b) => a._distanceMeters - b._distanceMeters)
-          .slice(0, 6)
-      : [];
+    // Nunca debe romper trigger() — envuelto en try/catch defensivo
+    try {
+      const allPOIs = (typeof POI !== 'undefined' && typeof POI.getPOIs === 'function')
+        ? POI.getPOIs()
+        : [];
 
-    if (nearby.length === 0) return '';
+      const nearby = allPOIs
+        .filter(p => p && p.name && p._distanceMeters != null && p._distanceMeters <= 500)
+        .sort((a, b) => a._distanceMeters - b._distanceMeters)
+        .slice(0, 6);
 
-    const lines = nearby.map(p => `  - ${p.name} (${p._distanceMeters}m)`).join('
-');
+      if (nearby.length === 0) return '';
 
-    return lang === 'en'
-      ? `
-Nearby places within 500m:
-${lines}`
-      : `
-Lugares cercanos en un radio de 500m:
-${lines}`;
+      const lines = nearby.map(p => `  - ${p.name} (${p._distanceMeters}m)`).join('\n');
+
+      if (lang === 'en') {
+        return '\nNearby places within 500m:\n' + lines;
+      }
+      return '\nLugares cercanos en un radio de 500m:\n' + lines;
+
+    } catch (e) {
+      if (typeof Debug !== 'undefined') {
+        Debug.log('warn', `Narration: buildContext falló (${e.message}) — continuando sin contexto`);
+      }
+      return '';
+    }
   }
+
 
   function buildPrompt(poi, style, lang, topic) {
     const s        = STYLE_PROMPTS[style] || STYLE_PROMPTS.storyteller;
@@ -391,6 +398,9 @@ ${lines}`;
 
   /* ── TRIGGER — DA-3 función única ── */
   async function trigger(poi, _unused, lang, topic = 'historia') {
+    if (typeof Debug !== 'undefined') {
+      Debug.log('info', `Narration: trigger llamado · poi=${poi?.name} lang=${lang}`);
+    }
     if (!poi) return;
 
     // Usar estilo activo — narrationStyle tiene prioridad sobre mood

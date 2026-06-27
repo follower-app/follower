@@ -123,11 +123,14 @@ const POI = (() => {
     // Wikipedia en idioma local tiene más artículos con coordenadas configuradas
     const cityLang = (() => {
       const lt = lat, ln = lng;
-      if (lt > 41 && lt < 52 && ln > -5 && ln < 10)  return 'fr'; // Francia
-      if (lt > 36 && lt < 48 && ln > 6 && ln < 19)   return 'it'; // Italia
-      if (lt > 36 && lt < 44 && ln > -10 && ln < 5)  return 'es'; // España
-      if (lt > 47 && lt < 56 && ln > 5 && ln < 16)   return 'de'; // Alemania/Austria
-      if (lt > 49 && lt < 61 && ln > -8 && ln < 2)   return 'en'; // UK
+      // Portugal: antes que España — coordenadas se solapan
+      if (lt > 36 && lt < 42 && ln > -10 && ln < -6)  return 'pt'; // Portugal
+      if (lt > 41 && lt < 52 && ln > -5 && ln < 10)   return 'fr'; // Francia
+      if (lt > 36 && lt < 48 && ln > 6  && ln < 19)   return 'it'; // Italia
+      if (lt > 36 && lt < 44 && ln > -6 && ln < 5)    return 'es'; // España
+      if (lt > 47 && lt < 56 && ln > 5  && ln < 16)   return 'de'; // Alemania/Austria
+      if (lt > 49 && lt < 61 && ln > -8 && ln < 2)    return 'en'; // UK
+      if (lt > -34 && lt < 6 && ln > -80 && ln < -34) return 'pt'; // Brasil
       return 'es'; // LATAM y resto: español
     })();
 

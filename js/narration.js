@@ -316,7 +316,16 @@ Take a moment to observe the details — every stone, every arch, has a story to
 
   /* ── CARGAR NARRACIÓN DESDE INDEXEDDB ── */
   async function loadFromCache(poiId, style, lang, topic) {
+    // Timeout de 2s: si IndexedDB está bloqueada por otra transacción,
+    // no esperar indefinidamente — continuar sin cache y llamar a Claude
     return new Promise((resolve) => {
+      const timeout = setTimeout(() => {
+        if (typeof Debug !== 'undefined') {
+          Debug.log('warn', 'Narration: loadFromCache timeout — IndexedDB bloqueada, continuando sin cache');
+        }
+        resolve(null);
+      }, 2000);
+
       try {
         const req = indexedDB.open('follower_db', 1);
         req.onsuccess = (e) => {
@@ -325,11 +334,12 @@ Take a moment to observe the details — every stone, every arch, has a story to
           const tx    = db.transaction('narrations', 'readonly');
           const store = tx.objectStore('narrations');
           const get   = store.get(key);
-          get.onsuccess = () => resolve(get.result?.text || null);
-          get.onerror   = () => resolve(null);
+          get.onsuccess = () => { clearTimeout(timeout); resolve(get.result?.text || null); };
+          get.onerror   = () => { clearTimeout(timeout); resolve(null); };
         };
-        req.onerror = () => resolve(null);
+        req.onerror = () => { clearTimeout(timeout); resolve(null); };
       } catch (e) {
+        clearTimeout(timeout);
         resolve(null);
       }
     });

@@ -235,12 +235,10 @@ const DebugSim = (() => {
     }
     if (typeof GPS === 'undefined') return;
 
-    // Iniciar sesión de prueba limpia — reset completo de todos los contadores
-    // REQ-2: cada simulación es una sesión aislada e independiente
-    if (typeof Debug !== 'undefined') {
-      Debug.startTestSession();
-    }
-
+    // No llamar startTestSession aquí — initExplore() ya lo hace
+    // El doble reset destruía el unlock de audio: el AudioContext quedaba listo
+    // pero AppState se reiniciaba 4s después y el estado de unlock se perdía.
+    // GPS.stop() es suficiente para preparar la simulación.
     GPS.stop();
     _walking     = true;
     _walkStartTs = null;

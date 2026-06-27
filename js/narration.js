@@ -242,23 +242,37 @@ Take a moment to observe the details — every stone, every arch, has a story to
         ? POI.getPOIs()
         : [];
 
-      const nearby = allPOIs
-        .filter(p => p && p.name && p._distanceMeters != null && p._distanceMeters <= 500)
-        .sort((a, b) => a._distanceMeters - b._distanceMeters)
-        .slice(0, 6);
+      if (allPOIs.length === 0) return '';
 
-      if (nearby.length === 0) return '';
+      // Calcular distancia en tiempo real — _distanceMeters puede ser null
+      // si detectPOI() aún no procesó los POIs en este tick
+      const lat = AppState.gps?.lat;
+      const lng = AppState.gps?.lng;
 
-      const lines = nearby.map(p => `  - ${p.name} (${p._distanceMeters}m)`).join('\n');
+      const withDist = allPOIs
+        .filter(p => p && p.name)
+        .map(p => {
+          const dist = (lat && lng && typeof GPS !== 'undefined')
+            ? Math.round(GPS.distanceMeters(lat, lng, p.lat, p.lng))
+            : (p._distanceMeters || 9999);
+          return { name: p.name, dist };
+        })
+        .filter(p => p.dist <= 600)
+        .sort((a, b) => a.dist - b.dist)
+        .slice(0, 8);
+
+      if (withDist.length === 0) return '';
+
+      const lines = withDist.map(p => '  - ' + p.name + ' (' + p.dist + 'm)').join('\n');
 
       if (lang === 'en') {
-        return '\nNearby places within 500m:\n' + lines;
+        return '\nNearby places within 600m:\n' + lines;
       }
-      return '\nLugares cercanos en un radio de 500m:\n' + lines;
+      return '\nLugares cercanos en un radio de 600m:\n' + lines;
 
     } catch (e) {
       if (typeof Debug !== 'undefined') {
-        Debug.log('warn', `Narration: buildContext falló (${e.message}) — continuando sin contexto`);
+        Debug.log('warn', 'Narration: buildContext falló (' + e.message + ') — continuando sin contexto');
       }
       return '';
     }

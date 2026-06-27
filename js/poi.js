@@ -119,14 +119,25 @@ const POI = (() => {
     const lang    = (typeof AppState !== 'undefined' && AppState.lang === 'en') ? 'en' : 'es';
     const limit   = 50;
 
-    // Intentar Wikipedia en el idioma del usuario, con fallback a español
-    const WIKI_URLS = [
-      `https://${lang}.wikipedia.org/w/api.php`,
-      `https://es.wikipedia.org/w/api.php`,
-    ];
+    // Detectar idioma local según la ciudad para mejor cobertura GeoData
+    // Wikipedia en idioma local tiene más artículos con coordenadas configuradas
+    const cityLang = (() => {
+      const lt = lat, ln = lng;
+      if (lt > 41 && lt < 52 && ln > -5 && ln < 10)  return 'fr'; // Francia
+      if (lt > 36 && lt < 48 && ln > 6 && ln < 19)   return 'it'; // Italia
+      if (lt > 36 && lt < 44 && ln > -10 && ln < 5)  return 'es'; // España
+      if (lt > 47 && lt < 56 && ln > 5 && ln < 16)   return 'de'; // Alemania/Austria
+      if (lt > 49 && lt < 61 && ln > -8 && ln < 2)   return 'en'; // UK
+      return 'es'; // LATAM y resto: español
+    })();
 
-    // Eliminar duplicados si lang ya es 'es'
-    const urls = lang === 'es' ? [WIKI_URLS[0]] : WIKI_URLS;
+    // Orden: idioma local → español → inglés
+    const urlSet = new Set([
+      `https://${cityLang}.wikipedia.org/w/api.php`,
+      `https://es.wikipedia.org/w/api.php`,
+      `https://en.wikipedia.org/w/api.php`,
+    ]);
+    const urls = [...urlSet];
 
     const params = new URLSearchParams({
       action:   'query',
@@ -163,7 +174,8 @@ const POI = (() => {
         const data = await res.json();
         places = data?.query?.geosearch || [];
 
-        if (places.length > 0) break; // éxito
+        // Si el primer idioma devuelve pocos POIs, intentar el siguiente
+        if (places.length >= 10) break; // suficientes — no seguir buscando
 
       } catch (err) {
         if (typeof Debug !== 'undefined') {
@@ -184,6 +196,19 @@ const POI = (() => {
     }
 
     if (places.length === 0) return [];
+
+    // Deduplicar por coordenadas aproximadas (mismo lugar en idiomas distintos)
+    const seen = new Set();
+    places = places.filter(p => {
+      const key = `${Math.round(p.lat * 1000)},${Math.round(p.lon * 1000)}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+
+    if (typeof Debug !== 'undefined') {
+      Debug.log('info', `Wikipedia: ${places.length} POIs únicos tras deduplicación`);
+    }
 
     // Normalizar al mismo schema que normalizePOI() produce
     // para que detectPOI(), activatePOI() y el cache no noten la diferencia

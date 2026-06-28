@@ -220,7 +220,7 @@ const Voice = (() => {
       if (lagId) Debug.metricEnd(lagId, 'error', { error: e.error });
       if (durId) Debug.metricEnd(durId, 'error', { error: e.error });
       if (typeof Debug !== 'undefined') {
-        Debug.log('error', `Voice: síntesis fallida — ${e.error} · lang=${lang}`);
+        Debug.log('error', `Voice: onerror · error=${e.error} · charIndex=${e.charIndex} · elapsedTime=${e.elapsedTime} · lang=${lang} · voice=${_utterance?.voice?.name || 'null'}`);
       }
       _finish('onerror');
     };
@@ -230,34 +230,36 @@ const Voice = (() => {
     // Solución: esperar 250ms (en lugar de 100ms) y hacer resume() agresivo.
     const utteranceRef = _utterance;
     const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
-    const delay = isIOS ? 250 : 100;
 
     setTimeout(() => {
       if (!utteranceRef) return;
 
-      // iOS: forzar salida de cualquier estado corrupto
-      if (isIOS) {
-        window.speechSynthesis.cancel();
-        setTimeout(() => {
-          if (!utteranceRef) return;
-          if (typeof Debug !== 'undefined') {
-            Debug.log('info', `Voice: speak · speaking=${window.speechSynthesis.speaking} paused=${window.speechSynthesis.paused} pending=${window.speechSynthesis.pending} · ${text.length} chars · lang=${lang}`);
-          }
-          window.speechSynthesis.speak(utteranceRef);
-        }, 200);
-        return;
+      if (typeof Debug !== 'undefined') {
+        Debug.log('info', `Voice: pre-speak estado · speaking=${window.speechSynthesis.speaking} paused=${window.speechSynthesis.paused} pending=${window.speechSynthesis.pending} · voice=${utteranceRef.voice?.name || 'null'} · lang=${utteranceRef.lang}`);
       }
 
-      if (window.speechSynthesis.paused) {
+      // iOS: limpiar estado antes de speak
+      if (isIOS) {
+        window.speechSynthesis.cancel();
+      } else if (window.speechSynthesis.paused) {
         window.speechSynthesis.resume();
       }
 
       if (typeof Debug !== 'undefined') {
-        Debug.log('info', `Voice: speak · speaking=${window.speechSynthesis.speaking} paused=${window.speechSynthesis.paused} pending=${window.speechSynthesis.pending} · ${text.length} chars · lang=${lang}`);
+        Debug.log('info', `Voice: speak() llamado · ${text.length} chars`);
       }
 
-      window.speechSynthesis.speak(utteranceRef);
-    }, delay);
+      try {
+        window.speechSynthesis.speak(utteranceRef);
+        if (typeof Debug !== 'undefined') {
+          Debug.log('info', `Voice: speak() ejecutado · pending=${window.speechSynthesis.pending}`);
+        }
+      } catch(speakErr) {
+        if (typeof Debug !== 'undefined') {
+          Debug.log('error', `Voice: speak() lanzó excepción · ${speakErr.message}`);
+        }
+      }
+    }, isIOS ? 300 : 100);
 
     _isSpeaking = true;
   }

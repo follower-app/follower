@@ -12,7 +12,8 @@ const POI = (() => {
   let _markers      = {};       // marcadores Leaflet { poi.id: marker }
   let _lastFetchPos = null;     // última posición donde se hicieron fetch
   let _db            = null;     // instancia IndexedDB
-  let _isFetchingPOIs = false;   // candado — evita fetches paralelos a Overpass (BUG-014)
+  let _isFetchingPOIs  = false;   // candado — evita fetches paralelos a Overpass (BUG-014)
+  let _visitedInSession = new Set(); // IDs narrados en esta sesión — sobrevive resetPOIs()
 
   /* ── COLA NARRATIVA (S2-A2) ── */
   const QUEUE_MAX_SIZE = 3;          // máximo POIs en cola simultáneamente
@@ -440,6 +441,10 @@ const POI = (() => {
       try {
         const wikiPOIs = await fetchWikipediaPOIs(lat, lng, CONFIG.FETCH_RADIUS_KM);
         if (wikiPOIs.length > 0) {
+          // Restaurar visited para POIs ya narrados en esta sesión
+          wikiPOIs.forEach(p => {
+            if (_visitedInSession.has(p.id)) p.visited = true;
+          });
           _pois = wikiPOIs;
           await savePOIsToDB(wikiPOIs);
           _lastFetchPos = { lat, lng };
@@ -463,6 +468,10 @@ const POI = (() => {
       try {
         const fresh = await fetchPOIsFromOSM(lat, lng, CONFIG.FETCH_RADIUS_KM);
         if (fresh.length > 0) {
+          // Restaurar visited para POIs ya narrados en esta sesión
+          fresh.forEach(p => {
+            if (_visitedInSession.has(p.id)) p.visited = true;
+          });
           _pois = fresh;
           await savePOIsToDB(fresh);
           _lastFetchPos = { lat, lng };
@@ -510,6 +519,10 @@ const POI = (() => {
     }
 
     if (nearby.length > 0) {
+      // Restaurar visited para POIs ya narrados en esta sesión
+      nearby.forEach(p => {
+        if (_visitedInSession.has(p.id)) p.visited = true;
+      });
       _pois = nearby;
       _lastFetchPos = { lat, lng };
       renderAllMarkers();
@@ -903,6 +916,12 @@ const POI = (() => {
   return {
     detectNearby,
     processQueue,      // S2-A2 — llamado desde narration.js al completar narración
+    markVisited: (id) => {  // BUG-044 — registrar POI narrado en Set de sesión
+      _visitedInSession.add(id);
+    },
+    resetVisited: () => {   // llamado desde startTestSession() al iniciar nueva sesión
+      _visitedInSession.clear();
+    },
     renderExpanded,
     onMarkerTap,
     onDepthPill,

@@ -383,6 +383,11 @@ function initExplore() {
   AppState._cityWelcomeDone = false;
   _audioUnlocked = false;
 
+  // Limpiar Set de POIs visitados — nueva sesión en campo (BUG-044)
+  if (typeof POI !== 'undefined' && typeof POI.resetVisited === 'function') {
+    POI.resetVisited();
+  }
+
   if (typeof Debug !== 'undefined') {
     Debug.log('info', 'Sesión iniciada — todos los contadores desde cero');
   }

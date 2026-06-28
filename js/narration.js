@@ -537,6 +537,10 @@ Take a moment to observe the details — every stone, every arch, has a story to
         // Un POI interrumpido vuelve a estar disponible en la próxima detección
         if (poi && !poi.visited) {
           poi.visited = true;
+          // Registrar en el Set de sesión — sobrevive recargas de POIs (BUG-044)
+          if (typeof POI !== 'undefined' && typeof POI.markVisited === 'function') {
+            POI.markVisited(poi.id);
+          }
           if (typeof AppState !== 'undefined') {
             AppState.poisVisited++;
             if (typeof updateStats === 'function') updateStats();

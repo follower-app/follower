@@ -1099,6 +1099,12 @@ const Debug = (() => {
       Weather.invalidateCache();
     }
 
+    // 5. Limpiar Set de POIs visitados — nueva sesión, sin memoria de la anterior
+    // BUG-044: sin esto, resetPOIs() + nueva carga Wikipedia olvidaba los visited
+    if (typeof POI !== 'undefined' && typeof POI.resetVisited === 'function') {
+      POI.resetVisited();
+    }
+
     persistState();
     renderTab('exp');
 
@@ -1675,7 +1681,11 @@ const Debug = (() => {
 
   function clearCache() {
     indexedDB.deleteDatabase('follower_db');
-    log('info', 'IndexedDB eliminada — recarga la página');
+    log('info', 'IndexedDB eliminada — recargando página...');
+    // Recargar es necesario: sin reload el app queda en estado inconsistente
+    // (DB vacía pero _pois[] en memoria con datos huérfanos).
+    // En iOS esto también destruía el AudioContext keep-alive — BUG-045
+    setTimeout(() => location.reload(), 300);
   }
 
   function clearLogs() {

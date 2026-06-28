@@ -13,7 +13,8 @@ const Voice = (() => {
   let _isPaused    = false;
   let _voices      = [];      // voces disponibles en el dispositivo
   let _safetyTimer = null;    // timer de seguridad — dispara callback si onend no llega
-  let _keepAlive   = null;    // interval iOS — evita que Safari congele la síntesis
+  let _keepAlive       = null; // interval iOS — evita que Safari congele la síntesis durante speak
+  let _unlockKeepAlive = null; // interval iOS — mantiene speechSynthesis activo entre unlock y primera narración
   let _speakDone   = false;   // flag — evita que el callback se ejecute dos veces
 
   /* ── CONFIGURACIÓN ── */
@@ -152,7 +153,10 @@ const Voice = (() => {
       _speakDone = true;
 
       clearTimeout(_safetyTimer);
-      clearInterval(_keepAlive);
+      // Detener el keep-alive de unlock — speak() tiene su propio mecanismo
+    clearInterval(_unlockKeepAlive);
+    _unlockKeepAlive = null;
+    clearInterval(_keepAlive);
       _safetyTimer = null;
       _keepAlive   = null;
       _isSpeaking  = false;
@@ -290,7 +294,7 @@ const Voice = (() => {
     try {
       const silent = new SpeechSynthesisUtterance('');
       silent.volume = 0;
-      silent.rate   = 10; // tan rápido que no produce audio
+      silent.rate   = 10;
       window.speechSynthesis.speak(silent);
       if (typeof Debug !== 'undefined') {
         Debug.log('info', 'Voice: unlock desde gesto — speechSynthesis desbloqueado');
@@ -298,6 +302,26 @@ const Voice = (() => {
     } catch (e) {
       // silencioso — si falla no importa
     }
+
+    // iOS Safari: speechSynthesis se congela si no hay actividad durante ~30s.
+    // Reproducir un utterance vacío cada 20s mantiene el contexto activo
+    // entre el unlock del usuario y la primera narración real.
+    // Se detiene automáticamente cuando speak() arranca su propio _keepAlive.
+    clearInterval(_unlockKeepAlive);
+    _unlockKeepAlive = setInterval(() => {
+      // Detener si ya hay una narración activa — su propio keepAlive toma el control
+      if (_isSpeaking) {
+        clearInterval(_unlockKeepAlive);
+        _unlockKeepAlive = null;
+        return;
+      }
+      try {
+        const ping = new SpeechSynthesisUtterance(' ');
+        ping.volume = 0;
+        ping.rate   = 10;
+        window.speechSynthesis.speak(ping);
+      } catch (e) { /* silencioso */ }
+    }, 20000); // cada 20 segundos
   }
 
   /* ── INICIALIZAR ── */

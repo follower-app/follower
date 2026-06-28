@@ -225,11 +225,13 @@ const Voice = (() => {
       _finish('onerror');
     };
 
-    // Workaround iOS Safari: después de cancel(), speechSynthesis queda en estado
-    // corrupto donde el siguiente speak() nunca dispara onstart.
-    // Solución: esperar 250ms (en lugar de 100ms) y hacer resume() agresivo.
+    // iOS Safari 18+: el cancel() ya fue llamado por stop() arriba.
+    // Un segundo cancel() dentro del timeout mata la Audio Session completa
+    // y el speak() siguiente es descartado silenciosamente sin onstart ni onerror.
+    // Fix: nunca hacer cancel() extra en iOS — dejar que la Audio Session sobreviva.
     const utteranceRef = _utterance;
     const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+    const delay = isIOS ? 300 : 100;
 
     setTimeout(() => {
       if (!utteranceRef) return;
@@ -238,10 +240,8 @@ const Voice = (() => {
         Debug.log('info', `Voice: pre-speak estado · speaking=${window.speechSynthesis.speaking} paused=${window.speechSynthesis.paused} pending=${window.speechSynthesis.pending} · voice=${utteranceRef.voice?.name || 'null'} · lang=${utteranceRef.lang}`);
       }
 
-      // iOS: limpiar estado antes de speak
-      if (isIOS) {
-        window.speechSynthesis.cancel();
-      } else if (window.speechSynthesis.paused) {
+      // Si quedó en paused (no iOS), forzar resume antes de speak
+      if (!isIOS && window.speechSynthesis.paused) {
         window.speechSynthesis.resume();
       }
 
@@ -259,7 +259,7 @@ const Voice = (() => {
           Debug.log('error', `Voice: speak() lanzó excepción · ${speakErr.message}`);
         }
       }
-    }, isIOS ? 300 : 100);
+    }, delay);
 
     _isSpeaking = true;
   }

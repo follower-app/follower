@@ -2155,6 +2155,140 @@ Con S2-A1, S2-A2 y DT-19 implementados:
 
 *Follower — Bitácora v0.8 | Sesión 15 | 26 Junio 2026*
 
+---
+
+## Sesión 16 — 27-28 Junio 2026
+
+### Contexto
+Sesión extensa de implementación y debugging. Se implementaron S2-A1, S2-A2, DT-19, contexto del entorno en prompts, y se descubrieron múltiples bugs en iOS Safari con speechSynthesis. Primera prueba real de Follower en iPhone con narraciones activas.
+
+---
+
+### Implementaciones completadas
+
+**S2-A1 — visited on complete**
+`poi.visited = true` movido de `activatePOI()` al callback de `Voice.speak()`. Un POI interrumpido vuelve a estar disponible.
+
+**S2-A2 — Cola narrativa básica**
+`_narrationQueue[]`, `QUEUE_MAX_SIZE=3`, `QUEUE_TTL_MS=4min`. `detectPOI()` encola en lugar de ignorar durante narración activa. `processQueue()` verifica expiración y proximidad al completar.
+
+**DT-19 — Tono sintético placeholder**
+Oscilador Web Audio API de 2.5s con frecuencia diferenciada por narrador. Sin archivos externos. El tono sonó correctamente en iPhone.
+
+**DA-47 — Contexto del entorno en prompts**
+`buildContext()` calcula `GPS.distanceMeters()` en tiempo real y pasa hasta 8 POIs cercanos en 600m a cada narrador. Los 8 user prompts actualizados para usar el contexto del entorno completo, no solo el POI activado. Fix posterior: try/catch defensivo en `buildContext()` para evitar que un error rompa `trigger()`.
+
+**DA-48 — Wikipedia en idioma local**
+`fetchWikipediaPOIs()` detecta idioma local por coordenadas: Francia→fr, Italia→it, Portugal→pt, Brasil→pt, España→es, UK→en, Alemania→de. Loop continúa si <10 POIs. Deduplicación por coordenadas entre idiomas.
+
+**BUG-041 — Overpass bloqueaba detección tras Wikipedia**
+Wikipedia cargaba POIs en 300ms pero Overpass seguía corriendo en paralelo durante 60s manteniendo `_isFetchingPOIs=true`. Guard al inicio de `fetchPOIsFromOSM()`: si `_pois.length > 0 && _lastFetchPos`, retornar sin fetch.
+
+**BUG-042 — Doble startTestSession destruía unlock de audio**
+`startWalking()` y `initExplore()` ambos llamaban `startTestSession()`. El segundo reset ocurría después del unlock de audio. Removido de `startWalking()` — `initExplore()` lo hace en el momento correcto.
+
+**BUG-043 — loadFromCache() bloqueaba indefinidamente**
+`savePOIsToDB()` del teletransporte tenía transacción de escritura abierta. `loadFromCache()` esperaba indefinidamente. `_isNarrating=true` bloqueaba todas las narraciones siguientes. Fix: timeout de 2s en `loadFromCache()`.
+
+**BUG-044 — POI visitado se repetía tras resetPOIs()**
+`visited=true` vivía solo en el objeto POI en memoria. `resetPOIs()` creaba objetos frescos con `visited=false`. Fix: `_visitedInSession = new Set()` que persiste entre recargas. `markVisited(id)` y `resetVisited()` expuestos en API pública. Llamado desde narration.js, debug.js y app.js.
+
+**BUG-045 — clearCache() destruía AudioContext en iOS**
+Tres pulsaciones del botón 🗑️ Cache → tres `indexedDB.deleteDatabase()` → AudioContext destruido. Fix: `location.reload()` después de `deleteDatabase()`.
+
+---
+
+### Pruebas de campo — resultados
+
+**Lisboa — Baixa histórico (pt.wikipedia.org)**
+- Casa dos Bicos, Museu da Cerveja, Igreja da Madalena, Igreja de Santo António, Igreja da Conceição Velha
+- 4 narraciones completas en 7 minutos
+- TTF: 90s — excelente
+- 🎬 70/100
+
+**Barcelona — zona Sagrada Família (fr.wikipedia.org)**
+- Estación de Gaudí, Estación de Sagrada Família, Colegio Lacordaire narrados
+- La Sagrada Família no apareció como POI principal — aparece como contexto
+- 41 POIs únicos cargados
+
+**París — zona Museo Rodin (fr.wikipedia.org)**
+- Estación de Varenne, Museo Rodin, Hôtel de Biron
+- Cola funcionando: Museo Rodin encolado, narrando a 64m del usuario
+- 🎬 70/100
+
+**Cali — Centro Histórico (es.wikipedia.org)**
+- Torre Mudéjar de Cali narrada
+- 37 POIs únicos cargados
+- Wikipedia cubre Cali en 431ms
+
+---
+
+### BUG-036 — Voz silenciosa en iOS — estado actual (sin resolver)
+
+**Síntoma persistente:**
+```
+Voice: speak · speaking=false paused=false pending=false · 1044 chars
+```
+`speak()` se llama. Estado limpio. Pero `lag texto→voz` nunca aparece. `onstart` no dispara. Paulina seleccionada correctamente pero no habla.
+
+**Causa raíz identificada:**
+Dos `speak()` en 2 segundos (Bug A — cola disparó el mismo POI dos veces) → el segundo `cancel()` antes de `onstart` del primero → iOS queda en estado corrupto donde el siguiente `speak()` nunca dispara `onstart`.
+
+**Fixes intentados:**
+1. AudioContext keep-alive (music.js) — resuelve que el tono suene ✅
+2. speechSynthesis keep-alive cada 20s (voice.js) — no resolvió
+3. cancel() + 200ms delay antes de speak() en iOS — no resolvió
+4. Guard en trigger() si speechSynthesis.speaking — no resolvió
+5. Logs de diagnóstico detallados agregados — pendiente de test ⬅ aquí quedamos
+
+**Próximo paso:** desplegar voice.js con logs detallados y traer el log de iPhone. Los logs mostrarán `pre-speak estado`, `speak() ejecutado` y `onerror` con `error=interrupted` o `error=not-allowed` — eso identificará la causa exacta.
+
+---
+
+### Hallazgos de calidad narrativa
+
+**Nombres de POIs con sufijos Wikipedia**
+`Madalena (Lisboa)`, `Sagrada Família (métro de Barcelone)`, `Quartier de la Sagrada Família` — Claude recibe nombres técnicos. Pendiente: limpiar nombres antes del prompt.
+
+**Contexto del entorno — no confirmado llegando a Claude**
+`buildContext()` implementado pero en ningún log se observó que Claude mencionara lugares del contexto en la narración. Pendiente de confirmación en próxima sesión.
+
+**Silencios en caminata**
+73% sístole en Lisboa. Radio 120m + velocidad simulación = muchos POIs no se activan. En caminata real a pie el ritmo mejora. Confirmar en campo.
+
+---
+
+### Deuda técnica nueva
+
+| ID | Descripción | Prioridad |
+|----|-------------|-----------|
+| DT-35 | BUG-036 iOS voz silenciosa — logs de diagnóstico pendientes de análisis | Crítica |
+| DT-36 | Limpiar nombres de POIs Wikipedia antes del prompt (sufijos, paréntesis) | Alta |
+| DT-37 | Confirmar buildContext llega a Claude — verificar en narraciones | Alta |
+| DT-38 | Chequeo inmediato al cargar POIs — reducir TTF de 90s a <30s | Media |
+
+### Deuda técnica resuelta
+
+| ID | Descripción |
+|----|-------------|
+| DT-22 | visited on complete — implementado S2-A1 |
+| DT-23 | Cola narrativa — implementada S2-A2 |
+| DT-19 | Música placeholder — tono sintético funcionando |
+
+---
+
+### Para iniciar en la próxima sesión
+
+1. Analizar log de iPhone con voice.js de diagnóstico (DT-35)
+2. Limpiar nombres de POIs Wikipedia (DT-36)
+3. Confirmar que buildContext llega a Claude (DT-37)
+4. Documentar DA-47 a DA-49 en arquitectura.md
+
+---
+
+*Follower — Bitácora v0.8 | Sesión 16 | 27-28 Junio 2026*
+
+
 
 
 

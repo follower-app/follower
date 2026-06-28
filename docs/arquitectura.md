@@ -1059,6 +1059,94 @@ explorer:    330 Hz  // Mi3 — tono curioso, activo
 
 *Follower — Arquitectura v0.8 | Sesión 15 | 26 Junio 2026*
 
+---
+
+## Sprint S2 continuación — v0.8 (27-28 Junio 2026)
+
+### DA-47 — Contexto del entorno en prompts de narración
+
+`buildContext(lang)` en `narration.js` calcula distancias GPS en tiempo real y construye una lista de hasta 8 POIs cercanos en 600m para incluir en cada prompt.
+
+```javascript
+const withDist = allPOIs
+  .map(p => ({ name: p.name, dist: GPS.distanceMeters(lat, lng, p.lat, p.lng) }))
+  .filter(p => p.dist <= 600)
+  .sort((a, b) => a.dist - b.dist)
+  .slice(0, 8);
+```
+
+Envuelto en try/catch — nunca debe interrumpir `trigger()`. Los 8 user prompts actualizados: cada narrador recibe el contexto del entorno y tiene instrucción de usarlo para el ángulo más memorable, no solo el POI activado.
+
+Uso de distancia en tiempo real (no `_distanceMeters` cacheado) porque los POIs de Wikipedia tienen `_distanceMeters=null` hasta que `detectPOI()` los procesa en el siguiente tick.
+
+---
+
+### DA-48 — Wikipedia en idioma local por coordenadas geográficas
+
+`fetchWikipediaPOIs()` detecta el idioma local según las coordenadas antes de consultar Wikipedia:
+
+```javascript
+if (lt > 36 && lt < 42 && ln > -10 && ln < -6)  return 'pt'; // Portugal
+if (lt > 41 && lt < 52 && ln > -5 && ln < 10)   return 'fr'; // Francia
+if (lt > 36 && lt < 48 && ln > 6  && ln < 19)   return 'it'; // Italia
+if (lt > 36 && lt < 44 && ln > -6 && ln < 5)    return 'es'; // España
+if (lt > -34 && lt < 6 && ln > -80 && ln < -34) return 'pt'; // Brasil
+```
+
+Loop: si el primer idioma devuelve <10 POIs, intenta el siguiente (es → en). Deduplicación por coordenadas aproximadas entre idiomas. Validado: Lisboa 37 POIs, Barcelona 41 POIs, Cali 37 POIs.
+
+---
+
+### DA-49 — _visitedInSession: memoria de narración entre recargas de POIs
+
+`_visitedInSession = new Set()` en `poi.js` persiste entre recargas de `_pois[]`. Cuando `resetPOIs()` crea objetos POI frescos, el Set restaura `visited=true` en los que ya fueron narrados en la sesión.
+
+```javascript
+// Al cargar POIs (Wikipedia/Overpass/cache):
+pois.forEach(p => {
+  if (_visitedInSession.has(p.id)) p.visited = true;
+});
+
+// Al completar narración (narration.js callback):
+POI.markVisited(poi.id);
+
+// Al iniciar nueva sesión (startTestSession + initExplore):
+POI.resetVisited();
+```
+
+Sin este mecanismo, cada `resetPOIs()` olvidaba qué había sido narrado y los POIs se repetían.
+
+---
+
+### Deuda técnica actualizada (v0.8 · Sesión 16)
+
+| ID | Descripción | Prioridad |
+|----|-------------|-----------|
+| DT-1 | Logo SVG final + iconos PWA | Alta |
+| DT-3 | sw.js — service worker | Alta |
+| DT-8 | debug.js deshabilitado antes de v1.0 | Media |
+| DT-9 | Revocar key OpenAI de commits históricos | Alta |
+| DT-19 | MP3 definitivos 4 narradores | Media |
+| DT-20 | Test en campo con brújula real — iOS | Alta |
+| DT-25 | Backoff Overpass 30-60s | Media |
+| DT-26 | Weather.invalidateCache en modo ruta | Media |
+| DT-33 | MP3 definitivos (tono sintético activo mientras tanto) | Media |
+| DT-34 | Cooldown mínimo entre narraciones — evaluar post campo | Media |
+| DT-35 | BUG-036 iOS voz silenciosa — logs de diagnóstico pendientes | Crítica |
+| DT-36 | Limpiar nombres POIs Wikipedia antes del prompt | Alta |
+| DT-37 | Confirmar buildContext llega a Claude en narraciones | Alta |
+| DT-38 | Chequeo inmediato al cargar POIs — reducir TTF | Media |
+| ~~DT-22~~ | visited on complete — resuelto S2-A1 | — |
+| ~~DT-23~~ | Cola narrativa — resuelta S2-A2 | — |
+| ~~DT-24~~ | Cache agresivo — resuelto Wikipedia + filtro geográfico | — |
+| ~~DT-29~~ | Cobertura Wikipedia Cali — confirmada | — |
+| ~~DT-30~~ | TTF desde sesión nueva — confirmado <90s | — |
+
+---
+
+*Follower — Arquitectura v0.8 | Sesión 16 | 27-28 Junio 2026*
+
+
 
 
 

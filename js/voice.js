@@ -225,12 +225,29 @@ const Voice = (() => {
       _finish('onerror');
     };
 
-    // Workaround Chrome/iOS — evita congelamiento con setTimeout antes de speak()
+    // Workaround iOS Safari: después de cancel(), speechSynthesis queda en estado
+    // corrupto donde el siguiente speak() nunca dispara onstart.
+    // Solución: esperar 250ms (en lugar de 100ms) y hacer resume() agresivo.
     const utteranceRef = _utterance;
+    const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+    const delay = isIOS ? 250 : 100;
+
     setTimeout(() => {
       if (!utteranceRef) return;
 
-      // iOS: speechSynthesis puede quedar en paused tras cancel() — forzar resume
+      // iOS: forzar salida de cualquier estado corrupto
+      if (isIOS) {
+        window.speechSynthesis.cancel();
+        setTimeout(() => {
+          if (!utteranceRef) return;
+          if (typeof Debug !== 'undefined') {
+            Debug.log('info', `Voice: speak · speaking=${window.speechSynthesis.speaking} paused=${window.speechSynthesis.paused} pending=${window.speechSynthesis.pending} · ${text.length} chars · lang=${lang}`);
+          }
+          window.speechSynthesis.speak(utteranceRef);
+        }, 200);
+        return;
+      }
+
       if (window.speechSynthesis.paused) {
         window.speechSynthesis.resume();
       }
@@ -240,7 +257,7 @@ const Voice = (() => {
       }
 
       window.speechSynthesis.speak(utteranceRef);
-    }, 100);
+    }, delay);
 
     _isSpeaking = true;
   }

@@ -430,6 +430,15 @@ Take a moment to observe the details — every stone, every arch, has a story to
     // Usar estilo activo — narrationStyle tiene prioridad sobre mood
     const style = AppState.narrationStyle || 'storyteller';
 
+    // Guard crítico iOS: si speechSynthesis está ocupado aunque _isNarrating=false,
+    // esperar antes de hablar — evita el estado corrupto por doble cancel()
+    if (window.speechSynthesis && window.speechSynthesis.speaking) {
+      if (typeof Debug !== 'undefined') {
+        Debug.log('warn', 'Narration: speechSynthesis ocupado — esperando 300ms antes de trigger');
+      }
+      await new Promise(r => setTimeout(r, 300));
+    }
+
     // Guard: no interrumpir una narración en curso
     // Si ya está narrando, ignorar el trigger — la narración actual debe terminar
     if (_isNarrating) {

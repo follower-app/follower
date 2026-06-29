@@ -1,0 +1,466 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Follower — iOS Speech Test</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Inter', sans-serif;
+    background: #0d1420;
+    color: #e8e4d8;
+    min-height: 100vh;
+    padding: 24px 20px 48px;
+  }
+
+  h1 {
+    font-size: 18px;
+    font-weight: 500;
+    color: #f0c87a;
+    margin-bottom: 4px;
+  }
+
+  .subtitle {
+    font-size: 13px;
+    color: #6b7280;
+    margin-bottom: 28px;
+  }
+
+  .exp {
+    background: #1a2235;
+    border: 0.5px solid #2a3550;
+    border-radius: 14px;
+    padding: 18px;
+    margin-bottom: 16px;
+  }
+
+  .exp-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 10px;
+  }
+
+  .exp-num {
+    background: #1a5276;
+    color: #7ec8e3;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 3px 9px;
+    border-radius: 20px;
+    letter-spacing: 0.05em;
+  }
+
+  .exp-title {
+    font-size: 15px;
+    font-weight: 500;
+    color: #e8e4d8;
+  }
+
+  .exp-desc {
+    font-size: 13px;
+    color: #6b7280;
+    margin-bottom: 14px;
+    line-height: 1.5;
+  }
+
+  .flow {
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    font-size: 12px;
+    color: #4a90b8;
+    background: #0d1420;
+    border-radius: 8px;
+    padding: 10px 12px;
+    margin-bottom: 14px;
+    line-height: 1.8;
+  }
+
+  .btn-unlock {
+    width: 100%;
+    padding: 16px;
+    background: #1a5276;
+    color: #e8e4d8;
+    border: none;
+    border-radius: 50px;
+    font-size: 16px;
+    font-weight: 500;
+    cursor: pointer;
+    margin-bottom: 10px;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .btn-unlock:active { opacity: 0.8; }
+  .btn-unlock:disabled { background: #1a2235; color: #374151; }
+
+  .btn-speak {
+    width: 100%;
+    padding: 16px;
+    background: #c0392b;
+    color: #fff;
+    border: none;
+    border-radius: 50px;
+    font-size: 16px;
+    font-weight: 500;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .btn-speak:active { opacity: 0.8; }
+  .btn-speak:disabled { background: #1a2235; color: #374151; }
+
+  .status {
+    margin-top: 12px;
+    padding: 12px;
+    background: #0d1420;
+    border-radius: 8px;
+    font-size: 12px;
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    line-height: 1.7;
+    min-height: 48px;
+    color: #6b7280;
+  }
+
+  .log-ok    { color: #4ade80; }
+  .log-fail  { color: #f87171; }
+  .log-info  { color: #60a5fa; }
+  .log-warn  { color: #f0c87a; }
+  .log-time  { color: #9ca3af; }
+
+  .countdown {
+    font-size: 28px;
+    font-weight: 500;
+    color: #f0c87a;
+    text-align: center;
+    padding: 10px 0 4px;
+  }
+
+  .result-badge {
+    display: inline-block;
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 600;
+    margin-top: 8px;
+  }
+
+  .result-ok   { background: rgba(74,222,128,0.15); color: #4ade80; }
+  .result-fail { background: rgba(248,113,113,0.15); color: #f87171; }
+
+  .divider {
+    border: none;
+    border-top: 0.5px solid #2a3550;
+    margin: 24px 0;
+  }
+
+  .summary {
+    background: #1a2235;
+    border: 0.5px solid #2a3550;
+    border-radius: 14px;
+    padding: 18px;
+  }
+
+  .summary h2 {
+    font-size: 15px;
+    font-weight: 500;
+    color: #f0c87a;
+    margin-bottom: 12px;
+  }
+
+  .summary-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 0;
+    border-bottom: 0.5px solid #2a3550;
+    font-size: 13px;
+  }
+
+  .summary-row:last-child { border-bottom: none; }
+  .summary-label { color: #6b7280; }
+  .summary-val { font-family: 'SF Mono', 'Fira Code', monospace; color: #e8e4d8; }
+
+  .copy-btn {
+    width: 100%;
+    padding: 14px;
+    background: transparent;
+    color: #f0c87a;
+    border: 0.5px solid #f0c87a;
+    border-radius: 50px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    margin-top: 14px;
+    -webkit-tap-highlight-color: transparent;
+  }
+</style>
+</head>
+<body>
+
+<h1>Follower — iOS Speech Test</h1>
+<p class="subtitle">Mide cuánto tiempo dura una sesión de speechSynthesis en Safari</p>
+
+<!-- EXPERIMENTO 1 -->
+<div class="exp" id="exp1">
+  <div class="exp-header">
+    <span class="exp-num">EXP 1</span>
+    <span class="exp-title">60 segundos de espera</span>
+  </div>
+  <p class="exp-desc">¿iOS acepta speak() 60 segundos después del unlock, sin actividad de síntesis?</p>
+  <div class="flow">tap Unlock → esperar 60s → speak("hola")</div>
+  <button class="btn-unlock" id="btn1unlock" onclick="runExp(1, 60)">
+    Tap para Unlock — Exp 1
+  </button>
+  <button class="btn-speak" id="btn1speak" disabled onclick="speakNow(1)">
+    Hablar ahora (manual)
+  </button>
+  <div class="countdown" id="cd1"></div>
+  <div class="status" id="log1">Esperando tap de unlock...</div>
+</div>
+
+<!-- EXPERIMENTO 2 -->
+<div class="exp" id="exp2">
+  <div class="exp-header">
+    <span class="exp-num">EXP 2</span>
+    <span class="exp-title">120 segundos de espera</span>
+  </div>
+  <p class="exp-desc">¿iOS acepta speak() 120 segundos después del unlock, sin actividad?</p>
+  <div class="flow">tap Unlock → esperar 120s → speak("hola")</div>
+  <button class="btn-unlock" id="btn2unlock" onclick="runExp(2, 120)">
+    Tap para Unlock — Exp 2
+  </button>
+  <button class="btn-speak" id="btn2speak" disabled onclick="speakNow(2)">
+    Hablar ahora (manual)
+  </button>
+  <div class="countdown" id="cd2"></div>
+  <div class="status" id="log2">Esperando tap de unlock...</div>
+</div>
+
+<!-- EXPERIMENTO 3 -->
+<div class="exp" id="exp3">
+  <div class="exp-header">
+    <span class="exp-num">EXP 3</span>
+    <span class="exp-title">Ping a los 30s → hablar a los 60s</span>
+  </div>
+  <p class="exp-desc">¿Un utterance silencioso a los 30s mantiene la sesión viva para speak() a los 60s?</p>
+  <div class="flow">tap Unlock → 30s → ping silencioso → 30s → speak("hola")</div>
+  <button class="btn-unlock" id="btn3unlock" onclick="runExp(3, 60, true)">
+    Tap para Unlock — Exp 3
+  </button>
+  <button class="btn-speak" id="btn3speak" disabled onclick="speakNow(3)">
+    Hablar ahora (manual)
+  </button>
+  <div class="countdown" id="cd3"></div>
+  <div class="status" id="log3">Esperando tap de unlock...</div>
+</div>
+
+<hr class="divider">
+
+<!-- RESUMEN -->
+<div class="summary">
+  <h2>Resultados</h2>
+  <div class="summary-row">
+    <span class="summary-label">Exp 1 — 60s sin actividad</span>
+    <span class="summary-val" id="res1">—</span>
+  </div>
+  <div class="summary-row">
+    <span class="summary-label">Exp 2 — 120s sin actividad</span>
+    <span class="summary-val" id="res2">—</span>
+  </div>
+  <div class="summary-row">
+    <span class="summary-label">Exp 3 — ping a 30s</span>
+    <span class="summary-val" id="res3">—</span>
+  </div>
+  <div class="summary-row">
+    <span class="summary-label">UA</span>
+    <span class="summary-val" id="ua" style="font-size:10px; max-width:200px; text-align:right; word-break:break-all;"></span>
+  </div>
+  <button class="copy-btn" onclick="copyResults()">Copiar resultados para bitácora</button>
+</div>
+
+<script>
+  document.getElementById('ua').textContent = navigator.userAgent;
+
+  const results = { 1: null, 2: null, 3: null };
+  const timers  = {};
+
+  function log(n, msg, cls) {
+    const el = document.getElementById('log' + n);
+    const line = document.createElement('div');
+    line.className = cls || '';
+    const now = new Date();
+    const ts = now.toTimeString().slice(0,8);
+    line.innerHTML = '<span class="log-time">' + ts + '</span>  ' + msg;
+    el.appendChild(line);
+    el.scrollTop = el.scrollHeight;
+  }
+
+  function setResult(n, ok, detail) {
+    results[n] = { ok, detail };
+    const el = document.getElementById('res' + n);
+    el.innerHTML = '<span class="result-badge ' + (ok ? 'result-ok' : 'result-fail') + '">'
+      + (ok ? '✓ HABLÓ' : '✗ SILENCIO') + '</span>';
+  }
+
+  function countdown(n, secs, onDone, onPing) {
+    let remaining = secs;
+    const el = document.getElementById('cd' + n);
+    el.textContent = remaining + 's';
+
+    timers[n] = setInterval(() => {
+      remaining--;
+      el.textContent = remaining + 's';
+
+      if (onPing && remaining === secs / 2) {
+        onPing();
+      }
+
+      if (remaining <= 0) {
+        clearInterval(timers[n]);
+        el.textContent = '';
+        onDone();
+      }
+    }, 1000);
+  }
+
+  function doSpeak(n, text, source) {
+    const u = new SpeechSynthesisUtterance(text || 'Follower funciona correctamente en iOS Safari.');
+
+    // Seleccionar voz española si existe
+    const voices = window.speechSynthesis.getVoices();
+    const esVoice = voices.find(v => v.lang.startsWith('es') && v.localService)
+                 || voices.find(v => v.lang.startsWith('es'));
+    if (esVoice) u.voice = esVoice;
+    u.lang = 'es-419';
+    u.rate = 0.92;
+
+    const t0 = performance.now();
+
+    u.onstart = () => {
+      const lag = Math.round(performance.now() - t0);
+      log(n, 'onstart · lag=' + lag + 'ms · fuente=' + source, 'log-ok');
+      setResult(n, true, 'lag=' + lag + 'ms · pending=' + window.speechSynthesis.pending);
+    };
+
+    u.onend = () => {
+      log(n, 'onend — narración completa', 'log-ok');
+    };
+
+    u.onerror = (e) => {
+      log(n, 'onerror · error=' + e.error, 'log-fail');
+      setResult(n, false, 'error=' + e.error);
+    };
+
+    window.speechSynthesis.cancel();
+    window.speechSynthesis.speak(u);
+
+    const pending = window.speechSynthesis.pending;
+    const speaking = window.speechSynthesis.speaking;
+    log(n, 'speak() ejecutado · pending=' + pending + ' speaking=' + speaking,
+        pending || speaking ? 'log-info' : 'log-warn');
+
+    if (!pending && !speaking) {
+      setTimeout(() => {
+        if (!results[n]) {
+          setResult(n, false, 'pending=false · onstart nunca llegó');
+          log(n, 'DIAGNÓSTICO: iOS descartó utterance silenciosamente (trusted event expirado)', 'log-fail');
+        }
+      }, 3000);
+    }
+  }
+
+  function speakNow(n) {
+    // Habla manual desde tap directo (siempre debería funcionar)
+    clearInterval(timers[n]);
+    document.getElementById('cd' + n).textContent = '';
+    log(n, 'speak() manual desde tap directo', 'log-warn');
+    doSpeak(n, 'Prueba manual desde tap directo.', 'tap-manual');
+  }
+
+  function runExp(n, waitSecs, withPing) {
+    const btnUnlock = document.getElementById('btn' + n + 'unlock');
+    const btnSpeak  = document.getElementById('btn' + n + 'speak');
+
+    btnUnlock.disabled = true;
+    btnSpeak.disabled = false;
+
+    // Unlock desde trusted event
+    window.speechSynthesis.cancel();
+    const silent = new SpeechSynthesisUtterance('');
+    silent.volume = 0;
+    silent.rate = 10;
+    window.speechSynthesis.speak(silent);
+
+    log(n, 'unlock desde tap · speechSynthesis desbloqueado', 'log-info');
+    log(n, 'esperando ' + waitSecs + 's' + (withPing ? ' · ping a los ' + (waitSecs/2) + 's' : '') + '...', 'log-time');
+
+    const pingFn = withPing ? () => {
+      const ping = new SpeechSynthesisUtterance(' ');
+      ping.volume = 0;
+      ping.rate = 10;
+      window.speechSynthesis.speak(ping);
+      log(n, 'ping silencioso enviado a los ' + (waitSecs/2) + 's', 'log-info');
+    } : null;
+
+    countdown(n, waitSecs, () => {
+      log(n, 'tiempo completado — ejecutando speak() automático', 'log-warn');
+      doSpeak(n, 'Follower funciona. iOS mantuvo la sesión activa.', 'auto-timer');
+    }, pingFn);
+  }
+
+  function copyResults() {
+    const ua = navigator.userAgent;
+    const now = new Date().toISOString();
+    let txt = 'FOLLOWER — iOS Speech Test Results\n';
+    txt += 'Fecha: ' + now + '\n';
+    txt += 'UA: ' + ua + '\n\n';
+
+    [1,2,3].forEach(n => {
+      const labels = {
+        1: 'Exp 1 — 60s sin actividad',
+        2: 'Exp 2 — 120s sin actividad',
+        3: 'Exp 3 — ping a 30s'
+      };
+      const r = results[n];
+      txt += labels[n] + ': ';
+      if (!r) { txt += 'no ejecutado\n'; }
+      else { txt += (r.ok ? 'HABLÓ ✓' : 'SILENCIO ✗') + ' · ' + r.detail + '\n'; }
+    });
+
+    // Leer logs
+    [1,2,3].forEach(n => {
+      txt += '\n--- Log Exp ' + n + ' ---\n';
+      const lines = document.getElementById('log' + n).querySelectorAll('div');
+      lines.forEach(l => { txt += l.textContent + '\n'; });
+    });
+
+    navigator.clipboard.writeText(txt).then(() => {
+      const btn = document.querySelector('.copy-btn');
+      btn.textContent = '✓ Copiado';
+      setTimeout(() => { btn.textContent = 'Copiar resultados para bitácora'; }, 2000);
+    }).catch(() => {
+      // Fallback para iOS que puede bloquear clipboard
+      const ta = document.createElement('textarea');
+      ta.value = txt;
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      ta.remove();
+      const btn = document.querySelector('.copy-btn');
+      btn.textContent = '✓ Copiado';
+      setTimeout(() => { btn.textContent = 'Copiar resultados para bitácora'; }, 2000);
+    });
+  }
+
+  // Cargar voces
+  if ('speechSynthesis' in window) {
+    window.speechSynthesis.getVoices();
+    window.speechSynthesis.onvoiceschanged = () => window.speechSynthesis.getVoices();
+  }
+</script>
+
+</body>
+</html>

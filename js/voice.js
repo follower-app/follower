@@ -13,8 +13,7 @@ const Voice = (() => {
   let _isPaused    = false;
   let _voices      = [];      // voces disponibles en el dispositivo
   let _safetyTimer = null;    // timer de seguridad — dispara callback si onend no llega
-  let _keepAlive       = null; // interval iOS — evita que Safari congele la síntesis durante speak
-  let _unlockKeepAlive = null; // interval iOS — mantiene speechSynthesis activo entre unlock y primera narración
+  let _keepAlive   = null;    // interval iOS — evita que Safari congele la síntesis durante speak
   let _speakDone   = false;   // flag — evita que el callback se ejecute dos veces
 
   /* ── CONFIGURACIÓN ── */
@@ -153,10 +152,7 @@ const Voice = (() => {
       _speakDone = true;
 
       clearTimeout(_safetyTimer);
-      // Detener el keep-alive de unlock — speak() tiene su propio mecanismo
-    clearInterval(_unlockKeepAlive);
-    _unlockKeepAlive = null;
-    clearInterval(_keepAlive);
+      clearInterval(_keepAlive);
       _safetyTimer = null;
       _keepAlive   = null;
       _isSpeaking  = false;
@@ -189,6 +185,10 @@ const Voice = (() => {
       durId = (typeof Debug !== 'undefined')
         ? Debug.metricStart('voice', 'duración narración hablada')
         : null;
+
+      if (typeof Debug !== 'undefined') {
+        Debug.log('info', `Voice: onstart · lang=${lang} · chars=${text.length}`);
+      }
 
       // Safety timer: arranca cuando la voz empieza de verdad (no antes)
       _safetyTimer = setTimeout(() => {
@@ -225,57 +225,27 @@ const Voice = (() => {
       _finish('onerror');
     };
 
+    // Workaround Chrome/iOS — evita congelamiento con setTimeout antes de speak()
     const utteranceRef = _utterance;
-    const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+    setTimeout(() => {
+      if (!utteranceRef) return;
 
-    if (isIOS) {
-      // iOS Safari: _unlockKeepAlive acumula pings vacíos en la cola.
-      // speak() se encolaría detrás de ellos y sería descartado silenciosamente.
-      // Fix: detener keepAlive, limpiar cola con cancel(), y hacer speak()
-      // inmediatamente en el mismo tick — sin setTimeout — cola vacía garantizada.
-      clearInterval(_unlockKeepAlive);
-      _unlockKeepAlive = null;
-      window.speechSynthesis.cancel();
+      // iOS: speechSynthesis puede quedar en paused tras cancel() — forzar resume
+      if (window.speechSynthesis.paused) {
+        window.speechSynthesis.resume();
+      }
 
       if (typeof Debug !== 'undefined') {
         Debug.log('info', `Voice: pre-speak estado · speaking=${window.speechSynthesis.speaking} paused=${window.speechSynthesis.paused} pending=${window.speechSynthesis.pending} · voice=${utteranceRef.voice?.name || 'null'} · lang=${utteranceRef.lang}`);
         Debug.log('info', `Voice: speak() llamado · ${text.length} chars`);
       }
 
-      try {
-        window.speechSynthesis.speak(utteranceRef);
-        if (typeof Debug !== 'undefined') {
-          Debug.log('info', `Voice: speak() ejecutado · pending=${window.speechSynthesis.pending}`);
-        }
-      } catch(speakErr) {
-        if (typeof Debug !== 'undefined') {
-          Debug.log('error', `Voice: speak() lanzó excepción · ${speakErr.message}`);
-        }
+      window.speechSynthesis.speak(utteranceRef);
+
+      if (typeof Debug !== 'undefined') {
+        Debug.log('info', `Voice: speak() ejecutado · pending=${window.speechSynthesis.pending}`);
       }
-
-    } else {
-      // Chrome / otros: setTimeout 100ms como siempre
-      setTimeout(() => {
-        if (!utteranceRef) return;
-        if (window.speechSynthesis.paused) window.speechSynthesis.resume();
-
-        if (typeof Debug !== 'undefined') {
-          Debug.log('info', `Voice: pre-speak estado · speaking=${window.speechSynthesis.speaking} paused=${window.speechSynthesis.paused} pending=${window.speechSynthesis.pending} · voice=${utteranceRef.voice?.name || 'null'} · lang=${utteranceRef.lang}`);
-          Debug.log('info', `Voice: speak() llamado · ${text.length} chars`);
-        }
-
-        try {
-          window.speechSynthesis.speak(utteranceRef);
-          if (typeof Debug !== 'undefined') {
-            Debug.log('info', `Voice: speak() ejecutado · pending=${window.speechSynthesis.pending}`);
-          }
-        } catch(speakErr) {
-          if (typeof Debug !== 'undefined') {
-            Debug.log('error', `Voice: speak() lanzó excepción · ${speakErr.message}`);
-          }
-        }
-      }, 100);
-    }
+    }, 100);
 
     _isSpeaking = true;
   }
@@ -288,14 +258,7 @@ const Voice = (() => {
     _keepAlive   = null;
     _speakDone   = true;   // evita que safety timer dispare después del stop
 
-    // iOS Safari: cancel() destruye la Audio Session aunque no haya nada hablando.
-    // Si no hay narración activa, no cancelar — preservar el contexto de síntesis
-    // para que el siguiente speak() funcione sin re-unlock.
-    const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
-    if (isSupported() && (!isIOS || _isSpeaking)) {
-      window.speechSynthesis.cancel();
-    }
-
+    if (isSupported()) window.speechSynthesis.cancel();
     _isSpeaking = false;
     _isPaused   = false;
     _utterance  = null;
@@ -330,7 +293,9 @@ const Voice = (() => {
      iOS requiere que speechSynthesis.speak() sea llamado al menos una vez
      desde un trusted event (tap/click directo). Sin esto, speak() se ignora
      silenciosamente — no hay error, no hay onstart, no pasa nada.
-     Se hace con un utterance vacío que no produce audio. */
+     Se hace con un utterance vacío que no produce audio.
+     Confirmado: iOS mantiene la sesión activa al menos 120s sin actividad
+     adicional — no se necesita keepAlive entre unlock y primera narración. */
   function unlockFromGesture() {
     if (!isSupported()) return;
     try {
@@ -344,26 +309,6 @@ const Voice = (() => {
     } catch (e) {
       // silencioso — si falla no importa
     }
-
-    // iOS Safari: speechSynthesis se congela si no hay actividad durante ~30s.
-    // Reproducir un utterance vacío cada 20s mantiene el contexto activo
-    // entre el unlock del usuario y la primera narración real.
-    // Se detiene automáticamente cuando speak() arranca su propio _keepAlive.
-    clearInterval(_unlockKeepAlive);
-    _unlockKeepAlive = setInterval(() => {
-      // Detener si ya hay una narración activa — su propio keepAlive toma el control
-      if (_isSpeaking) {
-        clearInterval(_unlockKeepAlive);
-        _unlockKeepAlive = null;
-        return;
-      }
-      try {
-        const ping = new SpeechSynthesisUtterance(' ');
-        ping.volume = 0;
-        ping.rate   = 10;
-        window.speechSynthesis.speak(ping);
-      } catch (e) { /* silencioso */ }
-    }, 20000); // cada 20 segundos
   }
 
   /* ── INICIALIZAR ── */
@@ -382,7 +327,7 @@ const Voice = (() => {
     isPaused,
     isSupported,
     getAvailableLangs,
-    getVoiceList: () => _voices   // diagnóstico — lista completa de voces del dispositivo
+    getVoiceList: () => _voices
   };
 
 })();

@@ -2288,6 +2288,84 @@ Dos `speak()` en 2 segundos (Bug A — cola disparó el mismo POI dos veces) →
 
 *Follower — Bitácora v0.8 | Sesión 16 | 27-28 Junio 2026*
 
+---
+
+## Sesión 17 — 29 Junio 2026
+
+### BUG-036 — CERRADO ✅
+
+**Síntoma:** `Voice.speak()` ejecutado sin error pero `onstart` nunca llegaba. `pending=false` después de `speak()`. Paulina silenciosa en iOS Safari 18.7.
+
+**Duración del diagnóstico:** 2 sesiones completas, 6 hipótesis, 4 fixes incorrectos.
+
+**Causa raíz definitiva:** `touchstart` con `passive:true` en el listener de unlock de audio. Leaflet.js procesa los eventos `touchstart` del mapa antes de que lleguen a `_unlockAudioOnFirstTap()`. Para cuando `speechSynthesis.speak()` se ejecuta dentro del callback, iOS ya no lo considera un trusted event y descarta el utterance silencioso del unlock silenciosamente — sin error, sin `onstart`, sin audio.
+
+**Evidencia directa:**
+```
+Voice: unlock desde gesto · pending=false speaking=false  ← unlock fallido (touchstart)
+Voice: unlock desde gesto · pending=false speaking=true   ← unlock exitoso (touchend)
+```
+
+**Fix:** cambiar `touchstart` (passive) por `touchend` en `app.js` línea 409. `touchend` llega limpio al call stack sin interferencia de Leaflet.
+
+**Resultado confirmado en campo:**
+```
+lag texto→voz: 415ms
+duración narración hablada: 64419ms [ok]
+POI: visited=true al completar narración
+Voice: onstart · lang=es · chars=966  ← segunda narración también funcionando
+```
+
+**Hipótesis incorrectas descartadas:**
+1. `cancel()` redundante en timeout — no era la causa
+2. `cancel()` en `stop()` destruía Audio Session — no era la causa
+3. `_unlockKeepAlive` llenaba la cola — no era la causa
+4. Trusted event expira después de ~1 segundo de async — FALSO, iOS aguanta 120s+
+5. El pipeline async destruye el contexto — falso, Exp 4 confirmó que el pipeline funciona
+6. La bienvenida ciudad consumía el unlock — falso, es visual sin `Voice.speak()`
+
+**Aprendizaje clave:** iOS Safari NO expira el trusted event por tiempo. Lo que invalida el contexto es que Leaflet intercepta `touchstart` con `passive:true`, rompiendo la cadena del gesto. `touchend` no tiene este problema.
+
+**Archivos modificados:**
+- `js/app.js` — `touchstart` passive → `touchend`
+- `js/voice.js` — revert a sesión 15 + logs diagnóstico + fix `stop()` iOS
+- `sw.js` — nuevo, network-first para JS/CSS, sin skipWaiting automático
+- `index.html` — registro del SW
+
+---
+
+### Service Worker — DA-50
+
+Se introdujo `sw.js` mínimo para garantizar que Safari iOS descargue siempre la versión más reciente de JS/CSS. Sin SW, Safari puede cachear archivos por días impidiendo que los fixes lleguen al dispositivo — problema que bloqueó el diagnóstico durante toda la sesión 17.
+
+**Estrategia:** network-first para JS/CSS, cache-first para HTML/assets, APIs externas siempre en red. Sin `skipWaiting()` automático para no interrumpir sesiones de audio activas.
+
+---
+
+### Deuda técnica actualizada
+
+| ID | Descripción | Estado |
+|----|-------------|--------|
+| DT-35 | BUG-036 iOS voz silenciosa | RESUELTO |
+| DT-36 | Limpiar nombres POIs Wikipedia (sufijos, paréntesis) | Pendiente |
+| DT-37 | Confirmar buildContext llega a Claude | Pendiente |
+| DT-38 | Chequeo inmediato al cargar POIs — reducir TTF | Pendiente |
+| DT-39 | error=canceled en narraciones interrumpidas por recarga SW — monitorear | Baja |
+| DT-40 | paused=true en pre-speak tras canceled — resume() cubre pero vigilar | Baja |
+
+---
+
+### Para iniciar en la próxima sesión
+
+1. Prueba de campo real en ciudad — confirmar experiencia completa
+2. Limpiar nombres de POIs Wikipedia — DT-36
+3. Confirmar que buildContext llega a Claude — DT-37
+4. Documentar DA-50 en arquitectura.md
+
+---
+
+*Follower — Bitácora v0.8 | Sesión 17 | 29 Junio 2026*
+
 
 
 

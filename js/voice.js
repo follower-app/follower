@@ -311,7 +311,9 @@ const Voice = (() => {
       silent.rate   = 10;
       window.speechSynthesis.speak(silent);
       if (typeof Debug !== 'undefined') {
-        Debug.log('info', 'Voice: unlock desde gesto — speechSynthesis desbloqueado');
+        const p = window.speechSynthesis.pending;
+        const s = window.speechSynthesis.speaking;
+        Debug.log('info', `Voice: unlock desde gesto — speechSynthesis desbloqueado · pending=${p} speaking=${s}`);
       }
     } catch (e) {
       // silencioso — si falla no importa

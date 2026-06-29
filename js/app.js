@@ -406,8 +406,11 @@ function initExplore() {
 
   // Unlock de audio en primer tap — cubre flujo returning-user (saltea btnStartExplore)
   if (!_audioUnlocked) {
-    document.addEventListener('touchstart', _unlockAudioOnFirstTap, { once: true, passive: true });
-    document.addEventListener('click',      _unlockAudioOnFirstTap, { once: true });
+    // iOS Safari: usar touchend en lugar de touchstart passive
+    // touchstart con passive:true no garantiza trusted event para speechSynthesis
+    // cuando Leaflet está activo — usa touchend que llega limpio al call stack
+    document.addEventListener('touchend', _unlockAudioOnFirstTap, { once: true });
+    document.addEventListener('click',    _unlockAudioOnFirstTap, { once: true });
   }
 }
 

@@ -272,7 +272,14 @@ const Voice = (() => {
     _keepAlive   = null;
     _speakDone   = true;   // evita que safety timer dispare después del stop
 
-    if (isSupported()) window.speechSynthesis.cancel();
+    // iOS Safari: cancel() destruye la Audio Session aunque no haya nada hablando.
+    // Si no hay narración activa, no cancelar — preservar el contexto de síntesis
+    // para que el siguiente speak() funcione sin re-unlock.
+    const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+    if (isSupported() && (!isIOS || _isSpeaking)) {
+      window.speechSynthesis.cancel();
+    }
+
     _isSpeaking = false;
     _isPaused   = false;
     _utterance  = null;

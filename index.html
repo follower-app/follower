@@ -468,15 +468,8 @@
           .then((reg) => {
             // Forzar activación inmediata si hay nueva versión esperando
             if (reg.waiting) reg.waiting.postMessage({ type: 'SKIP_WAITING' });
-            reg.addEventListener('updatefound', () => {
-              const newWorker = reg.installing;
-              newWorker.addEventListener('statechange', () => {
-                if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                  // Nueva versión disponible — recargar para aplicarla
-                  window.location.reload();
-                }
-              });
-            });
+            // No recargar automáticamente — esperar al próximo arranque manual
+        // Una recarga en medio de la experiencia destruye el unlock de speechSynthesis
           })
           .catch((err) => console.warn('SW: registro fallido', err));
       });

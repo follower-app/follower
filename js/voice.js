@@ -225,27 +225,20 @@ const Voice = (() => {
       _finish('onerror');
     };
 
-    // iOS Safari 18+: el cancel() ya fue llamado por stop() arriba.
-    // Un segundo cancel() dentro del timeout mata la Audio Session completa
-    // y el speak() siguiente es descartado silenciosamente sin onstart ni onerror.
-    // Fix: nunca hacer cancel() extra en iOS — dejar que la Audio Session sobreviva.
     const utteranceRef = _utterance;
     const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
-    const delay = isIOS ? 300 : 100;
 
-    setTimeout(() => {
-      if (!utteranceRef) return;
+    if (isIOS) {
+      // iOS Safari: _unlockKeepAlive acumula pings vacíos en la cola.
+      // speak() se encolaría detrás de ellos y sería descartado silenciosamente.
+      // Fix: detener keepAlive, limpiar cola con cancel(), y hacer speak()
+      // inmediatamente en el mismo tick — sin setTimeout — cola vacía garantizada.
+      clearInterval(_unlockKeepAlive);
+      _unlockKeepAlive = null;
+      window.speechSynthesis.cancel();
 
       if (typeof Debug !== 'undefined') {
         Debug.log('info', `Voice: pre-speak estado · speaking=${window.speechSynthesis.speaking} paused=${window.speechSynthesis.paused} pending=${window.speechSynthesis.pending} · voice=${utteranceRef.voice?.name || 'null'} · lang=${utteranceRef.lang}`);
-      }
-
-      // Si quedó en paused (no iOS), forzar resume antes de speak
-      if (!isIOS && window.speechSynthesis.paused) {
-        window.speechSynthesis.resume();
-      }
-
-      if (typeof Debug !== 'undefined') {
         Debug.log('info', `Voice: speak() llamado · ${text.length} chars`);
       }
 
@@ -259,7 +252,30 @@ const Voice = (() => {
           Debug.log('error', `Voice: speak() lanzó excepción · ${speakErr.message}`);
         }
       }
-    }, delay);
+
+    } else {
+      // Chrome / otros: setTimeout 100ms como siempre
+      setTimeout(() => {
+        if (!utteranceRef) return;
+        if (window.speechSynthesis.paused) window.speechSynthesis.resume();
+
+        if (typeof Debug !== 'undefined') {
+          Debug.log('info', `Voice: pre-speak estado · speaking=${window.speechSynthesis.speaking} paused=${window.speechSynthesis.paused} pending=${window.speechSynthesis.pending} · voice=${utteranceRef.voice?.name || 'null'} · lang=${utteranceRef.lang}`);
+          Debug.log('info', `Voice: speak() llamado · ${text.length} chars`);
+        }
+
+        try {
+          window.speechSynthesis.speak(utteranceRef);
+          if (typeof Debug !== 'undefined') {
+            Debug.log('info', `Voice: speak() ejecutado · pending=${window.speechSynthesis.pending}`);
+          }
+        } catch(speakErr) {
+          if (typeof Debug !== 'undefined') {
+            Debug.log('error', `Voice: speak() lanzó excepción · ${speakErr.message}`);
+          }
+        }
+      }, 100);
+    }
 
     _isSpeaking = true;
   }

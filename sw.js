@@ -40,8 +40,8 @@ self.addEventListener('install', (event) => {
       return cache.addAll(STATIC_ASSETS);
     })
   );
-  // Activar inmediatamente sin esperar a que se cierre la pestaña anterior
-  self.skipWaiting();
+  // No llamar skipWaiting() automáticamente — esperar al próximo arranque
+  // para no interrumpir una sesión de audio activa
 });
 
 // ── ACTIVATE: limpiar cachés viejos ──

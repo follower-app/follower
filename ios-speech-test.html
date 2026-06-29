@@ -255,6 +255,27 @@
   <div class="status" id="log3">Esperando tap de unlock...</div>
 </div>
 
+<!-- EXPERIMENTO 4 -->
+<div class="exp" id="exp4">
+  <div class="exp-header">
+    <span class="exp-num" style="background:#7d3c98;color:#d7bde2;">EXP 4</span>
+    <span class="exp-title">Simula pipeline de Follower</span>
+  </div>
+  <p class="exp-desc">Replica exactamente lo que hace Follower: unlock → AudioContext → cancel() → tono sintético 2.7s → speak(). Si esto funciona pero Follower no, el bug está en otro archivo.</p>
+  <div class="flow">
+    tap Unlock<br>
+    → AudioContext.resume()<br>
+    → speechSynthesis.cancel()<br>
+    → OscillatorNode 2.7s (simula intro musical)<br>
+    → speak("Praça do Comércio...")
+  </div>
+  <button class="btn-unlock" id="btn4unlock" onclick="runExp4()">
+    Tap para Unlock — Exp 4 (Pipeline Follower)
+  </button>
+  <div class="countdown" id="cd4"></div>
+  <div class="status" id="log4">Esperando tap de unlock...</div>
+</div>
+
 <hr class="divider">
 
 <!-- RESUMEN -->
@@ -271,6 +292,10 @@
   <div class="summary-row">
     <span class="summary-label">Exp 3 — ping a 30s</span>
     <span class="summary-val" id="res3">—</span>
+  </div>
+  <div class="summary-row">
+    <span class="summary-label">Exp 4 — pipeline Follower</span>
+    <span class="summary-val" id="res4">—</span>
   </div>
   <div class="summary-row">
     <span class="summary-label">UA</span>
@@ -416,11 +441,12 @@
     txt += 'Fecha: ' + now + '\n';
     txt += 'UA: ' + ua + '\n\n';
 
-    [1,2,3].forEach(n => {
+    [1,2,3,4].forEach(n => {
       const labels = {
         1: 'Exp 1 — 60s sin actividad',
         2: 'Exp 2 — 120s sin actividad',
-        3: 'Exp 3 — ping a 30s'
+        3: 'Exp 3 — ping a 30s',
+        4: 'Exp 4 — pipeline Follower'
       };
       const r = results[n];
       txt += labels[n] + ': ';
@@ -429,7 +455,7 @@
     });
 
     // Leer logs
-    [1,2,3].forEach(n => {
+    [1,2,3,4].forEach(n => {
       txt += '\n--- Log Exp ' + n + ' ---\n';
       const lines = document.getElementById('log' + n).querySelectorAll('div');
       lines.forEach(l => { txt += l.textContent + '\n'; });
@@ -454,6 +480,109 @@
       setTimeout(() => { btn.textContent = 'Copiar resultados para bitácora'; }, 2000);
     });
   }
+
+  // ── EXPERIMENTO 4: Simula pipeline exacto de Follower ──
+  function runExp4() {
+    const btn = document.getElementById('btn4unlock');
+    btn.disabled = true;
+
+    // PASO 1: Unlock desde trusted event (igual que unlockFromGesture())
+    window.speechSynthesis.cancel();
+    const silent = new SpeechSynthesisUtterance('');
+    silent.volume = 0;
+    silent.rate = 10;
+    window.speechSynthesis.speak(silent);
+    log(4, 'unlock → speak(silent) ejecutado', 'log-info');
+
+    // PASO 2: AudioContext (igual que Music.initFromGesture())
+    let audioCtx;
+    try {
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      audioCtx.resume();
+      log(4, 'AudioContext creado · state=' + audioCtx.state, 'log-info');
+    } catch(e) {
+      log(4, 'AudioContext falló: ' + e.message, 'log-warn');
+    }
+
+    // PASO 3: cancel() — igual que Voice.stop() al inicio de speak()
+    // Aquí está la hipótesis: este cancel() mata la sesión
+    window.speechSynthesis.cancel();
+    log(4, 'cancel() ejecutado (simula Voice.stop() en speak())', 'log-warn');
+
+    // PASO 4: Tono sintético 2.7s (simula Music.playNarratorIntro())
+    log(4, 'iniciando tono sintético 2.7s...', 'log-info');
+    let cdSecs = 3;
+    const cdEl = document.getElementById('cd4');
+    cdEl.textContent = cdSecs + 's';
+    const cdInt = setInterval(() => {
+      cdSecs--;
+      cdEl.textContent = cdSecs > 0 ? cdSecs + 's' : '';
+      if (cdSecs <= 0) clearInterval(cdInt);
+    }, 1000);
+
+    if (audioCtx) {
+      try {
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 2.7);
+        osc.start();
+        osc.stop(audioCtx.currentTime + 2.7);
+        log(4, 'tono sintético reproduciéndose', 'log-info');
+      } catch(e) {
+        log(4, 'tono falló: ' + e.message, 'log-warn');
+      }
+    }
+
+    // PASO 5: speak() después de 2.8s (igual que Follower tras la intro)
+    setTimeout(() => {
+      log(4, 'ejecutando speak() tras 2.8s de intro musical...', 'log-warn');
+
+      const voices = window.speechSynthesis.getVoices();
+      const esVoice = voices.find(v => v.lang.startsWith('es') && v.localService)
+                   || voices.find(v => v.lang.startsWith('es'));
+
+      const u = new SpeechSynthesisUtterance(
+        'Praça do Comércio es el corazón histórico de Lisboa. Aquí llegaban los barcos cargados de especias del mundo.'
+      );
+      if (esVoice) u.voice = esVoice;
+      u.lang = 'es-419';
+      u.rate = 0.92;
+
+      const t0 = performance.now();
+
+      u.onstart = () => {
+        const lag = Math.round(performance.now() - t0);
+        log(4, 'onstart · lag=' + lag + 'ms ← FUNCIONA', 'log-ok');
+        setResult(4, true, 'lag=' + lag + 'ms');
+      };
+      u.onend = () => log(4, 'onend — narración completa ✓', 'log-ok');
+      u.onerror = (e) => {
+        log(4, 'onerror · error=' + e.error, 'log-fail');
+        setResult(4, false, 'error=' + e.error);
+      };
+
+      window.speechSynthesis.speak(u);
+      const pending = window.speechSynthesis.pending;
+      const speaking = window.speechSynthesis.speaking;
+      log(4, 'speak() ejecutado · pending=' + pending + ' speaking=' + speaking,
+          pending || speaking ? 'log-info' : 'log-warn');
+
+      if (!pending && !speaking) {
+        setTimeout(() => {
+          if (!results[4]) {
+            setResult(4, false, 'pending=false · mismo síntoma que Follower');
+            log(4, 'CONFIRMADO: el cancel() de stop() es la causa — mismo fallo reproducido', 'log-fail');
+          }
+        }, 3000);
+      }
+    }, 2800);
+  }
+
+  // Inicializar resultado exp4
+  results[4] = null;
 
   // Cargar voces
   if ('speechSynthesis' in window) {

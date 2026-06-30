@@ -8,7 +8,7 @@
 
 // Incrementar CACHE_VERSION fuerza descarga de todos los archivos
 // en el próximo arranque — incluso si el navegador tiene versión cacheada.
-const CACHE_VERSION = 'follower-v1';
+const CACHE_VERSION = 'follower-v2';  // DA-50: narrador unico, music.js eliminado
 
 const STATIC_ASSETS = [
   './',
@@ -20,7 +20,6 @@ const STATIC_ASSETS = [
   './js/poi.js',
   './js/narration.js',
   './js/voice.js',
-  './js/music.js',
   './js/weather.js',
   './js/care.js',
   './js/routes.js',

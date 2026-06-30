@@ -2,7 +2,7 @@
 
 > **Your city soundtrack.**
 
-Follower es una PWA de exploración cinematográfica que combina audioguía contextual, narrativa AI, música y cuidado humano para convertir cualquier paseo en una experiencia memorable.
+Follower es una PWA de exploración cinematográfica que usa narración AI en tiempo real, GPS y cuidado humano contextual para convertir cualquier paseo en una experiencia memorable.
 
 **App:** [follower-app.github.io/follower](https://follower-app.github.io/follower)
 **Repo:** [github.com/follower-app/follower](https://github.com/follower-app/follower)
@@ -32,10 +32,10 @@ Los usuarios no recordarán los datos históricos. Recordarán cómo se sintiero
 **Escucha. Camina. Vive.**
 
 El usuario guarda el celular en el bolsillo. La app orquesta todo sola:
-- Se acerca a un punto de interés → música hace fade in según el mood del lugar
-- Narración AI empieza sobre la música, en el idioma del usuario
-- Se aleja → música hace fade out suavemente
-- Lleva mucho tiempo caminando o va a llover → la app lo cuida y sugiere dónde descansar
+- Se acerca a un punto de interés → el narrador empieza a contar una historia
+- La historia usa el presente como punto de entrada — primero se vive, después se comprende
+- La ciudad misma es la banda sonora: sus campanas, sus mercados, sus conversaciones
+- Lleva mucho tiempo caminando, hace calor o va a llover → Follower sugiere con voz de anfitrión, no de sistema
 
 ---
 
@@ -44,6 +44,18 @@ El usuario guarda el celular en el bolsillo. La app orquesta todo sola:
 > ¿Esto nos acerca a una experiencia cinematográfica o a una audioguía tradicional?
 
 Si nos acerca a una audioguía, probablemente es la decisión equivocada.
+
+---
+
+## El Narrador
+
+Follower tiene una sola voz. No es un sistema con personalidades intercambiables.
+
+Es el amigo más culto que conoces, que nunca presume de lo que sabe. Puede haber nacido en la ciudad o haberse enamorado de ella. Conoce su historia, sus barrios, sus personajes y sus costumbres.
+
+Cada historia es un **capítulo**. Cada caminata construye una **tesis** sobre la ciudad. Al terminar, el usuario debe sentir: *"Ahora entiendo mejor esta ciudad."*
+
+La banda sonora no la pone Follower. La pone la ciudad.
 
 ---
 
@@ -75,7 +87,7 @@ Si nos acerca a una audioguía, probablemente es la decisión equivocada.
 
 | Rol | Fuente | Uso |
 |-----|--------|-----|
-| Display | DM Serif Display | Nombre app, títulos POIs |
+| Display | DM Serif Display | Nombre app, bienvenida ciudad, títulos POIs |
 | Narración | Inter 200 | Texto narración, descripciones |
 | UI | Inter 300 | Slogan, labels, botones |
 | Datos | Inter 500 | Métricas, distancias, estados |
@@ -87,34 +99,10 @@ Si nos acerca a una audioguía, probablemente es la decisión equivocada.
 ### Modo Libre *(default)*
 El usuario camina sin rumbo. La app detecta POIs cercanos y reacciona automáticamente. La ciudad sorprende.
 
-### Modo Recorrido *(opt-in)*
-El usuario elige una ruta temática. La app cuenta una historia. La ruta existe para servir a la narrativa — no al contrario.
+### Recorridos Curados *(opt-in — versiones futuras)*
+Follower cuenta una historia con arco narrativo predefinido. La ruta existe para servir al relato — no al contrario.
 
-### Transición inteligente
-Si el usuario está a menos de 300m del inicio de un recorrido popular, la app lo sugiere suavemente. Nunca lo activa automáticamente.
-
----
-
-## Recorridos disponibles — Roma
-
-| Recorrido | Km | Duración | POIs | Mood |
-|-----------|-----|----------|------|------|
-| 🏛️ Roma Imperial | 3.2 | 2h | 8 | Épico |
-| 🌙 Roma Nocturna | 2.1 | 1.5h | 6 | Misterio |
-| 🌹 Roma Romántica | 2.8 | 2h | 7 | Romántico |
-| 🔮 Roma Secreta | 4.0 | 2.5h | 10 | Misterio |
-| 😄 Roma Curiosa | 3.5 | 2h | 9 | Curioso |
-
----
-
-## Moods
-
-| Mood | Música | Narración |
-|------|--------|-----------|
-| 🎬 Épico | Orquestal, cinematográfica | Dramática, grandiosa |
-| 🌹 Romántico | Acordeón, cuerdas suaves | Poética, íntima |
-| 🔮 Misterio | Ambient, tensa | Suspense, secretos |
-| 😄 Curioso | Ligera, alegre | Datos curiosos, humor |
+Ciudades planificadas: Barcelona (Gaudí), París Romántico, Cali Salsera, Lisboa de los Exploradores, Roma Imperial.
 
 ---
 
@@ -126,7 +114,6 @@ Si el usuario está a menos de 300m del inicio de un recorrido popular, la app l
 | Mapa de la zona | ✅ |
 | POIs cercanos | ✅ |
 | Narración POIs conocidos | ✅ |
-| Música por mood | ✅ |
 | Narración POIs nuevos | ❌ |
 | Clima en tiempo real | ❌ |
 
@@ -138,41 +125,52 @@ Si el usuario está a menos de 300m del inicio de un recorrido popular, la app l
 follower/
 ├── index.html              → shell mínimo
 ├── manifest.json           → PWA config
-├── sw.js                   → service worker (al final)
+├── sw.js                   → service worker (siempre último en commits)
 ├── REGLAS_IA.md
 ├── README.md
 │
 ├── css/
-│   ├── main.css            → variables, reset, tipografía
-│   ├── components.css      → botones, pills, cards, waves
-│   ├── splash.css          → pantalla de carga y latido
-│   ├── modal.css           → modales y care cards
-│   ├── explore.css         → mapa, pins, card POI pequeña
-│   └── poi.css             → pantalla POI expandida
+│   ├── main.css            → variables, reset, tipografía, fases
+│   ├── components.css      → botones, pills, cards, waves, badges
+│   ├── splash.css          → latido, rings, expand animation
+│   ├── modal.css           → modales, care card, route picker
+│   ├── explore.css         → mapa, care strip, bottom bar, pills, brújula
+│   └── poi.css             → héroe, player, narración, acciones
 │
 ├── js/
-│   ├── keys.js             → API keys — LOCAL ONLY, en .gitignore
-│   ├── config.js           → idioma, mood, preferencias
-│   ├── app.js              → AppState, router, setPhase, init
-│   ├── gps.js              → GPS, Leaflet, distancia, ciudad
-│   ├── poi.js              → POIs desde OSM, detectPOI, IndexedDB
-│   ├── narration.js        → Gemini API, prompts, fallback
-│   ├── voice.js            → Web Speech API, 12 idiomas
-│   ├── music.js            → música por mood, fadeMusic
-│   ├── weather.js          → OpenWeatherMap, alerta lluvia
-│   ├── care.js             → cuidado contextual, checkCareContext
-│   └── routes.js           → recorridos temáticos, trazado
+│   ├── keys.js             → API keys LOCAL ONLY (.gitignore)
+│   ├── config.js           → idioma, mode, volúmenes, localStorage
+│   ├── app.js              → AppState, navigateTo(), setPhase(),
+│   │                         welcomeCity(), updateCareStrip()
+│   ├── gps.js              → Leaflet, watchPosition, Haversine, Nominatim,
+│   │                         simulatePosition(), detección velocidad tránsito
+│   ├── poi.js              → Wikipedia GeoSearch (primaria) + Overpass (fallback),
+│   │                         IndexedDB, detectPOI, cola narrativa
+│   ├── narration.js        → Claude Haiku vía Worker, Prompt Maestro v2.7,
+│   │                         memoria de sesión, getFarewell(), getCareMessage()
+│   ├── voice.js            → Web Speech API, 12 idiomas BCP-47, prioridad latam
+│   ├── weather.js          → OpenWeatherMap vía Worker, cache 30min
+│   ├── care.js             → checkCareContext, triggers + momentos memorables,
+│   │                         generación de mensajes vía Claude
+│   ├── routes.js           → recorridos temáticos, Leaflet polyline
+│   ├── debug.js            → dashboard de experiencia, métricas 3 capas
+│   └── debug-sim.js        → simulador GPS, tab Simular
+│
+├── cloudflare/
+│   └── worker.js           → proxy Claude API + OpenWeatherMap
 │
 ├── assets/
-│   ├── logo.svg            → logo C2 (pendiente)
-│   ├── sounds/             → epic.mp3, romantic.mp3, mystery.mp3, curious.mp3
+│   ├── logo.svg            → pendiente (DT-1)
 │   └── icons/              → icon-192.png, icon-512.png (pendiente logo)
 │
 └── docs/
-    ├── contexto_maestro.md → alma del producto, principios fundamentales
-    ├── producto.md
-    ├── arquitectura.md
-    └── bitacora.md
+    ├── contexto_maestro.md       → alma del producto, principios fundamentales
+    ├── producto.md               → producto, usuarios, principios
+    ├── arquitectura.md           → decisiones DA-1 a DA-57
+    ├── bitacora.md               → historial, bugs, deuda técnica
+    ├── manifiesto_narrativo.md   → voz, capítulos, tesis de ciudad
+    ├── manifiesto_care_strip.md  → hospitalidad urbana, voz del cuidado
+    └── prompt_maestro_follower.md → Prompt Maestro v2.7 oficial
 ```
 
 ---
@@ -181,14 +179,16 @@ follower/
 
 ```
 HTML + CSS + JS Vanilla
-Leaflet.js          → mapas (OpenStreetMap)
-Gemini 1.5 Flash    → narración AI en tiempo real (gratuito)
-Web Speech API      → síntesis de voz nativa (12 idiomas)
-Web Audio API       → música por mood nativa
-OpenWeatherMap API  → clima en tiempo real
-IndexedDB           → POIs y narraciones offline
-GitHub Pages        → hosting
-PWA                 → instalable, offline parcial
+Leaflet.js              → mapas (OpenStreetMap · CartoDB Voyager)
+Claude Haiku            → narración AI + Care generativo (vía Cloudflare Worker)
+Web Speech API          → síntesis de voz nativa (12 idiomas)
+Wikipedia GeoSearch     → fuente primaria de POIs
+Overpass OSM            → fuente secundaria de POIs (fallback)
+OpenWeatherMap API      → clima en tiempo real (vía Cloudflare Worker)
+IndexedDB               → POIs y narraciones offline
+GitHub Pages            → hosting
+PWA                     → instalable, offline parcial
+Cloudflare Workers      → proxy de API keys (sin billing, sin exposición)
 ```
 
 **Sin frameworks. Sin npm. Sin build step.**
@@ -198,15 +198,29 @@ PWA                 → instalable, offline parcial
 ## Para IAs y desarrolladores
 
 **Leer antes de tocar cualquier archivo:** `REGLAS_IA.md`
-**Leer para entender el alma del producto:** `docs/contexto_maestro.md`
+**Alma del producto:** `docs/contexto_maestro.md`
+**Voz narrativa:** `docs/manifiesto_narrativo.md` + `docs/prompt_maestro_follower.md`
+**Hospitalidad:** `docs/manifiesto_care_strip.md`
 
 Funciones únicas — nunca duplicar:
-- `detectPOI()` → poi.js
-- `triggerNarration(poi, mood, lang)` → narration.js
-- `fadeMusic(mood, direction)` → music.js
-- `checkCareContext()` → care.js
-- `setPhase(phase)` → app.js
-- `navigateTo(screen)` → app.js
+
+| Función | Archivo |
+|---------|---------|
+| `detectNearby()` | poi.js |
+| `trigger(poi, lang, topic)` | narration.js |
+| `getFarewell()` | narration.js |
+| `getCareMessage(type, candidatos, ctx)` | narration.js |
+| `checkCareContext()` | care.js |
+| `setPhase(phase)` | app.js |
+| `navigateTo(screen)` | app.js |
+| `welcomeCity(city)` | app.js |
+
+**Reglas absolutas:**
+- Sístole `#1a5276` = caminando · Diástole `#c0392b` = narrando · Nunca invertir
+- GPS nunca se interrumpe — es el latido de la app
+- `sw.js` siempre último en commits
+- Nunca mostrar errores al usuario — siempre hay fallback
+- La ciudad sonora vive en el prompt, no en archivos de audio
 
 ---
 
@@ -214,16 +228,15 @@ Funciones únicas — nunca duplicar:
 
 | Versión | Hitos | Estado |
 |---------|-------|--------|
-| v0.1 | README + arquitectura + identidad | ✅ |
-| v0.2 | Sistema de diseño + mockups | ✅ |
-| v0.3 | Documentación completa | ✅ |
-| v0.4 | Código base completo | ✅ |
-| v0.5 | Pruebas locales + debugging | 🔲 En curso |
-| v0.6 | Logo SVG + iconos PWA | 🔲 |
-| v0.7 | Archivos de música por mood | 🔲 |
-| v0.8 | sw.js + deploy GitHub Pages | 🔲 |
-| v1.0 | Piloto viajeros reales | 🔲 |
-| v2.0 | Más ciudades + monetización | 🔲 |
+| v0.1–v0.4 | README · arquitectura · identidad · código base | ✅ |
+| v0.5 | Panel de debug + métricas de experiencia | ✅ |
+| v0.6 | UI rediseñada — bottom bar, pills, care strip, brújula | ✅ |
+| v0.7 | Sistema de narradores · música por intro · bienvenida ciudad | ✅ |
+| v0.7s | Estabilización: voz latam · narraciones cortas · laboratorio | ✅ |
+| v0.8 | Wikipedia GeoSearch · cola narrativa · visited-on-complete | ✅ |
+| v0.9 | Narrador único (Prompt Maestro v2.7) · Care generativo · bienvenida en idioma local · cierre de caminata · pausa en tránsito | 🔄 En curso |
+| v1.0 | Piloto con viajeros reales | 🔲 |
+| v2.0 | Recorridos curados · interacción por voz · más ciudades | 🔲 |
 
 ---
 

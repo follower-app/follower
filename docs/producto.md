@@ -1,6 +1,6 @@
-# 📋 Follower — Documento de Producto v0.7
+# 📋 Follower — Documento de Producto v0.9
 
-> Junio 2026 — Rediseño de experiencia completo · Narradores, música, UI · Iniciando pruebas de campo
+> Junio 2026 — Narrador único · Care generativo · Ciudad sonora · Bienvenida en idioma local
 
 ---
 
@@ -8,9 +8,9 @@
 
 > *"your city soundtrack"*
 
-Follower es una experiencia cinematográfica de exploración urbana. Transforma cualquier paseo en una historia: narración AI en tiempo real, música que prepara emocionalmente antes de cada relato, y un acompañante que cuida de ti mientras caminas.
+Follower es una experiencia cinematográfica de exploración urbana. Transforma cualquier paseo en una historia: narración AI en tiempo real, un compañero invisible que cuida de ti mientras caminas, y la ciudad misma como banda sonora.
 
-**Follower no es un mapa. No es una audioguía. No es Wikipedia hablada.**
+**Follower no es un mapa. No es una audioguía. No es Wikipedia hablada. No es un reproductor de música.**
 
 Follower compite por emoción, no por información.
 
@@ -35,8 +35,8 @@ La pregunta fundacional: **¿por qué nadie reúne todo esto en una sola experie
 | **Audioguías aburridas** | Pregrabadas, genéricas, sin reacción al contexto real del usuario |
 | **Free tours rígidos** | Dependen de un guía, horarios fijos, grupos grandes, sin personalización |
 | **Mapas sin alma** | Google Maps da datos fríos, no cuenta historias ni genera emoción |
-| **Experiencia fragmentada** | Música, narración y mapa son cuatro apps distintas abiertas en paralelo |
-| **Sin cuidado humano** | Ninguna app sabe que estás cansado, que va a llover o que llevas 3 km caminados |
+| **Experiencia fragmentada** | Narración, ambientación y mapa son herramientas separadas |
+| **Sin cuidado humano** | Ninguna app sabe que estás cansado, que va a llover o que llevas 3km caminados |
 | **Carga cognitiva** | La logística del viaje roba espacio a la experiencia misma |
 
 ---
@@ -46,9 +46,9 @@ La pregunta fundacional: **¿por qué nadie reúne todo esto en una sola experie
 Follower no vende información. Vende **inmersión, emoción y compañía**.
 
 - La narración reacciona al lugar exacto donde estás, en tiempo real
-- La música aparece sola antes de cada historia, preparando la emoción
-- Un narrador con personalidad propia te acompaña durante todo el paseo
-- La app sabe cuándo sugerir descanso, refugio del calor o un café
+- Cada historia es un capítulo que construye una tesis sobre la ciudad
+- La app sabe cuándo sugerir descanso, refugio del calor o un café — con la misma voz que narra
+- La ciudad misma es la banda sonora: Follower enseña a escucharla
 - Funciona sin señal — la experiencia no se rompe nunca
 
 La ciudad siempre es la protagonista. Follower nunca debe sentirse más importante que el lugar que el usuario está explorando.
@@ -67,7 +67,7 @@ La ciudad siempre es la protagonista. Follower nunca debe sentirse más importan
 
 > ¿La experiencia fue memorable?
 
-**Métrica técnica principal:** ⏱ Tiempo hasta primera historia. Responde: ¿cuándo demuestra Follower su valor? Semáforo: verde ≤90s / amarillo 90-300s / rojo >300s. Más importante que el Cinematic Score.
+**Métrica técnica principal:** ⏱ Tiempo hasta primera historia. Semáforo: verde ≤90s / amarillo 90-300s / rojo >300s.
 
 ---
 
@@ -85,103 +85,115 @@ La ciudad siempre es la protagonista. Follower nunca debe sentirse más importan
 
 ---
 
-## 7. Sistema de Narradores *(v0.7 — activo)*
+## 7. El Narrador *(v0.9 — narrador único)*
 
-En v0.7, el sistema de "moods" fue reemplazado completamente por **cuatro narradores con personalidad propia**. Cada narrador tiene voz, sistema de prompts (system + user, en español e inglés) y caché independiente por estilo.
+En v0.9, los cuatro narradores (Storyteller, Historiador, Explorador, Local) se consolidan en **una sola voz**. No desaparecen como capacidades — el narrador único los absorbe, eligiendo el ángulo según el POI, no según una preferencia del usuario.
 
-| Narrador | Emoji | Personalidad | Estilo narrativo |
-|----------|-------|--------------|-----------------|
-| **Storyteller** | 🎭 | Cuentero apasionado | Personajes reales, emoción, suspenso |
-| **Historiador** | 🏛️ | Académico riguroso | Fechas, contexto, causa y consecuencia |
-| **Explorador** | 🔎 | Curioso incansable | Datos sorprendentes, conexiones inesperadas |
-| **Local** | ❤️ | Vecino orgulloso | Vida cotidiana, anécdotas, orgullo de barrio |
+> El amigo más culto que conoces, que nunca presume de lo que sabe.
 
-Un quinto narrador (**Familiar**) está planificado para una versión futura.
+Puede haber nacido en la ciudad o haberse enamorado de ella. Conoce su historia, sus barrios, sus personajes y sus costumbres. No habla como profesor. No habla como guía turístico.
 
-**Principio técnico:** `trigger()` ignora el parámetro `mood` heredado y lee `AppState.narrationStyle`. La caché usa `style` en la key (`poiId_style_lang_topic`) — cada narrador guarda su propia narración para el mismo POI.
+**Principio técnico:** un solo system prompt (Prompt Maestro v2.7), fijo. La caché usa `poiId_lang_topic` — sin `style`. `max_tokens: 480` como techo duro (≈330-350 palabras).
 
----
+**Memoria de sesión:** cada narración recibe como contexto solo el capítulo inmediatamente anterior (idea central + recurso sensorial usado). El historial completo solo se usa en la despedida final. Esto mantiene el tamaño del input constante durante toda la caminata.
 
-## 8. Sistema de Música *(v0.7 — activo)*
-
-En v0.7, la música de fondo continua fue eliminada. Reemplazada por **intros cortas por narrador** (`playNarratorIntro()`) que suenan antes de cada narración y crean el momento cinematográfico de entrada.
-
-- Implementación: Web Audio API con Promise-based, safety timer de 3s en iOS
-- Si el MP3 no existe o falla, `Promise.race` garantiza que la voz arranca igual
-- `initFromGesture()` activa el AudioContext desde el primer gesto del usuario (requerido en iOS Safari)
-- Los 4 MP3 (`storyteller-intro.mp3`, `historian-intro.mp3`, `explorer-intro.mp3`, `local-intro.mp3`) están pendientes de creación — DT-19
+La definición completa de la voz: `docs/manifiesto_narrativo.md` y `docs/prompt_maestro_follower.md`
 
 ---
 
-## 9. Bienvenida de Ciudad *(v0.7 — activo)*
+## 8. La Banda Sonora *(v0.9 — ciudad sonora)*
 
-Al entrar a una ciudad, aparece una frase única centrada sobre el mapa con fade in/out. Cada narrador tiene su propia frase de bienvenida para la misma ciudad.
+En v0.9, la música generada por la app desaparece por completo. `music.js` se elimina.
 
-- Texto en DM Serif Display, centrado, sobre el mapa
-- Se dispara una vez por sesión
-- Desaparece automáticamente a los 5 segundos o al tocar
-- Si Nominatim no responde en 10s, aparece un fallback genérico según idioma activo
-- `_cityWelcomeDone` se resetea en cada `initExplore()` — nueva sesión, nueva bienvenida
+La banda sonora de Follower **es la ciudad**: sus campanas, sus mercados, sus conversaciones, sus músicos, sus tranvías, sus silencios.
 
----
+Follower no reproduce nada. Enseña al caminante a escuchar lo que ya está sonando a su alrededor, nombrándolo en la narración a través de la sección "Ciudad Sonora" del Prompt Maestro v2.7.
 
-## 10. Modos de Exploración
-
-### Modo Libre *(default — DA-8)*
-Camina sin rumbo. La app detecta POIs en un radio de 120m y reacciona. Descubrimiento orgánico. El usuario nunca recibe instrucciones de ruta.
-
-### Modo Recorrido *(opt-in)*
-Ruta temática curada con arco narrativo. La ruta existe para servir a la narrativa, no al contrario. El usuario elige activamente entrar a este modo.
-
-> Un recorrido debe responder *¿qué historia estamos contando?* antes de responder *¿qué lugares vamos a visitar?*
-
-### Transición inteligente
-Sugerencia si el usuario está a < 300m del inicio de un recorrido. Nunca automático.
+La regla "narración siempre sobre música" se retira como regla de audio. La presencia sonora es ahora responsabilidad narrativa del prompt.
 
 ---
 
-## 11. Recorridos Disponibles — Roma *(en routes.js)*
+## 9. Bienvenida de Ciudad *(v0.9 — idioma local)*
 
-| Recorrido | Km | Duración | POIs |
-|-----------|-----|----------|------|
-| 🏛️ Roma Imperial | 3.2 | 2h | 8 |
-| 🌙 Roma Nocturna | 2.1 | 1.5h | 6 |
-| 🌹 Roma Romántica | 2.8 | 2h | 7 |
-| 🔮 Roma Secreta | 4.0 | 2.5h | 10 |
-| 😄 Roma Curiosa | 3.5 | 2h | 9 |
+Al entrar a una ciudad, Follower muestra el nombre de la ciudad animado letra por letra, en el idioma local del lugar detectado — no el idioma del usuario.
 
-Ciudades planificadas para versiones futuras: Barcelona (Gaudí), París Romántico, Cali Salsera, Lisboa de los Exploradores.
+"Hola Cali" / "Hello Atlanta" / "Bonjour Paris"
+
+El idioma se resuelve mediante una tabla simple país→idioma a partir del `country_code` del reverse geocoding. Esta pantalla actúa como pantalla de carga real de POIs, no como overlay decorativo.
+
+**Flujo de arranque v0.9:**
+```
+Logo Follower (breve, mientras carga GPS)
+    → Bienvenida animada en idioma local (mientras cargan POIs)
+        → Exploración
+```
+
+Fallback si GPS o geocoding tardan: saludo genérico en el idioma del usuario.
 
 ---
 
-## 12. Sistema de Cuidado Contextual
+## 10. Cierre de Caminata *(v0.9 — sin botón explícito)*
 
-`care.js` evalúa condiciones en orden de prioridad. La experiencia humana tiene prioridad sobre la narración.
+No existe un botón "Terminar paseo". El cierre se activa por señales implícitas:
 
-| Prioridad | Condición | Acción |
-|-----------|-----------|--------|
-| 1 | Temp ≥ 30°C | Buscar refugio del calor |
-| 2 | Temp ≤ 5°C | Buscar lugar cálido |
-| 3 | Hora almuerzo + > 1km caminado | Sugerir restaurante |
-| 4 | > 2km caminados | Sugerir café de descanso |
-| 5 | Lluvia | Alerta + buscar refugio |
+1. **Inactividad de movimiento prolongada** cruzada con el estado de Care
+   (una pausa sugerida por Care no es el fin de la caminata)
+2. **Pregunta hablada por el narrador:** *"Veo que llevas un rato sin moverte. ¿Cerramos nuestro capítulo de [ciudad] por hoy?"*
+3. **Confirmación por tap** — UI mínima, binaria (sí/no)
+4. Si confirma → despedida narrativa generada con el historial completo de capítulos
+5. Si ignora → Follower no insiste, vuelve a sístole normal
+
+Cada apertura nueva de la app es una caminata nueva. `_walkChapters[]` vive solo en memoria de sesión — se pierde al cerrar la app.
+
+Interacción por voz bidireccional (que el usuario responda hablando) es una visión futura, no una deuda técnica de esta versión.
+
+---
+
+## 11. Sistema de Cuidado Contextual *(v0.9 — generativo)*
+
+`care.js` en v0.9 deja de usar mensajes estáticos. Cada sugerencia se genera vía una única llamada a Claude que:
+
+1. Selecciona, entre 3-5 candidatos de Overpass, el lugar que "se siente más propio del sitio" (criterio editorial, no popularidad)
+2. Redacta el mensaje con la misma voz narrativa del Prompt Maestro
+
+**Triggers de protección real** (lluvia, calor/frío extremo) → pueden anunciarse aunque el usuario esté detenido.
+
+**Triggers de bienestar/contemplación** (cansancio, almuerzo, zona especial) → esperan a que el usuario retome el movimiento.
+
+**Nuevo trigger — momentos memorables:** densidad de POIs Wikipedia en un radio de ~150m como proxy de "zona especial" (plaza, centro histórico). Calculado localmente sin llamadas de red adicionales.
+
+| Prioridad | Tipo | Condición | Espera movimiento |
+|-----------|------|-----------|-------------------|
+| 1 | Protección | Lluvia inminente | No |
+| 2 | Protección | Temp ≥ 30°C o ≤ 5°C | No |
+| 3 | Bienestar | Hora almuerzo + >1km | Sí |
+| 4 | Bienestar | > 2km caminados | Sí |
+| 5 | Memorable | Densidad alta de POIs (~150m) | Sí |
 
 Cooldown de 20 minutos entre sugerencias. Primer chequeo a los 5 minutos de sesión.
+
+La definición completa: `docs/manifiesto_care_strip.md`
+
+---
+
+## 12. Tránsito Rápido *(v0.9 — pausa automática)*
+
+Si el usuario se desplaza a >15-18 km/h sostenido por 30-60 segundos (taxi, bus, metro), Follower pausa automáticamente la detección de POIs. El GPS nunca se detiene.
+
+Al volver a ritmo de caminata, la detección se reactiva sin fricción ni aviso.
 
 ---
 
 ## 13. Metáfora Central — Sístole / Diástole
 
-El ritmo de la app replica el latido del corazón. Es la metáfora de diseño fundamental.
+El ritmo de la app replica el latido del corazón.
 
 | Fase | Color | Representa |
 |------|-------|-----------|
 | **Sístole** | `#1a5276` (azul) | Movimiento · exploración · caminar |
 | **Diástole** | `#c0392b` (rojo) | Narración · inmersión · historia |
 
-`setPhase()` en `app.js` es la única función que cambia de fase. CSS hace el resto. Nunca estilos inline desde JS.
-
-**Regla absoluta:** Sístole es azul, Diástole es rojo. Nunca invertir.
+`setPhase()` en `app.js` es la única función que cambia de fase. CSS hace el resto. Nunca estilos inline desde JS. **Regla absoluta:** Sístole es azul, Diástole es rojo. Nunca invertir.
 
 ---
 
@@ -189,11 +201,11 @@ El ritmo de la app replica el latido del corazón. Es la metáfora de diseño fu
 
 Web Speech API — 12 idiomas BCP-47:
 
-`es-419` (latam) · `es-MX` · `es-CO` · `es-ES` (último recurso) · `en-US` · `fr-FR` · `it-IT` · `de-DE` · `pt-BR` · `ja-JP` · `zh-CN` · `ko-KR` · `nl-NL` · `ru-RU` · `ar-SA`
+`es-419` (latam) · `es-MX` · `es-CO` · `es-ES` (último recurso) · `en-US` · `fr-FR` · `it-IT` · `de-DE` · `pt-BR` · `ja-JP` · `zh-CN` · `ko-KR`
 
-Prioridad de selección en español: `es-CO → es-MX → es-US → es-419 → (otras latam) → es-ES`. Voces locales siempre sobre voces online (las online ignoran el parámetro `rate`).
+Prioridad de selección en español: `es-CO → es-MX → es-US → es-419 → (otras latam) → es-ES`. Voces locales siempre sobre voces online.
 
-Los prompts de narradores tienen versiones en español e inglés. Otros idiomas usan el prompt en inglés como base.
+Los prompts tienen versiones en español e inglés. Otros idiomas usan el prompt en inglés como base.
 
 ---
 
@@ -211,17 +223,16 @@ Los prompts de narradores tienen versiones en español e inglés. Otros idiomas 
 
 ## 16. Pantallas
 
-| Pantalla | Estado | Notas v0.7 |
+| Pantalla | Estado | Notas v0.9 |
 |----------|--------|-----------|
-| Splash — latido + carga | ✅ | Flujo returning-user → exploración directa |
-| Config inicial — idioma + narrador | ✅ | "Mood" reemplazado por selector de narradores |
-| Selección de modo | ✅ | |
-| Bienvenida de ciudad — fade sobre mapa | ✅ | Nuevo v0.7 · DM Serif Display |
-| Exploración — care strip + mapa + bottom bar | ✅ | Bottom bar sólida, dos pills simétricos |
-| Care card — descanso / lluvia / calor | ✅ | Reemplaza care strip en top, height 32px |
-| POI expandido | ✅ | btnBookmark/btnShare eliminados (DT-17) |
-| Selección de recorrido | ✅ | |
-| Resumen del paseo | 🔲 | Pendiente — DT-4 |
+| Splash — logo breve mientras carga GPS | 🔄 | Reemplaza el splash del corazón |
+| Bienvenida de ciudad — animada en idioma local | 🔄 | Nueva — actúa como pantalla de carga real de POIs |
+| Config inicial — wizard tipo Organiza2 | 🔲 | DT-47 — pendiente de diseño |
+| Exploración — care strip + mapa + bottom bar | ✅ | |
+| Care card — sugerencia generativa | 🔄 | Texto vía Claude, sin mensajes estáticos |
+| Pregunta de cierre — confirmación tap | 🔲 | DT-46 — nueva |
+| POI expandido | ✅ | |
+| Resumen / despedida del paseo | 🔲 | DT-4 + DA-54 |
 
 ---
 
@@ -229,12 +240,14 @@ Los prompts de narradores tienen versiones en español e inglés. Otros idiomas 
 
 | Servicio | Piloto (1-5 usuarios) | MVP (10-20 usuarios) |
 |----------|----------------------|----------------------|
-| Claude API (claude-haiku) | $1-5/mes | $10-30/mes |
+| Claude Haiku (narración + Care) | $2-8/mes | $15-40/mes |
 | OpenWeatherMap | $0 | $0 |
-| Leaflet / OSM / Overpass | $0 | $0 |
+| Leaflet / OSM / Wikipedia / Overpass | $0 | $0 |
 | GitHub Pages | $0 | $0 |
 | Cloudflare Workers | $0 (plan gratuito) | $0 |
-| **Total** | **$1-5/mes** | **$10-30/mes** |
+| **Total** | **$2-8/mes** | **$15-40/mes** |
+
+*Care generativo vía Claude añade llamadas adicionales respecto a v0.8 — costo estimado 20-30% mayor.*
 
 ---
 
@@ -242,28 +255,25 @@ Los prompts de narradores tienen versiones en español e inglés. Otros idiomas 
 
 | Versión | Hitos | Estado |
 |---------|-------|--------|
-| v0.1 | README + arquitectura + identidad | ✅ |
-| v0.2 | Sistema de diseño + mockups | ✅ |
-| v0.3 | Documentación completa | ✅ |
-| v0.4 | Código base completo | ✅ |
+| v0.1–v0.4 | README · arquitectura · identidad · código base | ✅ |
 | v0.5 | Panel de debug + métricas de experiencia | ✅ |
 | v0.6 | UI rediseñada — bottom bar, pills, care strip, brújula | ✅ |
 | v0.7 | Sistema de narradores · música por intro · bienvenida ciudad | ✅ |
-| v0.7s | Estabilización: voz latam · narraciones cortas · sanitización · laboratorio confiable | ✅ |
-| v0.8 | Wikipedia GeoSearch como fuente primaria · visited-on-complete · cola narrativa · MP3 intros | 🔄 En curso |
-| v0.9 | Arquitectura de providers formal · scoring POI · Logo SVG · sw.js | 🔲 |
+| v0.7s | Estabilización: voz latam · narraciones cortas · laboratorio | ✅ |
+| v0.8 | Wikipedia GeoSearch · cola narrativa · visited-on-complete | ✅ |
+| v0.9 | Narrador único · Care generativo · ciudad sonora · bienvenida idioma local · cierre de caminata · pausa en tránsito | 🔄 En curso |
 | v1.0 | Piloto con viajeros reales | 🔲 |
-| v2.0 | Más ciudades · narrador Familiar · monetización | 🔲 |
+| v2.0 | Recorridos curados · interacción por voz · más ciudades | 🔲 |
 
 ---
 
-## 19. Deuda Técnica Activa
+## 19. Deuda Técnica Activa *(v0.9 · Sesión 17)*
 
 | ID | Descripción | Prioridad |
 |----|-------------|-----------|
 | DT-1 | Logo SVG final + iconos PWA | Alta |
 | DT-3 | sw.js — service worker (siempre último en commit) | Alta |
-| DT-4 | Pantalla resumen del paseo | Media |
+| DT-4 | Pantalla resumen / despedida del paseo | Alta |
 | DT-5 | Más ciudades en routes.js | Baja |
 | DT-8 | debug.js + debug-sim.js deshabilitados antes de v1.0 | Media |
 | DT-9 | Revocar key OpenAI expuesta en commits históricos | Alta |
@@ -271,78 +281,48 @@ Los prompts de narradores tienen versiones en español e inglés. Otros idiomas 
 | DT-12 | Atribución CARTO/OSM no visible | Baja |
 | DT-16 | Pantalla POI expandida: rediseñar con nuevo sistema visual | Media |
 | DT-17 | Implementar bookmark y share (Web Share API) en pantalla POI | Baja |
-| DT-19 | 4 MP3 de intro por narrador | Alta |
 | DT-20 | Test en campo con brújula real — verificar DeviceOrientation iOS | Alta |
-| DT-21 | Worker 400 en arranque — endpoint /weather sin key configurada | Baja |
-| DT-22 | `visited = true` al completar narración, no al activar POI | Alta |
-| DT-23 | Cola narrativa — POIs encolados durante narración, no perdidos | Alta |
-| DT-24 | Cache agresivo Overpass — priorizar IndexedDB en sesión activa | Alta |
-| DT-25 | Backoff Overpass — esperar 30-60s después de 429 | Alta |
-| DT-25 | Backoff Overpass — esperar 30-60s después de 429 | Media |
-| DT-26 | Weather.invalidateCache() en modo ruta — solo debe dispararse en teleport | Media |
-| DT-27 | clearCache() en debug.js no recarga la página — estado inconsistente | Media |
-| DT-28 | Verificar cap 80 POIs con nwr en ciudades muy densas | Baja |
-| DT-29 | Confirmar cobertura Wikipedia en Centro Histórico de Cali | Alta |
-| DT-30 | Confirmar TTF con Wikipedia desde sesión nueva sin cache previo | Alta |
-| DT-31 | Mejorar type/icon de POIs Wikipedia con categorías Wikidata | Baja |
-| ~~DT-24~~ | ~~Cache agresivo Overpass~~ — resuelto: Wikipedia primaria + filtro geográfico | — |
+| DT-25 | Backoff Overpass 30-60s después de 429 | Media |
+| DT-26 | Weather.invalidateCache en modo ruta — solo en teleport | Media |
+| DT-27 | clearCache() en debug.js no recarga la página | Media |
+| DT-28 | Verificar cap 80 POIs con nwr en ciudades densas | Baja |
+| DT-31 | Mejorar type/icon POIs Wikipedia con Wikidata | Baja |
+| DT-34 | Cooldown mínimo entre narraciones — evaluar post campo | Media |
+| DT-35 | BUG-036 iOS voz silenciosa — logs de diagnóstico pendientes | Crítica |
+| DT-36 | Limpiar nombres POIs Wikipedia antes del prompt | Alta |
+| DT-37 | Confirmar buildContext llega a Claude en narraciones | Alta |
+| DT-38 | Chequeo inmediato al cargar POIs — reducir TTF | Media |
+| DT-39 | Formato extracción metadatos por capítulo (idea central + recurso sensorial) | Alta |
+| DT-40 | Umbral exacto de inactividad para disparar pregunta de cierre | Alta |
+| DT-41 | Tabla país→idioma — cobertura inicial de países prioritarios | Alta |
+| DT-42 | Mini-prompt de Care (misma voz, intención de hospitalidad) | Media |
+| DT-43 | Umbral de densidad de POIs para trigger "zona especial" (~150m) | Media |
+| DT-44 | Medir en campo si autoevaluación del v2.7 incrementa latencia | Alta |
+| DT-45 | UI: pantalla de bienvenida animada (splash mínimo + texto letra por letra) | Alta |
+| DT-46 | UI: confirmación por tap para cierre de caminata | Media |
+| DT-47 | Wizard de configuración tipo Organiza2 | Media |
+| ~~DT-19~~ | ~~4 MP3 de intro por narrador~~ — obsoleto, music.js eliminado | — |
+| ~~DT-22~~ | ~~visited = true al activar~~ — resuelto S2-A1 | — |
+| ~~DT-23~~ | ~~Sin cola narrativa~~ — resuelto S2-A2 | — |
+| ~~DT-24~~ | ~~Cache agresivo Overpass~~ — resuelto Wikipedia + filtro geográfico | — |
+| ~~DT-29~~ | ~~Cobertura Wikipedia Cali~~ — confirmada | — |
+| ~~DT-30~~ | ~~TTF desde sesión nueva~~ — confirmado <90s | — |
+| ~~DT-33~~ | ~~MP3 definitivos (tono sintético)~~ — obsoleto, music.js eliminado | — |
 
 ---
 
-## Principios aprendidos en campo (v0.8)
+## 20. Principios aprendidos en campo
 
-**Wikipedia como filtro editorial:** un lugar con artículo en Wikipedia es un lugar que merece ser narrado. Esta alineación entre la curaduría de Wikipedia y la visión cinematográfica de Follower no es coincidencia — es el modelo mental correcto para el descubrimiento de POIs.
+**Wikipedia como filtro editorial:** un lugar con artículo en Wikipedia es un lugar que merece ser narrado. Esta alineación con la visión cinematográfica de Follower no es coincidencia — es el modelo mental correcto para el descubrimiento de POIs.
 
-**Validar antes de arquitecturizar:** el experimento mínimo (una función, sin nuevos archivos) validó la hipótesis en una sesión. La arquitectura formal de providers vendrá después, respaldada por evidencia de campo en tres ciudades.
+**Validar antes de arquitecturizar:** el experimento mínimo (una función, sin nuevos archivos) validó la hipótesis en una sesión. La arquitectura formal de providers vendrá después, respaldada por evidencia de campo.
 
 **La fuente de datos es parte del producto:** Overpass era un bottleneck técnico que afectaba directamente la promesa de Follower. Cambiar la fuente de datos no fue una decisión técnica — fue una decisión de producto.
 
+**La banda sonora es la ciudad, no la app:** `music.js` se eliminó. La presencia sonora de Follower vive en el texto narrativo, no en archivos de audio. La ciudad ya suena — Follower enseña a escucharla.
+
+**Care como hospitalidad, no como función:** el Care strip habla con la misma voz que el narrador. No existe un segundo narrador, no existe un sistema separado. Follower simplemente cambia de intención por un momento.
+
 ---
 
-
-
----
-
-## Sprint S2 — Ritmo emocional (26 Junio 2026)
-
-### La pregunta cambió
-
-Antes del laboratorio: **¿funciona el pipeline?**
-Después del laboratorio: **¿se siente cinematográfico?**
-
-El pipeline funciona. Wikipedia entrega 50 POIs en 237-513ms. Claude narra en 5s. La voz habla en 195ms. Ahora el trabajo es editorial, no técnico.
-
-### Lo que implementamos
-
-**Cola narrativa** — Follower ya no ignora los lugares que encuentra mientras habla. Los anota, espera, y los narra si el usuario sigue cerca. Como haría un guía humano.
-
-**visited on complete** — Un lugar solo se considera "visitado" cuando su historia llegó completa al usuario. Si algo interrumpe la narración, el lugar vuelve a estar disponible.
-
-**Música desbloqueada** — La regla "narración siempre sobre música" ahora se cumple. Mientras llegan los MP3 definitivos, cada narración arranca con un tono diferenciado por narrador.
-
-### Lo que no implementamos todavía
-
-**Cooldown fijo de 4 minutos.** La idea es correcta — el silencio es parte del producto. Pero el valor exacto necesita evidencia de campo. La cola narrativa puede hacer ese trabajo de forma más elegante que un temporizador fijo.
-
-**Scoring de POIs.** Wikipedia ya filtra por relevancia. El scoring es una optimización de segundo orden que agregaremos cuando tengamos datos reales de qué POIs generan las mejores narraciones.
-
-### Roadmap actualizado
-
-| Versión | Foco | Estado |
-|---------|------|--------|
-| v0.7s | Estabilización técnica — voz, narraciones, laboratorio | ✅ |
-| v0.8 | Wikipedia GeoSearch + ritmo narrativo (cola + visited + música) | 🔄 En pruebas |
-| v0.9 | Cooldown, scoring, MP3 definitivos, resumen de sesión | 🔲 |
-| v1.0 | Piloto con viajeros reales | 🔲 |
-
-### Métricas de éxito para v0.8
-
-Una sesión de v0.8 es exitosa si:
-- ⏱ TTF ≤ 90s desde arranque en frío
-- 🎬 Cinematic Score ≥ 65/100
-- Al menos 3 narraciones completas en 30 minutos
-- Al menos 1 POI narrado desde la cola (no solo el primero detectado)
-- La música sonó antes de cada narración
-- 0 líneas "ignorando trigger [POI diferente]" en los logs
-
-*Follower — Documento de Producto v0.8 | Junio 2026*
+*Follower — Documento de Producto v0.9 | Sprint S3 | Junio 2026*

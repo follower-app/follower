@@ -1,14 +1,14 @@
 # Follower — Contexto Maestro
 
-Versión: 1.0
+Versión: 2.0
 Fecha: Junio 2026
-Estado: Descubrimiento / MVP
+Estado: Sprint S3 — Narrador único · Care generativo · Ciudad sonora
 
 ---
 
 # Qué es Follower
 
-Follower es una experiencia cinematográfica de exploración que transforma cualquier paseo en una historia.
+Follower es una experiencia cinematográfica de exploración urbana que transforma cualquier paseo en una historia.
 
 No es una audioguía turística.
 
@@ -16,7 +16,9 @@ No es un mapa.
 
 No es un asistente de viajes.
 
-Follower combina narrativa, música, contexto y ubicación para ayudar a las personas a sentir una ciudad, no solamente a conocerla.
+No es Wikipedia hablada.
+
+Follower utiliza narrativa AI en tiempo real, GPS y cuidado humano contextual para ayudar a las personas a sentir una ciudad, no solamente a conocerla.
 
 Slogan:
 
@@ -68,7 +70,7 @@ Ayudar a las personas a disfrutar mejor una ciudad sin que la logística se conv
 
 # Visión
 
-Convertirse en el compañero inteligente de exploración más humano del mundo.
+Convertirse en el compañero invisible de exploración más humano del mundo.
 
 Un compañero que:
 
@@ -96,6 +98,8 @@ No es una aplicación de planificación de viajes.
 
 No es un chatbot turístico.
 
+No es un reproductor de música de fondo.
+
 ---
 
 # Principio Fundamental
@@ -116,11 +120,31 @@ Recordarán cómo se sintieron mientras caminaban.
 
 # ADN del Producto
 
-## Las ciudades son escenarios
+## La ciudad es el escenario
 
 Los POIs son actores secundarios.
 
 La historia es la protagonista.
+
+El caminante es el protagonista de esa historia.
+
+Follower es la banda sonora.
+
+---
+
+## Los capítulos construyen una tesis
+
+Follower no cuenta lugares.
+
+Follower cuenta capítulos de una ciudad.
+
+Cada capítulo aporta una pieza nueva a la misma pregunta:
+
+> ¿Qué hace única a esta ciudad?
+
+Al finalizar el recorrido el usuario debe sentir:
+
+> "Ahora entiendo mejor esta ciudad."
 
 ---
 
@@ -138,20 +162,19 @@ antes de responder:
 
 ---
 
-## La música es esencial
+## La banda sonora es la ciudad
 
-La música no es decoración.
+La ciudad tiene arquitectura visible.
 
-La música es parte de la narrativa.
+También tiene arquitectura sonora.
 
-Debe preparar emocionalmente al usuario antes de la narración.
+Sus campanas. Sus mercados. Sus conversaciones. Sus músicos. Sus tranvías. Sus silencios.
 
-Inspiración:
+Follower no reproduce música de fondo.
 
-* Hans Zimmer
-* Bandas sonoras cinematográficas
-* Aperturas de series y películas
-* Montajes visuales de viaje
+Follower enseña al caminante a escuchar la ciudad y a apreciar lo que ya suena a su alrededor.
+
+La "banda sonora" de Follower vive en el texto narrativo, no en archivos de audio.
 
 ---
 
@@ -159,21 +182,48 @@ Inspiración:
 
 La narración debe sentirse como:
 
-> Un cuentero inteligente.
+> Un cuentero inteligente que amas la ciudad y camina junto a ti.
 
 No como:
 
 * un profesor
 * una enciclopedia
 * una audioguía tradicional
+* un narrador omnisciente
 
 Debe mezclar:
 
 * historia
-* actualidad
+* presente
 * curiosidades
 * observación humana
 * emoción
+
+Cada capítulo parte del presente. Primero se vive. Después se comprende.
+
+---
+
+## El narrador
+
+Follower tiene una sola voz.
+
+No es un sistema con personalidades intercambiables.
+
+Es el amigo más culto que conoces, pero que nunca presume de lo que sabe.
+
+Puede haber nacido en la ciudad o haberse enamorado de ella.
+
+Conoce su historia, sus barrios, sus personajes y sus costumbres.
+
+No habla como profesor.
+
+No habla como guía turístico.
+
+Habla como alguien que ama profundamente la ciudad y disfruta compartiéndola.
+
+La definición completa de esta voz vive en:
+
+`docs/manifiesto_narrativo.md` y `docs/prompt_maestro_follower.md`
 
 ---
 
@@ -191,7 +241,7 @@ No:
 
 # Modos de Uso
 
-## Exploración Libre
+## Exploración Libre *(default)*
 
 Follower reacciona a la ciudad.
 
@@ -201,15 +251,15 @@ La ciudad sorprende.
 
 ---
 
-## Recorridos Curados
+## Recorridos Curados *(opt-in — versiones futuras)*
 
-Follower cuenta una historia.
+Follower cuenta una historia con arco narrativo predefinido.
 
 La ruta existe para servir a la narrativa.
 
 No al contrario.
 
-Ejemplos:
+Ejemplos planificados:
 
 * La Barcelona de Gaudí
 * Roma Imperial
@@ -219,34 +269,32 @@ Ejemplos:
 
 ---
 
-# Sistema Emocional
-
-Los moods representan emociones, no categorías.
-
-Inicialmente:
-
-* Épico
-* Romántico
-* Misterio
-* Curioso
-
----
-
 # Sistema de Cuidado
 
 Follower no solo informa.
 
 También acompaña.
 
-Debe reaccionar a:
+El Care es hospitalidad urbana, no una función de utilidad.
+
+Habla con la misma voz que el narrador — no existe un segundo narrador, no existe un sistema separado.
+
+Follower simplemente cambia de intención: por un momento deja de contar una historia y pasa a ejercer hospitalidad.
+
+Puede reaccionar a:
 
 * lluvia
-* calor
-* cansancio
-* hambre
-* contexto del usuario
+* calor o frío extremo
+* cansancio acumulado
+* hora de almuerzo
+* zonas de alta densidad de lugares notables (plazas, centros históricos)
+* atardeceres y momentos especiales
 
 La experiencia humana tiene prioridad sobre la narración.
+
+El Care nunca ordena. Sugiere. Invita. Propone.
+
+La definición completa vive en: `docs/manifiesto_care_strip.md`
 
 ---
 
@@ -254,7 +302,7 @@ La experiencia humana tiene prioridad sobre la narración.
 
 ## Sístole
 
-Color: #1a5276
+Color: `#1a5276`
 
 Representa movimiento.
 
@@ -266,13 +314,21 @@ Representa caminar.
 
 ## Diástole
 
-Color: #c0392b
+Color: `#c0392b`
 
 Representa narración.
 
 Representa inmersión.
 
 Representa historia.
+
+---
+
+## Regla absoluta
+
+Sístole es azul. Diástole es rojo. Nunca invertir.
+
+El usuario nunca lo sabe. Solo lo siente.
 
 ---
 
@@ -311,6 +367,8 @@ Sí:
 
 > ¿La experiencia fue memorable?
 
+Métrica técnica principal: ⏱ **Tiempo hasta primera historia** — semáforo verde ≤90s / amarillo 90-300s / rojo >300s.
+
 ---
 
 # Pregunta Rectora
@@ -323,10 +381,26 @@ Si nos acerca a una audioguía, probablemente es la decisión equivocada.
 
 ---
 
-# Aprendizaje Fundacional
+# Aprendizajes Fundacionales
 
-Follower no construye recorridos.
-
-Follower construye relatos.
-
+**Follower no construye recorridos. Follower construye relatos.**
 Los recorridos son simplemente el camino físico por donde transcurren esos relatos.
+
+**Wikipedia como filtro editorial.**
+Un lugar con artículo en Wikipedia es un lugar que merece ser narrado. Esta alineación con la visión cinematográfica de Follower no es coincidencia — es el modelo mental correcto para el descubrimiento de POIs.
+
+**La fuente de datos es parte del producto.**
+Overpass era un bottleneck técnico que afectaba directamente la promesa de Follower. Cambiar la fuente de datos no fue una decisión técnica — fue una decisión de producto.
+
+**Validar antes de arquitecturizar.**
+Cada cambio importante debe primero probarse como experimento mínimo, con evidencia de campo, antes de formalizarse como arquitectura.
+
+**La banda sonora es la ciudad, no la app.**
+Follower no reproduce música. Enseña al caminante a escuchar lo que ya está sonando a su alrededor, y lo nombra en la narración.
+
+**Interacción por voz bidireccional es una visión futura, no deuda técnica.**
+Que el usuario pueda hablarle a Follower o interrumpir una narración con una pregunta es una categoría de producto distinta. Incompatible con "teléfono en el bolsillo" en la versión actual. Se anota como aspiración, no como pendiente.
+
+---
+
+*Follower — Contexto Maestro v2.0 | Sprint S3 | Junio 2026*

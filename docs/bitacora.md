@@ -2288,85 +2288,198 @@ Dos `speak()` en 2 segundos (Bug A — cola disparó el mismo POI dos veces) →
 
 *Follower — Bitácora v0.8 | Sesión 16 | 27-28 Junio 2026*
 
----
 
-## Sesión 17 — 29 Junio 2026
 
-### BUG-036 — CERRADO ✅
 
-**Síntoma:** `Voice.speak()` ejecutado sin error pero `onstart` nunca llegaba. `pending=false` después de `speak()`. Paulina silenciosa en iOS Safari 18.7.
 
-**Duración del diagnóstico:** 2 sesiones completas, 6 hipótesis, 4 fixes incorrectos.
+## Sesión 17 — 30 Junio 2026
 
-**Causa raíz definitiva:** `touchstart` con `passive:true` en el listener de unlock de audio. Leaflet.js procesa los eventos `touchstart` del mapa antes de que lleguen a `_unlockAudioOnFirstTap()`. Para cuando `speechSynthesis.speak()` se ejecuta dentro del callback, iOS ya no lo considera un trusted event y descarta el utterance silencioso del unlock silenciosamente — sin error, sin `onstart`, sin audio.
+### Contexto
 
-**Evidencia directa:**
-```
-Voice: unlock desde gesto · pending=false speaking=false  ← unlock fallido (touchstart)
-Voice: unlock desde gesto · pending=false speaking=true   ← unlock exitoso (touchend)
-```
+Sesión completa de definición de producto y arquitectura — sin código
+implementado todavía. Punto de partida: tres documentos fundacionales nuevos
+subidos por Jaimeand: `manifiesto_narrativo.md`, `prompt_maestro_follower.md`
+(versiones 2.3 → 2.7 oficial) y `manifiesto_care_strip.md`.
 
-**Fix:** cambiar `touchstart` (passive) por `touchend` en `app.js` línea 409. `touchend` llega limpio al call stack sin interferencia de Leaflet.
-
-**Resultado confirmado en campo:**
-```
-lag texto→voz: 415ms
-duración narración hablada: 64419ms [ok]
-POI: visited=true al completar narración
-Voice: onstart · lang=es · chars=966  ← segunda narración también funcionando
-```
-
-**Hipótesis incorrectas descartadas:**
-1. `cancel()` redundante en timeout — no era la causa
-2. `cancel()` en `stop()` destruía Audio Session — no era la causa
-3. `_unlockKeepAlive` llenaba la cola — no era la causa
-4. Trusted event expira después de ~1 segundo de async — FALSO, iOS aguanta 120s+
-5. El pipeline async destruye el contexto — falso, Exp 4 confirmó que el pipeline funciona
-6. La bienvenida ciudad consumía el unlock — falso, es visual sin `Voice.speak()`
-
-**Aprendizaje clave:** iOS Safari NO expira el trusted event por tiempo. Lo que invalida el contexto es que Leaflet intercepta `touchstart` con `passive:true`, rompiendo la cadena del gesto. `touchend` no tiene este problema.
-
-**Archivos modificados:**
-- `js/app.js` — `touchstart` passive → `touchend`
-- `js/voice.js` — revert a sesión 15 + logs diagnóstico + fix `stop()` iOS
-- `sw.js` — nuevo, network-first para JS/CSS, sin skipWaiting automático
-- `index.html` — registro del SW
+La pregunta que guió la sesión: con estos manifiestos como ancla, ¿qué hay
+que cambiar en arquitectura e interfaz para que el código deje de
+contradecir la visión narrativa del producto?
 
 ---
 
-### Service Worker — DA-50
+### Decisión fundacional: narrador único
 
-Se introdujo `sw.js` mínimo para garantizar que Safari iOS descargue siempre la versión más reciente de JS/CSS. Sin SW, Safari puede cachear archivos por días impidiendo que los fixes lleguen al dispositivo — problema que bloqueó el diagnóstico durante toda la sesión 17.
+Se confirma la consolidación de los 4 narradores (storyteller, historian,
+explorer, local) en una sola voz, definida íntegramente por el Prompt
+Maestro v2.7. Decisión de producto, no solo técnica — coherente con el
+manifiesto narrativo: "Follower habla como el amigo más culto que conoces,
+pero que nunca presume de lo que sabe."
 
-**Estrategia:** network-first para JS/CSS, cache-first para HTML/assets, APIs externas siempre en red. Sin `skipWaiting()` automático para no interrumpir sesiones de audio activas.
-
----
-
-### Deuda técnica actualizada
-
-| ID | Descripción | Estado |
-|----|-------------|--------|
-| DT-35 | BUG-036 iOS voz silenciosa | RESUELTO |
-| DT-36 | Limpiar nombres POIs Wikipedia (sufijos, paréntesis) | Pendiente |
-| DT-37 | Confirmar buildContext llega a Claude | Pendiente |
-| DT-38 | Chequeo inmediato al cargar POIs — reducir TTF | Pendiente |
-| DT-39 | error=canceled en narraciones interrumpidas por recarga SW — monitorear | Baja |
-| DT-40 | paused=true en pre-speak tras canceled — resume() cubre pero vigilar | Baja |
+Detalle completo en `arquitectura.md` — DA-50 a DA-57.
 
 ---
 
-### Para iniciar en la próxima sesión
+### Laboratorio de narración — tokens vs. latencia
 
-1. Prueba de campo real en ciudad — confirmar experiencia completa
-2. Limpiar nombres de POIs Wikipedia — DT-36
-3. Confirmar que buildContext llega a Claude — DT-37
-4. Documentar DA-50 en arquitectura.md
+Se trabajaron dos versiones intermedias del prompt maestro (v2.4 y v2.7)
+antes de confirmar la oficial. Hallazgos clave de la discusión:
+
+- **Longitud sin techo es el riesgo real, no la longitud en sí.** Sesión 12
+  (S1-4) ya había bajado `max_tokens` de 450 a 350 por el mismo motivo:
+  narraciones largas bloqueaban el pipeline. El v2.7 reabre parcialmente ese
+  riesgo con su regla flexible ("puede superar ligeramente el rango"). Se
+  decide compensar con un techo duro de `max_tokens: 480`, sin depender de
+  que el prompt se autorregule.
+
+- **Memoria de sesión completa vs. memoria de un solo capítulo.** Pasar el
+  historial completo de capítulos anteriores en cada prompt crece de forma
+  lineal con la caminata. Se decide limitar la memoria de continuidad al
+  capítulo inmediatamente anterior — el historial completo solo se usa una
+  vez, en la despedida final.
+
+- **Autoevaluación interna (checklist de 7 puntos en v2.7) — costo no
+  cuantificado todavía.** Se identificó como el punto de mayor incertidumbre
+  de toda la sesión: no está claro si el "verifica internamente, no muestres
+  el proceso" cuesta tiempo real de generación en Haiku o no. Queda como
+  DT-44 — medir en campo antes de asumir cualquier cosa.
 
 ---
 
-*Follower — Bitácora v0.8 | Sesión 17 | 29 Junio 2026*
+### Música — cambio de fondo, no solo de archivo
 
+Decisión: ya no hay música reproducida por la app. La "banda sonora de la
+ciudad" deja de ser un concepto de audio y se vuelve completamente narrativo
+— vive en la sección "Ciudad Sonora" del prompt, no en `music.js`.
 
+Esto deroga una regla crítica del proyecto ("la narración siempre va sobre
+la música") tal como estaba escrita. Se retira como regla de audio; la
+responsabilidad de presencia sonora pasa al texto.
 
+`music.js` queda marcado para eliminación completa. DT-19 y DT-33 (los 4 MP3
+de narrador, pendientes desde Sesión 15) quedan obsoletos — ya no aplican.
 
+---
 
+### Cierre de caminata — sin botón, con pregunta hablada
+
+Se descartó deliberadamente un botón visible de "Terminar paseo" por romper
+la filosofía de manos libres. La solución acordada combina tres señales:
+
+1. Inactividad de movimiento prolongada
+2. Cruzada con el estado de Care — para no confundir una pausa sugerida
+   (lluvia, calor, cansancio) con el fin real de la caminata
+3. Pregunta hablada por el propio narrador, con confirmación simple por tap
+
+Se evaluó y descartó interacción por voz bidireccional (que el usuario
+responda hablando, o incluso interrumpa una narración con una pregunta) por
+ser una categoría de producto distinta — incompatible con "teléfono en el
+bolsillo", soporte fragmentado de `SpeechRecognition` en iOS, alta tasa de
+error por ruido de calle. Queda registrada como visión a futuro, no como
+deuda técnica de esta versión.
+
+---
+
+### Tránsito rápido (taxi, bus, metro)
+
+Se evaluaron dos caminos: pausar la detección de POIs durante desplazamiento
+rápido, o narrar el salto como parte de la historia. Se eligió pausar —
+más simple, no añade complejidad al prompt, coherente con DA-7 ("el GPS
+nunca se interrumpe — es el latido de la app": el latido sigue, solo se
+suspende la narración). Umbral propuesto: 15-18 km/h sostenido por 30-60s,
+para evitar falsos positivos por caminata enérgica.
+
+---
+
+### Bienvenida de ciudad — de overlay opcional a pantalla de entrada real
+
+Cambio de flujo de arranque completo. Se identificó que `getCityWelcome()`
+no estaba funcionando como se esperaba — hoy es un overlay sobre el mapa que
+aparece y se auto-cierra, usando el idioma del usuario.
+
+Lo acordado: splash mínimo (logo, mientras carga GPS) → pantalla de
+bienvenida animada, letra por letra, **en el idioma local de la ciudad**
+detectada (no el del usuario) → exploración. Esta pantalla pasa a ser la
+carga real de POIs, no decorativa.
+
+Decisión de idioma: tabla simple país→idioma a partir del `country_code` ya
+disponible en el reverse geocoding (`gps.js`). Se acepta como simplificación
+consciente que ciudades multilingües (Bruselas, Barcelona, Montreal) no se
+resuelvan con precisión en esta versión.
+
+---
+
+### Care Strip — la brecha más grande encontrada en la sesión
+
+Al revisar `manifiesto_care_strip.md` contra el `care.js` actual, se
+encontró la contradicción más fuerte de toda la sesión: el manifiesto exige
+explícitamente "no existe un segundo narrador, no existe un sistema
+separado — Follower simplemente cambia de intención", y el código actual es
+exactamente eso que el manifiesto prohíbe — mensajes estáticos
+(`MESSAGES.tired`, `.hot`, etc.) con tono de aplicación, no de anfitrión, y
+selección de lugar sin criterio editorial (`places[0]`, el primero que
+devuelve Overpass, sin distinguir un café tradicional de una cadena).
+
+**Decisiones tomadas, punto por punto:**
+
+- Care pasa a generar su mensaje vía una única llamada a Claude que también
+  elige, entre 3-5 candidatos de Overpass, cuál lugar se siente más propio
+  del sitio. Se descartó sumar un proveedor con rating (Foursquare) — la
+  popularidad mide lo opuesto al criterio editorial que pide el manifiesto.
+- Nuevo trigger, categoría que no existía: "momentos memorables", detectado
+  por densidad de POIs Wikipedia en un radio pequeño (~150m) como proxy de
+  "zona especial" — sin llamadas de red adicionales, extensión directa del
+  aprendizaje ya validado de "Wikipedia como filtro editorial".
+- Regla de "momento correcto" sin timers fijos: en vez de un margen de
+  gracia arbitrario tras cada narración, Care espera a que el usuario
+  retome el movimiento real antes de evaluar sugerencias de
+  bienestar/contemplación. Los triggers de protección real (lluvia, calor o
+  frío extremo) son la excepción — pueden anunciarse aunque el usuario siga
+  detenido.
+
+Pendiente: redacción del mini-prompt de Care (mismo "yo" narrativo, tono de
+hospitalidad) — se deja para la sesión donde se trabajen prompts en detalle.
+
+---
+
+### Configuración — wizard tipo Organiza2 (pendiente de diseño)
+
+Se anota la preferencia de manejar la configuración inicial como una
+secuencia de pantallas (wizard), en vez del modal único actual. Sin resolver
+en esta sesión — queda como DT-47.
+
+---
+
+### Resumen de decisiones — tabla rápida
+
+| Tema | Decisión |
+|------|----------|
+| Narrador | Único, definido por Prompt Maestro v2.7 |
+| Tokens | `max_tokens: 480`, techo duro |
+| Memoria de sesión | Solo el capítulo anterior; historial completo solo en despedida |
+| Autoevaluación del prompt | Mantenida tal cual viene en v2.7 — costo en latencia pendiente de medir (DT-44) |
+| Música | Eliminada — la ciudad sonora es narrativa, no audio |
+| Cierre de caminata | Sin botón — señal de inactividad + cruce con Care + pregunta hablada + tap |
+| Interacción por voz del usuario | Descartada para esta versión — anotada como visión futura |
+| Tránsito rápido | Pausar detección por umbral de velocidad — GPS nunca se detiene |
+| Bienvenida de ciudad | Pantalla de carga real, saludo en idioma local de la ciudad |
+| Care Strip | Generativo vía Claude, selección editorial de lugar, nuevo trigger de densidad, sin timers fijos |
+| Configuración | Wizard tipo Organiza2 — pendiente de diseño |
+
+---
+
+### Próxima sesión
+
+1. Definir formato de extracción de metadatos por capítulo (DT-39) —
+   bloqueante para implementar DA-52 (memoria de un solo capítulo)
+2. Redactar mini-prompt de Care (DT-42)
+3. Definir umbrales pendientes: inactividad para cierre (DT-40), densidad de
+   POIs para "zona especial" (DT-43)
+4. Tabla país→idioma — cobertura inicial (DT-41)
+5. Diseño de UI: pantalla de bienvenida animada y confirmación por tap de
+   cierre (DT-45, DT-46)
+6. Medir en campo costo real de la autoevaluación del v2.7 antes de
+   comprometerse a mantenerla sin cambios (DT-44)
+
+---
+
+*Follower — Bitácora v0.9 | Sesión 17 | 30 Junio 2026*

@@ -1150,3 +1150,318 @@ Sin este mecanismo, cada `resetPOIs()` olvidaba qué había sido narrado y los P
 
 
 
+## Sprint S3 — Narrador único, Care con voz propia, ciudad sonora — v0.9 (30 Junio 2026)
+
+> Sesión de definición pura — sin código implementado todavía. Esta sección
+> documenta las decisiones de arquitectura acordadas a partir de tres
+> documentos fundacionales nuevos: `manifiesto_narrativo.md`,
+> `prompt_maestro_follower.md` (v2.7 oficial) y `manifiesto_care_strip.md`.
+
+---
+
+### DA-50 — Narrador único reemplaza los 4 estilos (DA-17 derogada)
+
+**Decisión:** `STYLE_PROMPTS` (4 narradores × 2 idiomas) se elimina por completo.
+Un solo system prompt — el Prompt Maestro v2.7 — define la voz de Follower.
+Los cuatro registros anteriores (storyteller, historian, explorer, local) no
+desaparecen como *capacidades*: el narrador único los absorbe implícitamente,
+eligiendo el ángulo según el POI, no según una preferencia de configuración.
+
+**Impacto en archivos:**
+
+| Archivo | Cambio |
+|---------|--------|
+| `narration.js` | `STYLE_PROMPTS` → prompt único `es`/`en`. `style` sale de `trigger()`, `buildPrompt()`, claves de caché |
+| `config.js` | `narrator` sale de `DEFAULTS`. Se eliminan `setNarrator()`, `NARRATOR_LABELS`, `getNarratorLabel()` |
+| `app.js` | `AppState.narrationStyle` / `narrationStyleLabel` se eliminan. `initStyleSelector()` se elimina |
+| `index.html` | Selector de narrador (style-cards) se elimina de la UI |
+| IndexedDB | Clave de caché: `poiId_style_lang_topic` → `poiId_lang_topic`. Caché anterior queda huérfano (no se migra, simplemente deja de coincidir) |
+
+**Razón:** coherencia con el manifiesto narrativo — "el narrador es un compañero
+invisible... no existen cuatro personalidades intercambiables, existe una sola
+voz: el amigo más culto que conoces, que nunca presume de lo que sabe."
+
+---
+
+### DA-51 — Prompt Maestro v2.7 con límites de tokens explícitos
+
+**Decisión:** se adopta el Prompt Maestro v2.7 (oficial) como system prompt único,
+con un techo duro de `max_tokens` que el prompt por sí solo no garantiza.
+
+```javascript
+CONFIG.max_tokens = 480   // antes: 350 (v0.7) — techo duro, no objetivo
+```
+
+**Razón del valor:** el v2.7 declara "objetivo ideal 220-280 palabras, puede
+superar ligeramente cuando la complejidad lo justifique" — una regla flexible
+a propósito, por calidad editorial. 480 tokens (~330-350 palabras en español)
+da margen real a ese "ligeramente" sin reabrir el problema ya documentado en
+Sesión 12 (S1-4): narraciones largas bloqueaban el pipeline y se perdían POIs
+detectados durante la espera.
+
+**Riesgo a vigilar en campo:** la sección "AUTOEVALUACIÓN INTERNA" del v2.7
+(7 criterios de verificación antes de entregar) puede aumentar el tiempo de
+respuesta de Claude de forma no cuantificada todavía. Se valida con datos
+reales de latencia por llamada, comparando contra el prompt anterior (v0.7,
+sin autoevaluación).
+
+---
+
+### DA-52 — Memoria de sesión limitada al capítulo anterior
+
+**Decisión:** cada nueva narración recibe como contexto **solo el capítulo
+inmediatamente anterior** de la caminata (idea central + recurso sensorial/sonoro
+usado) — nunca el historial completo. El historial completo solo se usa una vez,
+en la llamada de despedida (DA-54).
+
+```javascript
+AppState._walkChapters = []  // array de { poiId, ideaCentral, recursoSensorial, texto, ts }
+
+// En cada trigger() nuevo:
+const previo = AppState._walkChapters.at(-1) || null;
+// Solo `previo` viaja en el prompt de continuidad — no el array completo
+```
+
+**Razón:** mantiene el tamaño de input constante sin importar cuán larga sea
+la caminata (capítulo 8 carga lo mismo que capítulo 2), y resuelve mejor la
+repetición turno-a-turno que comparar contra todo el historial (dos capítulos
+consecutivos con la misma idea es lo que rompe la inmersión; repetir contra
+un capítulo de hace 20 minutos es comparativamente inofensivo).
+
+**Pendiente de diseño:** formato exacto en que Claude debe devolver
+`ideaCentral` y `recursoSensorial` de forma extraíble junto al capítulo
+(JSON estructurado vs. separador de texto). Sin esto, no hay de dónde sacar
+los metadatos para pasarlos al siguiente capítulo.
+
+---
+
+### DA-53 — Eliminación de `music.js` — la ciudad sonora vive en el prompt, no en audio
+
+**Decisión:** `music.js` se elimina por completo. No hay reemplazo de audio
+generado. Lo que el v0.7 llamaba "música por mood" o "intro por narrador" se
+sustituye por la sección "CIUDAD SONORA" del Prompt Maestro v2.7, que instruye
+al narrador a evocar textualmente los sonidos reales del entorno (campanas,
+mercados, tranvías) en vez de que la app reproduzca algo de fondo.
+
+**Impacto en archivos:**
+
+| Archivo | Cambio |
+|---------|--------|
+| `music.js` | Eliminado |
+| `narration.js` | `trigger()` ya no llama a `Music.playNarratorIntro()`. La voz inicia directo tras cargar el texto |
+| `app.js` | `Music.initFromGesture()` en `_unlockAudioOnFirstTap()` se elimina |
+| `config.js` | si existiera algún control de volumen de música, se revisa su vigencia |
+
+**Regla derogada:** "La narración siempre va SOBRE la música — nunca antes,
+nunca sin música de fondo" (regla crítica de README/REGLAS_IA) se retira como
+regla de audio. Se reemplaza por: la presencia sonora de la ciudad es
+responsabilidad narrativa del prompt, no del sistema de audio.
+
+**Deuda técnica resuelta sin implementar:** DT-19/DT-33 (4 MP3 de narrador)
+quedan obsoletas — no hay narrador múltiple ni intro que producir.
+
+---
+
+### DA-54 — Cierre de caminata: pregunta hablada + confirmación por tap (sin botón explícito)
+
+**Decisión:** no existe un botón "Terminar paseo" visible permanentemente.
+El cierre se activa por una combinación de señales, preservando la filosofía
+de manos libres:
+
+1. **Trigger:** inactividad de movimiento prolongada, **cruzada con el estado
+   de Care** — para no confundir una pausa sugerida por Care (lluvia, calor,
+   cansancio) con el fin real de la caminata.
+2. **Pregunta hablada** (misma voz narrativa, no un modal frío):
+   *"Veo que llevas un rato sin moverte. ¿Cerramos nuestro capítulo de
+   [ciudad] por hoy?"*
+3. **Confirmación por tap** — UI mínima, binaria (sí/no), aparece solo en
+   ese momento puntual. Se descarta interacción por voz (`SpeechRecognition`)
+   para esta fase: incompatible con "teléfono en el bolsillo", soporte
+   fragmentado en iOS Safari, alta tasa de error por ruido de calle. Queda
+   anotada como visión a futuro, no como deuda técnica de esta versión.
+4. **Si confirma** → se dispara `Narration.getFarewell()` con
+   `AppState._walkChapters` completo (única vez que el historial completo
+   viaja en un prompt).
+5. **Si no confirma o ignora** → no hay insistencia. Vuelve a sístole normal.
+6. **Reset:** cada cierre real de la app (no solo de pestaña) resetea
+   `_walkChapters[]` — cada apertura nueva de Follower es una caminata nueva,
+   sin estado narrativo previo. Vive solo en memoria de sesión, nunca en
+   localStorage/IndexedDB.
+
+**Pendiente de definir:** umbral exacto de minutos de inactividad antes de
+considerar el cierre (a validar en campo).
+
+**Nueva función requerida:** `Narration.getFarewell()` — no existe hoy
+(solo existe `getCityWelcome()` como saludo de entrada). Construye un prompt
+de despedida distinto al de capítulo normal, usando la sección DESPEDIDA del
+v2.7 (explícitamente condicional: "solo cuando se solicite el cierre de una
+caminata completa").
+
+---
+
+### DA-55 — Pausa de detección durante tránsito rápido (taxi, bus, metro)
+
+**Decisión:** se calcula velocidad de desplazamiento a partir de los puntos
+GPS ya disponibles (distancia/tiempo entre lecturas consecutivas). Si la
+velocidad sostenida supera un umbral durante una ventana mínima, se pausa la
+detección activa de POIs — el GPS (`watchPosition`) nunca se detiene, solo se
+suspende temporalmente la evaluación de `detectNearby()`.
+
+```javascript
+UMBRAL_VELOCIDAD = 15-18 km/h   // sostenido, no pico instantáneo
+VENTANA_MINIMA   = 30-60s       // evita falsos positivos por caminata enérgica
+```
+
+**Razón de la decisión (vs. narrar el salto):** se descartó la alternativa de
+pedirle al modelo que reconozca narrativamente una transición en vehículo.
+Resolverlo en el pipeline (antes de llegar a Claude) es más simple, no añade
+complejidad al prompt, y es coherente con DA-7 ("GPS nunca se interrumpe —
+es el latido de la app": el latido sigue, solo se pausa la narración).
+
+**Vive en:** nuevo guard en `gps.js` o `poi.js`, antes de `detectNearby()`.
+No toca `narration.js` ni el prompt maestro.
+
+**Riesgo a vigilar:** falsos positivos en caminatas rápidas o trote cuesta
+abajo — de ahí la ventana mínima de 30-60s sostenidos, no un solo pico.
+
+---
+
+### DA-56 — Splash mínimo + bienvenida de ciudad como pantalla de carga real (reemplaza DA-?? city welcome overlay)
+
+**Decisión:** se rediseña el flujo de arranque. Hoy es:
+`splash (corazón) → explore (mapa) → welcomeCity() superpuesto, auto-cierra a 5s`.
+
+Pasa a ser:
+`splash mínimo (logo, mientras carga GPS) → pantalla de bienvenida animada
+(haciendo de pantalla de carga real de POIs) → explore`.
+
+**Idioma del saludo — cambio de criterio:** el saludo ya no usa
+`Config.get('lang')` (idioma del usuario). Usa el **idioma local de la
+ciudad detectada**, resuelto vía una tabla simple país→idioma a partir del
+`country_code` que ya devuelve el reverse geocoding en `gps.js`.
+
+```javascript
+// Ejemplo de tabla — extensión de la lógica ya usada en DA-48
+COUNTRY_LANG = { CO: 'es', US: 'en', PT: 'pt', JP: 'ja', ... }
+```
+
+Aceptado como simplificación consciente: casos ambiguos (Bruselas, Barcelona,
+Montreal) no se resuelven con precisión en esta versión — se refina con
+evidencia de campo si hace falta.
+
+**Animación:** texto tipo "Hola Cali" / "Hello Atlanta" dibujado letra por
+letra, en el idioma resuelto arriba. Debe coincidir en duración con la carga
+real de POIs (Wikipedia GeoSearch, normalmente <1s según datos de campo ya
+confirmados en DA-48).
+
+**Fallback:** si GPS o geocoding tardan más de lo esperado, se usa el saludo
+genérico ya existente ("Tu ciudad te espera" / "Your city awaits"), en el
+idioma del **usuario** (`Config.get('lang')`) — no se omite la pantalla.
+
+**Impacto en archivos:**
+
+| Archivo | Cambio |
+|---------|--------|
+| `app.js` | `runSplash()` se acorta. `welcomeCity()` deja de ser overlay opcional — se vuelve parte bloqueante del flujo de entrada |
+| `narration.js` | `getCityWelcome(city, style, lang)` pierde el parámetro `style` (ya no aplica, DA-50). Cambia de qué idioma recibe — ya no es `AppState.lang`, es el idioma resuelto de la ciudad |
+| `gps.js` | expone o reutiliza `country_code` ya disponible en el reverse geocoding para alimentar la tabla país→idioma |
+
+---
+
+### DA-57 — Care Strip con voz generativa (deroga el sistema de `MESSAGES` estáticos)
+
+**Decisión:** `care.js` deja de usar plantillas de texto fijas
+(`MESSAGES.tired`, `.hot`, `.cold`, `.lunch`). Cada sugerencia se genera vía
+una **única llamada a Claude** que hace dos cosas a la vez:
+
+1. Selecciona, entre 3-5 candidatos que ya trae Overpass, cuál lugar "se
+   siente más propio del lugar" (criterio editorial, no popularidad/rating)
+2. Redacta el mensaje de la sugerencia, con la misma voz narrativa del
+   Prompt Maestro — no un segundo narrador, no un sistema separado
+
+**Decisión técnica explícita:** se descarta sumar un proveedor con rating
+(Foursquare u otro). Razones: (a) fricción de API key/billing que el proyecto
+ya evitó conscientemente con Gemini/OpenAI; (b) un rating de popularidad mide
+exactamente lo opuesto al criterio editorial que pide el manifiesto de Care
+("un café tradicional puede ser más valioso que el más famoso"). Se mantiene
+el stack actual — Overpass como fuente de candidatos, Claude como criterio
+de selección.
+
+```javascript
+// Antes (v0.7):
+MESSAGES.tired.es(km) → string fijo interpolado
+
+// Después (v0.9):
+Narration.getCareMessage(type, candidatos, contextoCiudad)
+  → { lugarElegido, mensaje }   // una sola llamada, mismo "yo" narrativo
+```
+
+`max_tokens` bajo para esta llamada (mensaje corto: título + 1-2 frases, no
+narración completa de capítulo).
+
+**Nuevo trigger — "momentos memorables" (categoría que no existía):**
+densidad de POIs en un radio pequeño (~150m) como proxy de "zona especial"
+(plaza, centro histórico), calculado localmente sobre los POIs de Wikipedia
+GeoSearch ya cargados — sin llamadas de red adicionales. Extiende el
+aprendizaje ya documentado ("Wikipedia como filtro editorial") a una lectura
+de densidad, no solo de existencia individual del POI.
+
+**Regla de "momento correcto" — sin timers fijos:**
+se descarta un margen de gracia por tiempo fijo (60-90s tras narración).
+En su lugar, Care se divide en dos categorías de trigger:
+
+- **Bienestar/contemplación** (cansancio, almuerzo, atardecer, zona especial)
+  → esperan a que el usuario retome el movimiento real (GPS) después de
+  cualquier narración, antes de evaluar.
+- **Protección real** (lluvia inminente, calor/frío extremo) → pueden
+  anunciarse aunque el usuario siga detenido — ahí Care cumple su función
+  más básica de cuidado, no compite por atención con un momento narrativo.
+
+**Pendiente de diseño:** redacción del mini-prompt de Care (versión corta del
+Prompt Maestro, mismo "yo", intención de hospitalidad en vez de narración).
+Se resuelve en sesión de redacción de prompts.
+
+---
+
+### Resumen de archivos afectados — Sprint S3
+
+| Archivo | Tipo de cambio |
+|---------|-----------------|
+| `narration.js` | Mayor — prompt único v2.7, memoria de un capítulo, `getFarewell()`, `getCareMessage()` nuevas, `max_tokens` 480 |
+| `config.js` | Eliminar `narrator` y funciones asociadas |
+| `music.js` | Eliminado |
+| `app.js` | Flujo de splash/bienvenida rediseñado, lógica de cierre de caminata (señal + pregunta + tap), eliminar referencias a `Music` y a estilo de narrador |
+| `care.js` | Mayor — de `MESSAGES` estáticos a generación vía Claude, nuevo trigger de densidad de POIs, regla de momento correcto sin timers |
+| `gps.js` / `poi.js` | Nuevo guard de velocidad para pausar detección en tránsito rápido |
+| `index.html` | Eliminar selector de narrador |
+| IndexedDB | Clave de caché de narraciones sin `style` |
+
+**Sin cambios:** `voice.js`, `weather.js`, `routes.js`, `debug.js`,
+`debug-sim.js` — el pipeline de detección/voz/debug no se toca en este sprint.
+
+---
+
+### Deuda técnica nueva (v0.9 · Sprint S3)
+
+| ID | Descripción | Prioridad |
+|----|-------------|-----------|
+| DT-39 | Definir formato de extracción de metadatos (idea central + recurso sensorial) en cada respuesta de Claude | Alta |
+| DT-40 | Definir umbral exacto de minutos de inactividad para disparar pregunta de cierre | Alta |
+| DT-41 | Tabla país→idioma para saludo de ciudad — cobertura inicial de países prioritarios | Alta |
+| DT-42 | Redactar mini-prompt de Care (voz de hospitalidad, corto, mismo "yo") | Media |
+| DT-43 | Definir umbral de densidad de POIs (cuántos en cuántos metros) para trigger de "zona especial" | Media |
+| DT-44 | Medir en campo si la autoevaluación interna del v2.7 incrementa latencia de forma significativa | Alta |
+| DT-45 | Diseño de UI: pantalla de bienvenida animada (splash mínimo + texto letra por letra) | Alta |
+| DT-46 | Diseño de UI: confirmación por tap para cierre de caminata | Media |
+| DT-47 | Wizard de configuración tipo Organiza2 (reemplaza modal único actual) | Media |
+
+### Deuda técnica derogada — ya no aplica con narrador único / sin música
+
+| ID | Descripción |
+|----|-------------|
+| ~~DT-19~~ | 4 MP3 de intro por narrador — obsoleto, no hay narrador múltiple ni música |
+| ~~DT-33~~ | MP3 definitivos (reemplazar tono sintético) — obsoleto, `music.js` eliminado |
+
+---
+
+*Follower — Arquitectura v0.9 | Sprint S3 | 30 Junio 2026*

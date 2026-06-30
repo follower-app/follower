@@ -35,8 +35,11 @@
 Antes de proponer cualquier cambio técnico, verificar alineación con:
 
 - `docs/contexto_maestro.md` — alma del producto, pregunta rectora
+- `docs/manifiesto_narrativo.md` — voz narrativa, capítulos, tesis de ciudad
+- `docs/manifiesto_care_strip.md` — hospitalidad urbana, voz del cuidado
+- `docs/prompt_maestro_follower.md` — Prompt Maestro v2.7 oficial
 - `README.md` — visión, pantallas, flujo completo
-- `docs/arquitectura.md` — decisiones DA-1 a DA-16
+- `docs/arquitectura.md` — decisiones DA-1 a DA-57
 - `docs/bitacora.md` — historial, bugs resueltos, deuda técnica
 
 Preguntarse siempre:
@@ -50,10 +53,11 @@ Si nos acerca a una audioguía, probablemente es la decisión equivocada.
 ## Regla de Producto
 
 - **El GPS es el corazón** — nunca bloquear, pausar ni interrumpir su ciclo de detección
-- **La narración siempre va SOBRE la música** — nunca antes, nunca sin música de fondo
+- **La ciudad sonora vive en el prompt narrativo, no en archivos de audio** — `music.js` no existe
 - **El modo Libre es el default** — el modo Recorrido es siempre opt-in
 - **Las sugerencias de cuidado son contextuales** — nunca intrusivas ni automáticas sin datos reales
 - **Los recorridos son relatos** — la ruta existe para servir a la narrativa, no al contrario
+- **Care habla con la misma voz del narrador** — no existe un sistema de mensajes separado
 - **No construir monetización** hasta completar piloto con viajeros reales (v1.0)
 
 ---
@@ -62,18 +66,20 @@ Si nos acerca a una audioguía, probablemente es la decisión equivocada.
 
 | Regla | Descripción |
 |-------|-------------|
-| `detectPOI()` | ÚNICA función para detectar POIs cercanos — nunca lógica duplicada |
-| `triggerNarration(poi, mood, lang)` | ÚNICA función para iniciar narración AI |
-| `fadeMusic(mood, direction)` | ÚNICA función para transiciones de música |
-| `checkCareContext()` | Revisa pasos + clima + hora — NUNCA sugerir sin pasar por esta función |
+| `detectNearby()` | ÚNICA función para detectar POIs cercanos — nunca lógica duplicada |
+| `trigger(poi, lang, topic)` | ÚNICA función para iniciar narración AI — sin parámetro mood |
+| `getFarewell()` | ÚNICA función para generar despedida de caminata |
+| `getCareMessage(type, candidatos, ctx)` | ÚNICA función para generar mensaje de Care vía Claude |
+| `checkCareContext()` | Revisa pasos + clima + hora + densidad POIs — NUNCA sugerir sin pasar por esta función |
 | `setPhase(phase)` | ÚNICA función para cambiar sístole/diástole — nunca CSS directo |
 | `navigateTo(screen)` | ÚNICA función para cambiar pantalla |
+| `welcomeCity(city)` | ÚNICA función para bienvenida de ciudad |
 | Sístole `#1a5276` | Color de movimiento/caminando — nunca en estado de narración |
 | Diástole `#c0392b` | Color de narración activa — nunca en estado de caminando |
 | Dorado `#f0c87a` | Solo para estados de descanso y sugerencias de cuidado |
-| POIs | Siempre desde OpenStreetMap via Overpass — nunca hardcodeados |
+| POIs | Wikipedia GeoSearch primaria → Overpass fallback → IndexedDB cache — nunca hardcodeados |
 | Idioma | Siempre desde `Config.get('lang')` — nunca asumir español |
-| Mood | Siempre desde `Config.get('mood')` — nunca asumir épico |
+| Mood | **Eliminado** — no existe en v0.9. No usar `Config.get('mood')` ni `AppState.mood` |
 
 ---
 
@@ -116,15 +122,14 @@ El color del botón central del bottom bar refleja SIEMPRE el estado actual.
 
 ## Regla de Narración AI
 
-- Motor actual: **Claude API (claude-haiku-4-5)** vía Cloudflare Worker — key nunca expuesta en el repo
+- Motor: **Claude Haiku (claude-haiku-4-5)** vía Cloudflare Worker — key nunca expuesta en el repo
 - Endpoint: `https://followernarration.jaimeand.workers.dev/narration`
-- El prompt siempre incluye: `poi.name`, `poi.description`, `AppState.cityName`, `mood`, `lang`, `topic`
-- La narración tiene máximo **3 minutos** — concisa, cinematográfica
+- System prompt: Prompt Maestro v2.7 — ver `docs/prompt_maestro_follower.md`
+- El prompt incluye: `poi.name`, `AppState.cityName`, `lang`, `topic`, contexto de entorno (POIs cercanos en 600m), capítulo anterior (idea central + recurso sensorial)
+- `max_tokens: 480` — techo duro, no objetivo
 - Flujo: cache IndexedDB → Claude API vía Worker (timeout 15s) → fallback genérico
 - Nunca mostrar error al usuario — la experiencia no se rompe
-- Histórico: se probó Gemini 1.5 Flash (abandonado por bug de Google AI Studio emitiendo
-  keys en formato `AQ.` incompatible con el endpoint REST), y OpenAI gpt-4o-mini
-  (abandonado por requerir billing activo desde el primer request)
+- Histórico: Gemini 1.5 Flash (abandonado — bug de keys), OpenAI gpt-4o-mini (abandonado — billing obligatorio)
 
 ---
 
@@ -132,7 +137,7 @@ El color del botón central del bottom bar refleja SIEMPRE el estado actual.
 
 | Regla | Descripción |
 |-------|-------------|
-| Indicador offline | Discreto en el top pill — nunca modal de error intrusivo |
+| Indicador offline | Discreto — nunca modal de error intrusivo |
 | Fallback narración | Siempre hay texto de fallback — nunca silencio ni error visible |
 | Timeout API | Claude API (vía Worker) máximo 15 segundos — si falla, usar cache |
 | IndexedDB | POIs y narraciones en IndexedDB — nunca solo en memoria |
@@ -143,20 +148,20 @@ El color del botón central del bottom bar refleja SIEMPRE el estado actual.
 Capa 1 — sw.js      → shell HTML, CSS, JS
 Capa 2 — Leaflet    → tiles del mapa
 Capa 3 — IndexedDB  → POIs, narraciones, config
-Capa 4 — Cache API  → música, assets
+Capa 4 — Cache API  → assets estáticos
 ```
 
 ---
 
 ## Regla de Commits
 
-Un commit por cambio específico. Formato:
+Un commit por cambio específico. Formato (sin acentos):
 
 ```
 feat: nueva funcionalidad
 fix: bug corregido
-docs: documentación actualizada
-refactor: cambio técnico sin nueva funcionalidad
+docs: documentacion actualizada
+refactor: cambio tecnico sin nueva funcionalidad
 design: cambio visual o de interfaz
 ```
 
@@ -176,11 +181,12 @@ design: cambio visual o de interfaz
 
 ```
 HTML + CSS + JS Vanilla     — sin frameworks
-Leaflet.js                  — mapas OpenStreetMap (mirror lz4.overpass-api.de)
-Claude API (Haiku)          — narración AI, vía Cloudflare Worker proxy
-Web Speech API              — síntesis de voz nativa (12 idiomas)
+Leaflet.js                  — mapas OpenStreetMap (CartoDB Voyager)
+Claude Haiku                — narración AI + Care generativo, vía Cloudflare Worker proxy
+Web Speech API              — síntesis de voz nativa (12 idiomas, prioridad latinoamericana)
+Wikipedia GeoSearch         — fuente primaria de POIs
+Overpass OSM                — fuente secundaria de POIs (fallback)
 OpenWeatherMap API          — clima en tiempo real, vía Cloudflare Worker proxy
-Web Audio API               — música por mood nativa
 IndexedDB                   — cache offline
 GitHub Pages                — hosting (repo público)
 Cloudflare Workers          — proxy de API keys (gratis, sin tarjeta)
@@ -188,6 +194,7 @@ PWA                         — instalable
 ```
 
 **No usar:** React, Vue, Angular, npm, webpack, ni ningún build tool.
+**Eliminado en v0.9:** Web Audio API / music.js — la ciudad sonora vive en el prompt narrativo.
 
 ---
 
@@ -196,8 +203,8 @@ PWA                         — instalable
 - **App:** [follower-app.github.io/follower](https://follower-app.github.io/follower)
 - **Repo:** [github.com/follower-app/follower](https://github.com/follower-app/follower) (público)
 - **Worker:** [followernarration.jaimeand.workers.dev](https://followernarration.jaimeand.workers.dev) — proxy de Claude API y OpenWeatherMap
-- **Estado actual:** v0.5 — sistema de métricas de experiencia completo (3 capas), dashboard unificado, simulador conectado a AppState
-- **Próximo hito:** v0.6 — música por mood (DT-2), íconos PWA (DT-1), prueba de campo con reporte de análisis de experiencia
+- **Estado actual:** v0.9 — Sprint S3 en definición. Narrador único, Care generativo, ciudad sonora documentados. Implementación pendiente.
+- **Próximo hito:** validar latencia del Prompt Maestro v2.7 en campo (DT-44) antes de implementar narration.js
 
 ---
 
@@ -205,33 +212,37 @@ PWA                         — instalable
 
 | Archivo | Descripción |
 |---------|-------------|
-| `index.html` | Shell mínimo — 4 pantallas + 2 modales |
+| `index.html` | Shell mínimo — pantallas + modales |
 | `manifest.json` | PWA config |
-| `sw.js` | Service worker (pendiente — siempre último) |
+| `sw.js` | Service worker — siempre último en commits |
 | `css/main.css` | Variables globales, reset, sistema de fases |
 | `css/components.css` | Botones, pills, cards, waves |
 | `css/splash.css` | Latido, rings, animación expansión |
 | `css/modal.css` | Modales, care card, route picker |
-| `css/explore.css` | Mapa, pins POI, card pequeña |
+| `css/explore.css` | Mapa, care strip, bottom bar, pills, brújula |
 | `css/poi.css` | Pantalla POI expandida |
-| `js/keys.js` | Vacío — LOCAL ONLY, .gitignore. Claude y clima vía Worker, no se carga en index.html |
-| `js/config.js` | Idioma, mood, preferencias, localStorage |
-| `js/app.js` | AppState + 7 campos de métricas de experiencia, setPhase() acumula sístole/diástole, navigateTo(), initExplore() marca sessionStart |
-| `js/gps.js` | Leaflet, watchPosition, Haversine, Nominatim, simulatePosition() (DA-14) |
-| `js/poi.js` | Overpass OSM (lz4 mirror), IndexedDB, detectPOI, candado de concurrencia (BUG-014), embudo detectNearby instrumentado |
-| `js/narration.js` | Claude API vía Worker, prompts × 4 moods × 2 langs, dip de música (BUG-018), métricas primera narración + intervalos |
-| `js/voice.js` | Web Speech API, 12 idiomas BCP-47, métricas lag texto→voz + duración hablada (DA-16) |
-| `js/music.js` | Web Audio API, fadeMusic, dip/restore |
+| `js/keys.js` | Vacío — LOCAL ONLY, .gitignore. Claude y clima vía Worker |
+| `js/config.js` | Idioma, mode, volúmenes, localStorage (mood eliminado) |
+| `js/app.js` | AppState, setPhase(), navigateTo(), welcomeCity(), updateCareStrip(), cierre de caminata |
+| `js/gps.js` | Leaflet, watchPosition, Haversine, Nominatim, detección velocidad tránsito |
+| `js/poi.js` | Wikipedia GeoSearch (primaria) + Overpass (fallback), IndexedDB, cola narrativa, _visitedInSession |
+| `js/narration.js` | Claude Haiku vía Worker, Prompt Maestro v2.7, memoria de sesión (capítulo anterior), getFarewell(), getCareMessage() |
+| `js/voice.js` | Web Speech API, 12 idiomas BCP-47, prioridad latinoamericana |
 | `js/weather.js` | OpenWeatherMap vía Worker, lluvia, cache 30min |
-| `js/care.js` | checkCareContext, 4 prioridades, cooldown |
-| `js/routes.js` | 5 recorridos Roma, Leaflet polyline, picker |
-| `js/debug.js` | Dashboard de 3 capas de experiencia, métricas con historial (DA-12), exportador con análisis de experiencia + veredicto automático, registro de tabs externas (DA-15) |
-| `js/debug-sim.js` | Simulador GPS — teletransportar/dibujar ruta, métricas leídas de AppState (DA-16), registrado como 5ta tab vía Debug.registerTab() |
+| `js/care.js` | checkCareContext, triggers + momentos memorables, generación vía Claude |
+| `js/routes.js` | Recorridos temáticos, Leaflet polyline, picker |
+| `js/debug.js` | Dashboard 3 capas de experiencia, métricas, exportador |
+| `js/debug-sim.js` | Simulador GPS, tab Simular, botón Test Care |
 | `docs/contexto_maestro.md` | Alma del producto, principios, pregunta rectora |
-| `docs/producto.md` | Producto, usuarios, principios |
-| `docs/arquitectura.md` | Decisiones DA-1 a DA-16 |
-| `docs/bitacora.md` | Historial, bugs, deuda técnica |
+| `docs/producto.md` | Producto, usuarios, principios, DTs activas |
+| `docs/arquitectura.md` | Decisiones DA-1 a DA-57 |
+| `docs/bitacora.md` | Historial, bugs, deuda técnica (hasta Sesión 17) |
+| `docs/manifiesto_narrativo.md` | Voz narrativa, capítulos, tesis de ciudad |
+| `docs/manifiesto_care_strip.md` | Hospitalidad urbana, voz del cuidado |
+| `docs/prompt_maestro_follower.md` | Prompt Maestro v2.7 oficial |
+
+**Nota:** `music.js` fue eliminado en v0.9. No recrear.
 
 ---
 
-*Follower — REGLAS_IA.md | Junio 2026*
+*Follower — REGLAS_IA.md | Sprint S3 | Junio 2026*

@@ -1,7 +1,7 @@
 /* ═══════════════════════════════════════════
    FOLLOWER — config.js
-   Configuración del usuario: idioma, narrador,
-   preferencias. Se carga antes que todo.
+   Configuracion del usuario: idioma, preferencias.
+   DA-50: narrator eliminado — voz unica v2.7.
    ═══════════════════════════════════════════ */
 
 const Config = (() => {
@@ -9,7 +9,6 @@ const Config = (() => {
   /* ── VALORES POR DEFECTO ── */
   const DEFAULTS = {
     lang:       'es',
-    narrator:   'storyteller',
     mode:       'free',
     volVoice:   1.0,
     unitSystem: 'metric'
@@ -67,15 +66,6 @@ const Config = (() => {
     set('lang', lang);
   }
 
-  function setNarrator(narrator) {
-    const valid = ['storyteller', 'historian', 'explorer', 'local'];
-    if (!valid.includes(narrator)) {
-      console.warn(`Config: narrador inválido "${narrator}"`);
-      return;
-    }
-    set('narrator', narrator);
-  }
-
   function setMode(mode) {
     const valid = ['free', 'route'];
     if (!valid.includes(mode)) {
@@ -100,20 +90,6 @@ const Config = (() => {
     localStorage.removeItem(STORAGE_KEY);
   }
 
-  /* ── LABELS DE NARRADOR ── */
-  const NARRATOR_LABELS = {
-    storyteller: { es: '🎭 Storyteller', en: '🎭 Storyteller' },
-    historian:   { es: '🏛️ Historiador', en: '🏛️ Historian'  },
-    explorer:    { es: '🔎 Explorador',  en: '🔎 Explorer'   },
-    local:       { es: '❤️ Local',       en: '❤️ Local'      }
-  };
-
-  function getNarratorLabel() {
-    const narrator = _config.narrator;
-    const lang     = _config.lang;
-    return NARRATOR_LABELS[narrator]?.[lang] || NARRATOR_LABELS[narrator]?.['es'] || narrator;
-  }
-
   /* ── INICIALIZAR ── */
   load();
 
@@ -123,12 +99,10 @@ const Config = (() => {
     getAll,
     set,
     setLang,
-    setNarrator,
     setMode,
     setVolVoice,
     isFirstTime,
-    reset,
-    getNarratorLabel
+    reset
   };
 
 })();

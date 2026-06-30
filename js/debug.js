@@ -1094,12 +1094,8 @@ const Debug = (() => {
     _sessionMetrics   = [];
     _sessionStartedAt = Date.now();
 
-    // 4. Invalidar cache de clima — la nueva ciudad necesita datos frescos
-    if (typeof Weather !== 'undefined' && typeof Weather.invalidateCache === 'function') {
-      Weather.invalidateCache();
-    }
-
-    // 5. Limpiar Set de POIs visitados — nueva sesión, sin memoria de la anterior
+    // 4. Limpiar Set de POIs visitados — nueva sesión, sin memoria de la anterior
+    // (DT-26: Weather.invalidateCache() se mueve solo a teleport — startTestSession no cambia ciudad)
     // BUG-044: sin esto, resetPOIs() + nueva carga Wikipedia olvidaba los visited
     if (typeof POI !== 'undefined' && typeof POI.resetVisited === 'function') {
       POI.resetVisited();

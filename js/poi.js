@@ -8,17 +8,11 @@
 const POI = (() => {
 
   /* ── ESTADO INTERNO ── */
-  let _pois         = [];       // POIs cargados para la zona actual
-  let _markers      = {};       // marcadores Leaflet { poi.id: marker }
-  let _lastFetchPos = null;     // última posición donde se hicieron fetch
-  let _db            = null;     // instancia IndexedDB
-  let _isFetchingPOIs  = false;   // candado — evita fetches paralelos a Overpass (BUG-014)
-  let _visitedInSession = new Set(); // IDs narrados en esta sesión — sobrevive resetPOIs()
-
-  /* ── COLA NARRATIVA (S2-A2) ── */
-  const QUEUE_MAX_SIZE = 3;          // máximo POIs en cola simultáneamente
-  const QUEUE_TTL_MS   = 4 * 60000; // 4 minutos — después el lugar quedó atrás
-  let _narrationQueue  = [];         // [{ poi, enqueuedAt }]
+  let _pois           = [];       // POIs cargados para la zona actual
+  let _markers        = {};       // marcadores Leaflet { poi.id: marker }
+  let _lastFetchPos   = null;     // última posición donde se hicieron fetch
+  let _db             = null;     // instancia IndexedDB
+  let _pendingDetect  = null;     // DT-38: posición pendiente de detectPOI tras carga inicial
 
   /* ── CONFIGURACIÓN ── */
   const CONFIG = {
@@ -32,35 +26,18 @@ const POI = (() => {
 
   /* ── CATEGORÍAS OSM → icono + tipo ── */
   const OSM_CATEGORIES = {
-    'historic':            { icon: '🏛️', type: 'historic'       },
-    'tourism':             { icon: '📍', type: 'tourism'        },
-    'museum':              { icon: '🖼️', type: 'museum'         },
-    'church':              { icon: '⛪', type: 'church'         },
-    'cathedral':           { icon: '⛪', type: 'church'         },
-    'chapel':              { icon: '⛪', type: 'church'         },
-    'mosque':              { icon: '🕌', type: 'church'         },
-    'temple':              { icon: '🛕', type: 'church'         },
-    'castle':              { icon: '🏰', type: 'castle'         },
-    'ruins':               { icon: '🏚️', type: 'ruins'          },
-    'monument':            { icon: '🗿', type: 'monument'       },
-    'memorial':            { icon: '🗿', type: 'monument'       },
-    'statue':              { icon: '🗿', type: 'monument'       },
-    'fountain':            { icon: '⛲', type: 'fountain'       },
-    'artwork':             { icon: '🎨', type: 'artwork'        },
-    'viewpoint':           { icon: '🔭', type: 'viewpoint'      },
-    'archaeological_site': { icon: '⚱️', type: 'archaeological' },
-    'theatre':             { icon: '🎭', type: 'theatre'        },
-    'cinema':              { icon: '🎬', type: 'theatre'        },
-    'arts_centre':         { icon: '🎨', type: 'artwork'        },
-    'library':             { icon: '📚', type: 'amenity'        },
-    'university':          { icon: '🎓', type: 'amenity'        },
-    'college':             { icon: '🎓', type: 'amenity'        },
-    'stadium':             { icon: '🏟️', type: 'leisure'        },
-    'park':                { icon: '🌳', type: 'leisure'        },
-    'garden':              { icon: '🌳', type: 'leisure'        },
-    'tower':               { icon: '🗼', type: 'monument'       },
-    'mall':                { icon: '🏬', type: 'amenity'        },
-    'amenity':             { icon: '📍', type: 'amenity'        },
+    'historic':      { icon: '🏛️', type: 'historic' },
+    'tourism':       { icon: '📍', type: 'tourism'  },
+    'amenity':       { icon: '☕', type: 'amenity'  },
+    'museum':        { icon: '🖼️', type: 'museum'   },
+    'church':        { icon: '⛪', type: 'church'   },
+    'castle':        { icon: '🏰', type: 'castle'   },
+    'ruins':         { icon: '🏚️', type: 'ruins'    },
+    'monument':      { icon: '🗿', type: 'monument' },
+    'fountain':      { icon: '⛲', type: 'fountain' },
+    'artwork':       { icon: '🎨', type: 'artwork'  },
+    'viewpoint':     { icon: '🔭', type: 'viewpoint'},
+    'archaeological_site': { icon: '⚱️', type: 'archaeological' }
   };
 
   /* ── INICIALIZAR INDEXEDDB ── */
@@ -107,248 +84,54 @@ const POI = (() => {
     });
   }
 
-  /* ── FETCH POIs DESDE WIKIPEDIA GEOSEARCH ──
-     Experimento v0.8: validar si Wikipedia puede reemplazar Overpass
-     como fuente primaria. Schema de salida idéntico a normalizePOI()
-     para que todo el pipeline downstream funcione sin cambios.
-
-     Wikipedia GeoSearch devuelve: pageid, title, lat, lon, dist
-     No devuelve tags OSM — se usan valores por defecto compatibles.
-  ── */
-  async function fetchWikipediaPOIs(lat, lng, radiusKm) {
-    const radius  = radiusKm * 1000; // metros
-    const lang    = (typeof AppState !== 'undefined' && AppState.lang === 'en') ? 'en' : 'es';
-    const limit   = 50;
-
-    // Detectar idioma local según la ciudad para mejor cobertura GeoData
-    // Wikipedia en idioma local tiene más artículos con coordenadas configuradas
-    const cityLang = (() => {
-      const lt = lat, ln = lng;
-      // Portugal: antes que España — coordenadas se solapan
-      if (lt > 36 && lt < 42 && ln > -10 && ln < -6)  return 'pt'; // Portugal
-      if (lt > 41 && lt < 52 && ln > -5 && ln < 10)   return 'fr'; // Francia
-      if (lt > 36 && lt < 48 && ln > 6  && ln < 19)   return 'it'; // Italia
-      if (lt > 36 && lt < 44 && ln > -6 && ln < 5)    return 'es'; // España
-      if (lt > 47 && lt < 56 && ln > 5  && ln < 16)   return 'de'; // Alemania/Austria
-      if (lt > 49 && lt < 61 && ln > -8 && ln < 2)    return 'en'; // UK
-      if (lt > -34 && lt < 6 && ln > -80 && ln < -34) return 'pt'; // Brasil
-      return 'es'; // LATAM y resto: español
-    })();
-
-    // Orden: idioma local → español → inglés
-    const urlSet = new Set([
-      `https://${cityLang}.wikipedia.org/w/api.php`,
-      `https://es.wikipedia.org/w/api.php`,
-      `https://en.wikipedia.org/w/api.php`,
-    ]);
-    const urls = [...urlSet];
-
-    const params = new URLSearchParams({
-      action:   'query',
-      list:     'geosearch',
-      gscoord:  `${lat}|${lng}`,
-      gsradius: radius,
-      gslimit:  limit,
-      format:   'json',
-      origin:   '*',     // CORS — necesario para llamadas desde el browser
-    });
-
-    const t0 = performance.now();
-    let places = [];
-
-    for (const baseUrl of urls) {
-      try {
-        const controller = new AbortController();
-        const tid        = setTimeout(() => controller.abort(), 8000); // 8s — mucho menos que Overpass
-
-        const res = await fetch(`${baseUrl}?${params}`, {
-          method: 'GET',
-          signal: controller.signal
-        });
-
-        clearTimeout(tid);
-
-        if (!res.ok) {
-          if (typeof Debug !== 'undefined') {
-            Debug.log('warn', `Wikipedia: ${baseUrl.split('/')[2]} → status=${res.status} — probando siguiente`);
-          }
-          continue;
-        }
-
-        const data = await res.json();
-        places = data?.query?.geosearch || [];
-
-        // Si el primer idioma devuelve pocos POIs, intentar el siguiente
-        if (places.length >= 10) break; // suficientes — no seguir buscando
-
-      } catch (err) {
-        if (typeof Debug !== 'undefined') {
-          Debug.log('warn', `Wikipedia: fetch falló (${err.message}) — probando siguiente`);
-        }
-        continue;
-      }
-    }
-
-    const elapsed = Math.round(performance.now() - t0);
-
-    if (typeof Debug !== 'undefined') {
-      if (places.length > 0) {
-        Debug.log('info', `Wikipedia: ${places.length} POIs en ${elapsed}ms`);
-      } else {
-        Debug.log('warn', `Wikipedia: 0 POIs en ${elapsed}ms — usando siguiente fuente`);
-      }
-    }
-
-    if (places.length === 0) return [];
-
-    // Deduplicar por coordenadas aproximadas (mismo lugar en idiomas distintos)
-    const seen = new Set();
-    places = places.filter(p => {
-      const key = `${Math.round(p.lat * 1000)},${Math.round(p.lon * 1000)}`;
-      if (seen.has(key)) return false;
-      seen.add(key);
-      return true;
-    });
-
-    if (typeof Debug !== 'undefined') {
-      Debug.log('info', `Wikipedia: ${places.length} POIs únicos tras deduplicación`);
-    }
-
-    // Normalizar al mismo schema que normalizePOI() produce
-    // para que detectPOI(), activatePOI() y el cache no noten la diferencia
-    return places.map(p => ({
-      id:          `wiki_${p.pageid}`,
-      name:        p.title,
-      lat:         p.lat,
-      lng:         p.lon,
-      icon:        '🏛️',          // icono genérico — Wikipedia no tiene tipo OSM
-      type:        'historic',    // tipo por defecto — el más narrable
-      description: '',            // Wikipedia no devuelve descripción en geosearch
-      tags:        {},            // sin tags OSM — QuickFacts mostrará solo distancia y tipo
-      visited:     false,
-      cachedAt:    Date.now(),
-      _source:     'wikipedia',   // metadato de diagnóstico — no lo usa ningún consumidor
-    }));
-  }
-
   /* ── FETCH POIs DESDE OVERPASS (OSM) ── */
   async function fetchPOIsFromOSM(lat, lng, radiusKm) {
-    // Si Wikipedia ya cargó POIs en esta sesión, no disparar Overpass
-    // Evita el ciclo: Wikipedia OK → Overpass lento → candado bloqueado → sin detección
-    if (_pois.length > 0 && _lastFetchPos) {
-      if (typeof Debug !== 'undefined') {
-        Debug.log('info', `POI: Overpass omitido — ya hay ${_pois.length} POIs cargados`);
-      }
-      return _pois;
-    }
-
-    // Candado — evita fetches paralelos que causan 429 en cadena (BUG-014)
-    if (_isFetchingPOIs) {
-      if (typeof Debug !== 'undefined') {
-        Debug.log('info', 'POI: fetch en curso — ignorando llamada paralela (BUG-014)');
-      }
-      return _pois.length > 0 ? _pois : [];
-    }
-    _isFetchingPOIs = true;
-
     const radius = radiusKm * 1000; // metros
 
     // Query optimizada: usa (around:...) UNA sola vez por bloque
     // en vez de repetirlo en cada cláusula — mucho más rápido para Overpass.
-    // nwr = node + way + relation en una sola pasada — 3x más rápido que
-    // cláusulas separadas. Reduce carga en el servidor y tiempo de respuesta.
     const query  = `
       [out:json][timeout:25];
       (
-        nwr(around:${radius},${lat},${lng})["historic"];
-        nwr(around:${radius},${lat},${lng})["tourism"~"museum|attraction|artwork|viewpoint|gallery|hotel"];
-        nwr(around:${radius},${lat},${lng})["amenity"~"place_of_worship|fountain|theatre|cinema|arts_centre|library|university|college"];
-        nwr(around:${radius},${lat},${lng})["leisure"~"park|garden|stadium"];
-        nwr(around:${radius},${lat},${lng})["man_made"~"monument|memorial|statue|tower"];
-        nwr(around:${radius},${lat},${lng})["building"~"cathedral|church|mosque|temple|synagogue|chapel"];
+        node(around:${radius},${lat},${lng})["historic"];
+        node(around:${radius},${lat},${lng})["tourism"~"museum|attraction|artwork|viewpoint|gallery"];
+        node(around:${radius},${lat},${lng})["amenity"~"place_of_worship|fountain|theatre|cinema"];
+        node(around:${radius},${lat},${lng})["leisure"~"park|garden"];
+        node(around:${radius},${lat},${lng})["man_made"~"monument|memorial|statue"];
+        way(around:${radius},${lat},${lng})["historic"];
+        way(around:${radius},${lat},${lng})["tourism"~"museum|attraction"];
       );
       out center;
     `;
 
-    // Mirrors de Overpass en orden de prioridad
-    // Si el primero falla (429, 504, timeout), se intenta el siguiente
-    const OVERPASS_MIRRORS = [
-      'https://overpass.kumi.systems/api/interpreter',
-      'https://overpass-api.de/api/interpreter',
-      'https://lz4.overpass-api.de/api/interpreter',
-    ];
-
-    if (typeof Debug !== 'undefined') {
-      Debug.log('info', `POI: fetching lat=${lat.toFixed(4)} lng=${lng.toFixed(4)} radius=${radius}m`);
-    }
+    const url = 'https://lz4.overpass-api.de/api/interpreter';
+    console.log(`POI: fetching lat=${lat} lng=${lng} radius=${radius}m`);
 
     const dbgId = (typeof Debug !== 'undefined')
       ? Debug.metricStart('poi', 'Overpass fetch')
       : null;
 
-    // Fetch con fallback automático entre mirrors
-    let data     = null;
-    let lastError = null;
-
     try {
-      for (const mirrorUrl of OVERPASS_MIRRORS) {
-        try {
-          const controller = new AbortController();
-          const timeoutId  = setTimeout(() => controller.abort(), 20000); // 20s por mirror
+      const res = await fetch(url, {
+        method: 'POST',
+        body:   `data=${encodeURIComponent(query)}`
+      });
 
-          const res = await fetch(mirrorUrl, {
-            method:  'POST',
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body:    `data=${encodeURIComponent(query)}`,
-            signal:  controller.signal
-          });
+      console.log(`POI: Overpass respondió status=${res.status}`);
 
-          clearTimeout(timeoutId);
-
-          if (typeof Debug !== 'undefined') {
-            Debug.log('info', `POI: ${mirrorUrl.split('/')[2]} respondió status=${res.status}`);
-          }
-
-          if (!res.ok) {
-            const errText = await res.text();
-            if (typeof Debug !== 'undefined') {
-              Debug.log('warn', `POI: mirror ${mirrorUrl.split('/')[2]} error ${res.status} — probando siguiente`);
-              Debug.metricEnd(dbgId, 'error', { httpStatus: res.status });
-            }
-            lastError = new Error(`Overpass API error ${res.status}`);
-            continue; // probar siguiente mirror
-          }
-
-          data = await res.json();
-
-          if (typeof Debug !== 'undefined') {
-            Debug.log('info', `POI: mirror ${mirrorUrl.split('/')[2]} OK — ${(data.elements||[]).length} elementos`);
-          }
-          break; // éxito — salir del loop
-
-        } catch (mirrorErr) {
-          lastError = mirrorErr;
-          if (typeof Debug !== 'undefined') {
-            Debug.log('warn', `POI: mirror ${mirrorUrl.split('/')[2]} falló (${mirrorErr.message}) — probando siguiente`);
-          }
-          continue;
-        }
+      if (!res.ok) {
+        const errText = await res.text();
+        console.warn(`POI: Overpass API error ${res.status} — ${errText.slice(0, 200)}`);
+        if (dbgId) Debug.metricEnd(dbgId, 'error', { httpStatus: res.status });
+        throw new Error('Overpass API error');
       }
 
-      if (!data) {
-        if (dbgId) Debug.metricEnd(dbgId, 'error', { message: lastError?.message || 'all mirrors failed' });
-        throw lastError || new Error('All Overpass mirrors failed');
-      }
-
+      const data     = await res.json();
       const elements = data.elements || [];
-      if (typeof Debug !== 'undefined') {
-        Debug.log('info', `POI: Overpass devolvió ${elements.length} elementos crudos`);
-      }
+      console.log(`POI: Overpass devolvió ${elements.length} elementos crudos`);
 
       const withName = elements.filter(el => el.tags?.name);
-      if (typeof Debug !== 'undefined') {
-        Debug.log('info', `POI: ${withName.length} elementos tienen nombre`);
-      }
+      console.log(`POI: ${withName.length} elementos tienen nombre`);
 
       let normalized = withName
         .map(el => normalizePOI(el))
@@ -369,9 +152,7 @@ const POI = (() => {
         }
       }
 
-      if (typeof Debug !== 'undefined') {
-        Debug.log('info', `POI: ${normalized.length} POIs normalizados correctamente`);
-      }
+      console.log(`POI: ${normalized.length} POIs normalizados correctamente`);
 
       if (dbgId) {
         Debug.metricEnd(dbgId, 'ok', { raw: elements.length, normalizados: normalized.length, radiusKm });
@@ -382,8 +163,6 @@ const POI = (() => {
     } catch (e) {
       if (dbgId) Debug.metricEnd(dbgId, 'error', { message: e.message });
       throw e;
-    } finally {
-      _isFetchingPOIs = false;   // liberar candado siempre, éxito o error
     }
   }
 
@@ -429,112 +208,56 @@ const POI = (() => {
     };
   }
 
-  /* ── CARGAR POIs — Wikipedia → Overpass → IndexedDB ──
-     Orden v0.8: Wikipedia primero (rápida, confiable, narrativa).
-     Overpass como fallback (lento, inestable, más completo).
-     IndexedDB como último recurso (cache geográfico).
-  ── */
+  /* ── CARGAR POIs — con fallback a cache ── */
   async function loadPOIs(lat, lng) {
+    // Intentar desde OSM si hay conexión
     if (!AppState.offline) {
-
-      // ── 1. WIKIPEDIA GEOSEARCH (fuente primaria en v0.8) ──
-      try {
-        const wikiPOIs = await fetchWikipediaPOIs(lat, lng, CONFIG.FETCH_RADIUS_KM);
-        if (wikiPOIs.length > 0) {
-          // Restaurar visited para POIs ya narrados en esta sesión
-          wikiPOIs.forEach(p => {
-            if (_visitedInSession.has(p.id)) p.visited = true;
-          });
-          _pois = wikiPOIs;
-          await savePOIsToDB(wikiPOIs);
-          _lastFetchPos = { lat, lng };
-          renderAllMarkers();
-          if (typeof Debug !== 'undefined') {
-            Debug.log('info', `POI: ${wikiPOIs.length} POIs de Wikipedia cargados y renderizados`);
-          }
-          return;
-        }
-        // 0 resultados en Wikipedia — zona sin cobertura, intentar Overpass
-        if (typeof Debug !== 'undefined') {
-          Debug.log('info', 'Wikipedia: sin resultados en esta zona — intentando Overpass');
-        }
-      } catch (wikiErr) {
-        if (typeof Debug !== 'undefined') {
-          Debug.log('warn', `Wikipedia falló (${wikiErr.message}) — intentando Overpass`);
-        }
-      }
-
-      // ── 2. OVERPASS / OSM (fallback) ──
       try {
         const fresh = await fetchPOIsFromOSM(lat, lng, CONFIG.FETCH_RADIUS_KM);
         if (fresh.length > 0) {
-          // Restaurar visited para POIs ya narrados en esta sesión
-          fresh.forEach(p => {
-            if (_visitedInSession.has(p.id)) p.visited = true;
-          });
           _pois = fresh;
           await savePOIsToDB(fresh);
           _lastFetchPos = { lat, lng };
           renderAllMarkers();
-          if (typeof Debug !== 'undefined') {
-            Debug.log('info', `POI: ${fresh.length} POIs de Overpass cargados y renderizados`);
-          }
+          console.log(`POI: ${fresh.length} POIs cargados y renderizados`);
+          _flushPendingDetect();  // DT-38: chequeo inmediato sin esperar el siguiente tick GPS
           return;
         } else {
-          if (typeof Debug !== 'undefined') {
-            Debug.log('warn', 'POI: Overpass devolvió 0 elementos — posible sobrecarga del servidor, usando cache');
-          }
-          throw new Error('Overpass returned empty response');
+          console.warn('POI: Overpass respondió OK pero 0 POIs normalizados — revisar query/zona');
         }
       } catch (e) {
-        if (typeof Debug !== 'undefined') {
-          Debug.log('error', `POI: Overpass falló (${e.message}) — usando cache IndexedDB`);
-        }
+        console.warn('POI: error fetching desde OSM, usando cache —', e.message);
       }
-
     } else {
-      if (typeof Debug !== 'undefined') {
-        Debug.log('info', 'POI: AppState.offline=true, saltando fetch a red');
-      }
+      console.log('POI: AppState.offline=true, saltando fetch a OSM');
     }
 
-    // Fallback: cargar desde IndexedDB — filtrado por proximidad geográfica
-    // CRÍTICO: el cache puede tener POIs de otra ciudad. Sin filtro, los 601 POIs
-    // de Cali aparecen cuando el usuario está en Madrid → 0 detecciones.
+    // Fallback: cargar desde IndexedDB
     const dbgId = (typeof Debug !== 'undefined')
       ? Debug.metricStart('poi', 'cache IndexedDB load')
       : null;
     const cached = await loadPOIsFromDB();
-
-    // Filtrar solo POIs dentro del radio de fetch × 1.5 (margen generoso)
-    const CACHE_RADIUS_M = CONFIG.FETCH_RADIUS_KM * 1500;
-    const nearby = typeof GPS !== 'undefined'
-      ? cached.filter(p => GPS.distanceMeters(lat, lng, p.lat, p.lng) <= CACHE_RADIUS_M)
-      : cached; // si GPS no está listo, usar todos como antes
-
-    if (dbgId) Debug.metricEnd(dbgId, 'fallback', { count: cached.length, nearby: nearby.length });
-
-    if (typeof Debug !== 'undefined') {
-      Debug.log('info', `POI: cache IndexedDB tiene ${cached.length} POIs · ${nearby.length} en radio ${CACHE_RADIUS_M/1000}km`);
-    }
-
-    if (nearby.length > 0) {
-      // Restaurar visited para POIs ya narrados en esta sesión
-      nearby.forEach(p => {
-        if (_visitedInSession.has(p.id)) p.visited = true;
-      });
-      _pois = nearby;
-      _lastFetchPos = { lat, lng };
+    if (dbgId) Debug.metricEnd(dbgId, 'fallback', { count: cached.length });
+    console.log(`POI: cache IndexedDB tiene ${cached.length} POIs`);
+    if (cached.length > 0) {
+      _pois = cached;
       renderAllMarkers();
+      _flushPendingDetect();  // DT-38: también al restaurar desde cache
+    }
+  }
+
+  /* ── DT-38: ejecutar detectPOI pendiente inmediatamente tras carga ── */
+  function _flushPendingDetect() {
+    if (_pendingDetect) {
+      const { lat, lng, activeRadius, nearbyRadius } = _pendingDetect;
+      _pendingDetect = null;
+      detectPOI(lat, lng, activeRadius, nearbyRadius);
       if (typeof Debug !== 'undefined') {
-        Debug.log('info', `POI: ${nearby.length} POIs del cache cargados para ${lat.toFixed(4)},${lng.toFixed(4)}`);
-      }
-    } else if (cached.length > 0) {
-      if (typeof Debug !== 'undefined') {
-        Debug.log('warn', `POI: cache tiene ${cached.length} POIs pero ninguno cerca — zona sin datos locales`);
+        Debug.log('info', 'POI: chequeo inmediato post-carga (DT-38)');
       }
     }
   }
+
 
   /* ── DETECTAR POI CERCANO — DA-3 función única ── */
   function detectPOI(lat, lng, activeRadius, nearbyRadius) {
@@ -573,103 +296,14 @@ const POI = (() => {
     // Actualizar marcadores en el mapa
     updateMarkersState();
 
-    // Si hay un POI nuevo dentro del radio
+    // Si hay un POI activo y no es el mismo que ya narrabamos
     if (closestPOI && closestPOI.id !== AppState.activePOI?.id) {
       if (typeof Debug !== 'undefined') Debug.trackExp('poi_eligible');
-
-      // S2-A2: si hay narración activa, encolar en lugar de ignorar
-      const narrando = typeof Narration !== 'undefined' && Narration.isNarrating();
-      if (narrando) {
-        enqueuePOI(closestPOI);
-      } else {
-        activatePOI(closestPOI);
-      }
+      activatePOI(closestPOI);
     } else if (!closestPOI && AppState.activePOI) {
       // Nos alejamos del POI activo
       deactivatePOI();
     }
-  }
-
-  /* ── ENCOLAR POI — detectado durante narración activa (S2-A2) ──
-     Solo encola si la narración está activa y el POI es nuevo y no visitado.
-     Máximo QUEUE_MAX_SIZE entradas — descarta el más antiguo si se supera.
-  ── */
-  function enqueuePOI(poi) {
-    // No encolar si ya está en la cola
-    if (_narrationQueue.some(e => e.poi.id === poi.id)) return;
-
-    // No encolar si ya fue visitado
-    if (poi.visited) return;
-
-    // Si la cola está llena, descartar el más antiguo (FIFO)
-    if (_narrationQueue.length >= QUEUE_MAX_SIZE) {
-      const descartado = _narrationQueue.shift();
-      if (typeof Debug !== 'undefined') {
-        Debug.log('info', `Cola: descartando ${descartado.poi.name} (cola llena)`);
-      }
-    }
-
-    _narrationQueue.push({ poi, enqueuedAt: Date.now() });
-
-    if (typeof Debug !== 'undefined') {
-      Debug.log('info', `Cola: encolado ${poi.name} · cola=[${_narrationQueue.map(e => e.poi.name).join(', ')}]`);
-    }
-  }
-
-  /* ── PROCESAR COLA — se llama al terminar cada narración (S2-A2) ──
-     Verifica expiración y proximidad antes de narrar el siguiente.
-     Si el usuario se alejó, descarta silenciosamente.
-  ── */
-  function processQueue() {
-    // Limpiar entradas expiradas (TTL)
-    const now = Date.now();
-    const antes = _narrationQueue.length;
-    _narrationQueue = _narrationQueue.filter(e => {
-      const expired = (now - e.enqueuedAt) > QUEUE_TTL_MS;
-      if (expired && typeof Debug !== 'undefined') {
-        Debug.log('info', `Cola: expirado ${e.poi.name} (>${QUEUE_TTL_MS/60000}min en cola)`);
-      }
-      return !expired;
-    });
-
-    if (antes !== _narrationQueue.length && typeof Debug !== 'undefined') {
-      Debug.log('info', `Cola: ${antes - _narrationQueue.length} entradas expiradas eliminadas`);
-    }
-
-    if (_narrationQueue.length === 0) return;
-
-    // Tomar el primero y verificar proximidad actual
-    const entry = _narrationQueue[0];
-    const poi   = entry.poi;
-
-    // Calcular distancia actual al POI
-    const lat = AppState.gps?.lat;
-    const lng = AppState.gps?.lng;
-    if (!lat || !lng) {
-      _narrationQueue.shift();
-      return;
-    }
-
-    const distActual = GPS.distanceMeters(lat, lng, poi.lat, poi.lng);
-    const radioActivo = 120; // metros — mismo que activeRadius en detectNearby
-
-    if (distActual > radioActivo * 1.5) {
-      // Usuario se alejó — descartar
-      _narrationQueue.shift();
-      if (typeof Debug !== 'undefined') {
-        Debug.log('info', `Cola: descartando ${poi.name} — usuario se alejó (${Math.round(distActual)}m > ${radioActivo * 1.5}m)`);
-      }
-      // Intentar con el siguiente de la cola
-      if (_narrationQueue.length > 0) processQueue();
-      return;
-    }
-
-    // Usuario sigue cerca — narrar
-    _narrationQueue.shift();
-    if (typeof Debug !== 'undefined') {
-      Debug.log('info', `Cola: narrando ${poi.name} (${Math.round(distActual)}m del usuario)`);
-    }
-    activatePOI(poi);
   }
 
   /* ── ACTIVAR POI — iniciar narración ── */
@@ -694,8 +328,12 @@ const POI = (() => {
       Narration.trigger(poi, Config.get('narrator'), Config.get('lang'));
     }
 
-    // visited = true se marca en narration.js al completar la narración (S2-A1)
-    // Aquí ya NO se marca — un POI interrumpido no debe quemarse para siempre
+    // Marcar como visitado
+    if (!poi.visited) {
+      poi.visited = true;
+      AppState.poisVisited++;
+      updateStats();
+    }
   }
 
   /* ── DESACTIVAR POI — usuario se alejó ── */
@@ -865,6 +503,8 @@ const POI = (() => {
 
     // Si no hay POIs o nos movimos mucho → refetch
     if (_pois.length === 0) {
+      // DT-38: guardar posición para detectPOI inmediato al terminar la carga
+      _pendingDetect = { lat, lng, activeRadius, nearbyRadius };
       loadPOIs(lat, lng);
       return;
     }
@@ -915,13 +555,6 @@ const POI = (() => {
   /* ── API PÚBLICA ── */
   return {
     detectNearby,
-    processQueue,      // S2-A2 — llamado desde narration.js al completar narración
-    markVisited: (id) => {  // BUG-044 — registrar POI narrado en Set de sesión
-      _visitedInSession.add(id);
-    },
-    resetVisited: () => {   // llamado desde startTestSession() al iniciar nueva sesión
-      _visitedInSession.clear();
-    },
     renderExpanded,
     onMarkerTap,
     onDepthPill,

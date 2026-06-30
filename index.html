@@ -99,41 +99,6 @@
         </div>
       </div>
 
-      <!-- Narrador -->
-      <div class="config-block">
-        <p class="config-label">¿Quién te acompaña hoy?</p>
-        <div class="narrator-list" id="narratorCards">
-          <div class="narrator-card active" data-value="storyteller">
-            <div class="narrator-emoji">🎭</div>
-            <div class="narrator-info">
-              <div class="narrator-name">Storyteller</div>
-              <div class="narrator-desc">personajes reales, emoción, suspenso</div>
-            </div>
-          </div>
-          <div class="narrator-card" data-value="historian">
-            <div class="narrator-emoji">🏛️</div>
-            <div class="narrator-info">
-              <div class="narrator-name">Historiador</div>
-              <div class="narrator-desc">fechas, arquitectura, contexto histórico</div>
-            </div>
-          </div>
-          <div class="narrator-card" data-value="explorer">
-            <div class="narrator-emoji">🔎</div>
-            <div class="narrator-info">
-              <div class="narrator-name">Explorador</div>
-              <div class="narrator-desc">secretos, detalles ocultos, revelaciones</div>
-            </div>
-          </div>
-          <div class="narrator-card" data-value="local">
-            <div class="narrator-emoji">❤️</div>
-            <div class="narrator-info">
-              <div class="narrator-name">Local</div>
-              <div class="narrator-desc">costumbres reales, cultura viva, voz del barrio</div>
-            </div>
-          </div>
-        </div>
-      </div>
-
       <button class="btn-primary" id="btnStartExplore">Comenzar exploración →</button>
     </div>
   </div>
@@ -220,42 +185,6 @@
       </div>
     </div>
 
-    <!-- Style selector — bottom sheet sobre el mapa -->
-    <div class="style-selector hidden" id="styleSelector">
-      <div class="style-handle"></div>
-      <p class="style-title">Estilo de narrador</p>
-      <div class="style-list">
-        <div class="style-card active" data-style="storyteller">
-          <div class="style-emoji">🎭</div>
-          <div class="style-info">
-            <div class="style-name">Storyteller</div>
-            <div class="style-desc">personajes reales, emoción, suspenso</div>
-          </div>
-        </div>
-        <div class="style-card" data-style="historian">
-          <div class="style-emoji">🏛️</div>
-          <div class="style-info">
-            <div class="style-name">Historiador</div>
-            <div class="style-desc">fechas, arquitectura, contexto histórico</div>
-          </div>
-        </div>
-        <div class="style-card" data-style="explorer">
-          <div class="style-emoji">🔎</div>
-          <div class="style-info">
-            <div class="style-name">Explorador</div>
-            <div class="style-desc">secretos, detalles ocultos, revelaciones</div>
-          </div>
-        </div>
-        <div class="style-card" data-style="local">
-          <div class="style-emoji">❤️</div>
-          <div class="style-info">
-            <div class="style-name">Local</div>
-            <div class="style-desc">costumbres reales, cultura viva, voz del barrio</div>
-          </div>
-        </div>
-      </div>
-    </div>
-
     <!-- Controles de zoom + brújula — columna derecha del mapa -->
     <div class="map-zoom-controls">
       <button class="map-zoom-btn" id="btnZoomIn"  aria-label="Acercar" onclick="const m=GPS.getMap();if(m)m.zoomIn();">+</button>
@@ -298,15 +227,6 @@
       <!-- Estado sístole: [estilo]  ·  [próxima historia] -->
       <div class="bar-systole" id="barSystole">
 
-        <!-- Pill izquierdo — selector de estilo -->
-        <button class="bar-pill bar-pill-left" id="btnStyleSelector">
-          <span class="bar-pill-icon" id="barStyleIcon">🎭</span>
-          <span class="bar-pill-name" id="barStyleName">Narrador</span>
-          <svg class="bar-pill-chevron" width="8" height="6" viewBox="0 0 8 6" fill="none">
-            <path d="M1 1.5L4 4.5L7 1.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-          </svg>
-        </button>
-
         <!-- Pill derecho — próxima historia -->
         <button class="bar-pill bar-pill-right" id="btnNearbyStories">
           <span class="bar-pill-icon" id="barNextIcon">📍</span>
@@ -341,7 +261,7 @@
               <div class="wave-bar"></div>
               <div class="wave-bar"></div>
             </div>
-            <div class="bar-style-lbl" id="barStyleLbl">Narrador</div>
+            <div class="bar-style-lbl" id="barStyleLbl">Follower</div>
           </div>
           <div class="bar-ctrl-right">
             <button class="btn-narr-pause" id="btnPauseNarration" aria-label="Pausar narración">
@@ -452,7 +372,7 @@
   <script src="js/poi.js"></script>
   <script src="js/narration.js"></script>
   <script src="js/voice.js"></script>
-  <script src="js/music.js"></script>
+  <!-- music.js eliminado DA-50 — ciudad sonora es narrativa, no audio -->
   <script src="js/weather.js"></script>
   <script src="js/care.js"></script>
   <script src="js/routes.js"></script>

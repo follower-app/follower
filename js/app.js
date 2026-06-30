@@ -20,9 +20,6 @@ const AppState = {
   poisVisited: 0,
   weather:     null,
   cityName:    '',
-  narrationStyle:      'storyteller',
-  narrationStyleLabel: 'Storyteller',
-
   // ── Bienvenida de ciudad ──
   _cityWelcomeDone: false,
 
@@ -322,10 +319,8 @@ function expandHeart(heart, splashId) {
       showModal('config');
     } else {
       // Sesión anterior — ir directo a exploración con config guardada
-      AppState.lang           = Config.get('lang');
-      AppState.narrationStyle = Config.get('narrator');
-      AppState.narrationStyleLabel = STYLE_LABELS[AppState.narrationStyle] || AppState.narrationStyle;
-      AppState.mode           = Config.get('mode');
+      AppState.lang  = Config.get('lang');
+      AppState.mode  = Config.get('mode');
       if (splashId) Debug.metricEnd(splashId, 'returning-user');
       navigateTo('explore');
       initExplore();
@@ -345,12 +340,8 @@ function _unlockAudioOnFirstTap() {
   if (typeof Voice !== 'undefined' && typeof Voice.unlockFromGesture === 'function') {
     Voice.unlockFromGesture();
   }
-  if (typeof Music !== 'undefined' && typeof Music.initFromGesture === 'function') {
-    Music.initFromGesture();
-  }
-
   if (typeof Debug !== 'undefined') {
-    Debug.log('info', 'Audio: desbloqueado desde primer tap en exploración');
+    Debug.log('info', 'Audio: desbloqueado desde primer tap en exploracion');
   }
 }
 
@@ -419,14 +410,13 @@ function welcomeCity(city) {
   if (AppState._cityWelcomeDone) return;
   AppState._cityWelcomeDone = true;
 
-  const style = AppState.narrationStyle || 'storyteller';
   const lang  = AppState.lang || 'es';
 
-  // Si es el fallback genérico, no pasar por getCityWelcome
+  // Si es el fallback generico, no pasar por getCityWelcome
   const isFallback = (city === 'Tu ciudad te espera.' || city === 'Your city awaits.');
   let text = city;
   if (!isFallback && typeof Narration !== 'undefined' && typeof Narration.getCityWelcome === 'function') {
-    text = Narration.getCityWelcome(city, style, lang);
+    text = Narration.getCityWelcome(city, null, lang);
   }
 
   const el = document.getElementById('cityWelcome');
@@ -470,8 +460,7 @@ function dismissCityWelcome(el) {
 /* ── EVENT LISTENERS — CONFIG MODAL ── */
 function initConfigModal() {
   // Preseleccionar valores guardados
-  const savedLang     = Config.get('lang');
-  const savedNarrator = Config.get('narrator');
+  const savedLang = Config.get('lang');
 
   // Pills de idioma
   const langPills = document.querySelectorAll('#langPills .pill');
@@ -485,28 +474,12 @@ function initConfigModal() {
     });
   });
 
-  // Cards de narrador
-  const narratorCards = document.querySelectorAll('#narratorCards .narrator-card');
-  narratorCards.forEach(card => {
-    if (card.dataset.value === savedNarrator) card.classList.add('active');
-    else card.classList.remove('active');
-    card.addEventListener('click', () => {
-      narratorCards.forEach(c => c.classList.remove('active'));
-      card.classList.add('active');
-      AppState.narrationStyle = card.dataset.value;
-    });
-  });
-
   // Botón comenzar
   const btnStart = document.getElementById('btnStartExplore');
   if (btnStart) {
     btnStart.addEventListener('click', () => {
       Config.setLang(AppState.lang);
-      Config.setNarrator(AppState.narrationStyle);
       // Desbloquear AudioContext y speechSynthesis desde gesto del usuario (iOS Safari)
-      if (typeof Music !== 'undefined' && typeof Music.initFromGesture === 'function') {
-        Music.initFromGesture();
-      }
       if (typeof Voice !== 'undefined' && typeof Voice.unlockFromGesture === 'function') {
         Voice.unlockFromGesture();
       }
@@ -544,56 +517,6 @@ function initModeModal() {
       }, 300);
     });
   }
-}
-
-/* ── STYLE SELECTOR ── */
-const STYLE_LABELS = {
-  storyteller: 'Storyteller',
-  historian:   'Historiador',
-  explorer:    'Explorador',
-  local:       'Local',
-};
-
-function initStyleSelector() {
-  const selector   = document.getElementById('styleSelector');
-  const styleBtn   = document.getElementById('btnStyleSelector');
-  const styleCards = document.querySelectorAll('.style-card');
-
-  if (styleBtn && selector) {
-    styleBtn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      selector.classList.toggle('hidden');
-    });
-  }
-
-  // Cerrar al tocar el mapa
-  document.getElementById('map')?.addEventListener('click', () => {
-    selector?.classList.add('hidden');
-  });
-
-  styleCards.forEach(card => {
-    card.addEventListener('click', () => {
-      const style = card.dataset.style;
-
-      AppState.narrationStyle      = style;
-      AppState.narrationStyleLabel = STYLE_LABELS[style] || style;
-      Config.setNarrator(style);
-
-      styleCards.forEach(c => c.classList.remove('active'));
-      card.classList.add('active');
-
-      const nameEl = document.getElementById('barStyleName');
-      const lblEl  = document.getElementById('barStyleLbl');
-      if (nameEl) nameEl.textContent = AppState.narrationStyleLabel;
-      if (lblEl)  lblEl.textContent  = AppState.narrationStyleLabel;
-
-      selector?.classList.add('hidden');
-
-      if (typeof Debug !== 'undefined') {
-        Debug.log('info', `Narrador cambiado: ${AppState.narrationStyleLabel}`);
-      }
-    });
-  });
 }
 
 /* ── BRÚJULA — lógica de 3 estados ── */
@@ -740,7 +663,7 @@ function initExploreListeners() {
     btnNearby.addEventListener('click', (e) => {
       e.stopPropagation();
       // Cerrar style selector si está abierto
-      document.getElementById('styleSelector')?.classList.add('hidden');
+      // styleSelector eliminado DA-50
       nearbySelect.classList.toggle('hidden');
     });
   }
@@ -795,15 +718,13 @@ function initExploreListeners() {
     setPhase('systole');
   });
 
-  initStyleSelector();
 }
+// DA-50: initStyleSelector() eliminado — narrador unico
 
 /* ── INIT PRINCIPAL ── */
 function init() {
-  AppState.lang            = Config.get('lang');
-  AppState.narrationStyle  = Config.get('narrator');
-  AppState.narrationStyleLabel = STYLE_LABELS[AppState.narrationStyle] || AppState.narrationStyle;
-  AppState.mode            = Config.get('mode');
+  AppState.lang  = Config.get('lang');
+  AppState.mode  = Config.get('mode');
 
   window.addEventListener('online',  handleOnline);
   window.addEventListener('offline', handleOffline);
@@ -812,15 +733,6 @@ function init() {
   initConfigModal();
   initModeModal();
   initExploreListeners();
-
-  // Sincronizar label del pill con el narrador ya guardado en Config
-  const nameEl = document.getElementById('barStyleName');
-  const lblEl  = document.getElementById('barStyleLbl');
-  const iconEl = document.getElementById('barStyleIcon');
-  const STYLE_ICONS = { storyteller: '🎭', historian: '🏛️', explorer: '🔎', local: '❤️' };
-  if (nameEl) nameEl.textContent = AppState.narrationStyleLabel;
-  if (lblEl)  lblEl.textContent  = AppState.narrationStyleLabel;
-  if (iconEl) iconEl.textContent = STYLE_ICONS[AppState.narrationStyle] || '🎭';
 
   runSplash();
 }

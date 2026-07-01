@@ -1,14 +1,14 @@
 /* ═══════════════════════════════════════════
    FOLLOWER — sw.js
-   Service Worker mínimo.
-   Propósito principal: garantizar que el
-   navegador descargue siempre la versión
-   más reciente de los archivos JS/CSS.
+   Service Worker minimo.
+   Proposito principal: garantizar que el
+   navegador descargue siempre la version
+   mas reciente de los archivos JS/CSS.
    ═══════════════════════════════════════════ */
 
 // Incrementar CACHE_VERSION fuerza descarga de todos los archivos
-// en el próximo arranque — incluso si el navegador tiene versión cacheada.
-const CACHE_VERSION = 'follower-v2';  // DA-50: narrador unico, music.js eliminado
+// en el proximo arranque — incluso si el navegador tiene version cacheada.
+const CACHE_VERSION = 'follower-v4';  // narración 130-160 palabras, artwork excluido
 
 const STATIC_ASSETS = [
   './',
@@ -32,18 +32,18 @@ const STATIC_ASSETS = [
   './css/components.css',
 ];
 
-// ── INSTALL: cachear assets estáticos ──
+// ── INSTALL: cachear assets estaticos ──
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_VERSION).then((cache) => {
       return cache.addAll(STATIC_ASSETS);
     })
   );
-  // No llamar skipWaiting() automáticamente — esperar al próximo arranque
-  // para no interrumpir una sesión de audio activa
+  // No llamar skipWaiting() automaticamente — esperar al proximo arranque
+  // para no interrumpir una sesion de audio activa
 });
 
-// ── ACTIVATE: limpiar cachés viejos ──
+// ── ACTIVATE: limpiar caches viejos ──
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((cacheNames) => {
@@ -54,7 +54,7 @@ self.addEventListener('activate', (event) => {
       );
     })
   );
-  // Tomar control de todas las pestañas abiertas inmediatamente
+  // Tomar control de todas las pestanas abiertas inmediatamente
   self.clients.claim();
 });
 
@@ -67,12 +67,12 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // JS y CSS — network-first para garantizar versión actualizada
+  // JS y CSS — network-first para garantizar version actualizada
   if (url.pathname.match(/\.(js|css)$/)) {
     event.respondWith(
       fetch(event.request)
         .then((response) => {
-          // Actualizar caché con la versión nueva
+          // Actualizar cache con la version nueva
           const clone = response.clone();
           caches.open(CACHE_VERSION).then((cache) => {
             cache.put(event.request, clone);
@@ -80,14 +80,14 @@ self.addEventListener('fetch', (event) => {
           return response;
         })
         .catch(() => {
-          // Si falla la red, servir desde caché
+          // Si falla la red, servir desde cache
           return caches.match(event.request);
         })
     );
     return;
   }
 
-  // Todo lo demás — cache-first (HTML, imágenes, manifest)
+  // Todo lo demas — cache-first (HTML, imagenes, manifest)
   event.respondWith(
     caches.match(event.request).then((cached) => {
       return cached || fetch(event.request).then((response) => {

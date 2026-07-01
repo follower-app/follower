@@ -236,7 +236,7 @@ const Debug = (() => {
       .dbg-poi-name { font-weight: 600; color: #c8d4e0; margin-bottom: 2px; }
       .dbg-poi-meta { font-size: 10px; color: #4a5568; }
 
-      .dbg-poi-btn-row { display: flex; gap: 6px; margin-top: 6px; }
+      .dbg-poi-btn-row { display: flex; gap: 6px; margin-top: 6px; flex-wrap: wrap; }
 
       .dbg-poi-action {
         font-size: 10px;

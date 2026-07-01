@@ -1465,3 +1465,91 @@ Se resuelve en sesión de redacción de prompts.
 ---
 
 *Follower — Arquitectura v0.9 | Sprint S3 | 30 Junio 2026*
+
+---
+
+### DA-58 — Formato de memoria de capítulo (DA-52 implementada)
+
+**Decisión:** el texto completo del capítulo anterior se inyecta en el user
+message de cada nueva narración. No se hace una llamada de extracción separada.
+
+```
+Capítulo anterior — {poi_name}:
+{texto_completo}
+
+---
+
+Estoy en "{poi_name}" en {city}. Escribe el capítulo de este lugar.
+{context}
+```
+
+**Razón:** el v2.7 ya sabe identificar idea central y recurso sensorial desde
+el texto — "Antes de escribir, identifica: la idea central, el recurso
+sensorial o sonoro utilizado." Una extracción separada costaría ~130 tokens
+en una segunda llamada; pasar el texto completo cuesta ~350 tokens extra pero
+elimina un punto de falla y latencia adicional. A precio de Haiku: diferencia
+de ~$0.000055 por narración — irrelevante.
+
+**Storage:** `AppState._walkChapters[]` — array de `{ poiId, poiName, text,
+ts }`. Solo se almacenan capítulos reales (`source !== 'fallback'`). El
+historial completo solo se usa en la despedida final (DA-54 — pendiente).
+
+---
+
+### DA-59 — Idioma local para bienvenida de ciudad
+
+**Decisión:** la frase de bienvenida se pronuncia en el idioma local de la
+ciudad detectada, no en el idioma del usuario. Simplificación consciente:
+ciudades multilingües (Bruselas, Montreal, Barcelona) usan el idioma principal
+del país.
+
+**Implementación:** `COUNTRY_LANG` en `narration.js` — 35+ códigos ISO 3166-1
+alpha-2 → idioma BCP-47. `getLocalLang(countryCode)` expuesto en API pública.
+`AppState.countryCode` almacenado cuando Nominatim responde en `gps.js`.
+`CITY_WELCOME` expandido de 2 a 18 idiomas.
+
+---
+
+### DA-60 — Detección de inactividad para posible cierre de caminata
+
+**Decisión:** movimiento < 30m en 10 minutos con ≥ 500m caminados → disparar
+`onWalkInactivity()`. El handler no actúa si `phase === 'rest'` (pausa de
+Care intencional) ni si `phase === 'diastole'` (narración en curso).
+
+**Estado actual:** `onWalkInactivity()` solo loguea. La pregunta hablada del
+narrador y la confirmación por tap (DA-54 / DT-45/46) bloquean la
+implementación completa.
+
+---
+
+### DA-61 — Zona especial: trigger por densidad de POIs Wikipedia
+
+**Decisión:** ≥ 3 POIs en radio de 150m → trigger "zona especial" en Care.
+Reset al alejarse > 200m desde el punto de disparo. Calculado localmente
+sobre `POI.getPOIs()` — sin llamadas de red adicionales.
+
+**Mensaje actual:** placeholder estático en `MESSAGES.special`. Será
+reemplazado por Care generativo (DA-57 / DT-42) cuando el mini-prompt esté
+validado en campo.
+
+---
+
+### Resumen de archivos — Sesión 18
+
+| Archivo | Cambios |
+|---------|---------|
+| `narration.js` | DA-50 completo + DT-36 + DT-39 (prevBlock) + DT-41 (COUNTRY_LANG, CITY_WELCOME×18, getLocalLang) |
+| `config.js` | DA-50: narrator eliminado de config |
+| `app.js` | DA-50: narrationStyle eliminado + DT-39 (_walkChapters) + DT-40 (onWalkInactivity) + DT-41 (countryCode, localLang) |
+| `index.html` | DA-50: selectores de narrador eliminados |
+| `music.js` | DA-50: stub vacío |
+| `poi.js` | DT-38: _pendingDetect + _flushPendingDetect() |
+| `debug.js` | DT-26: Weather.invalidateCache() removido de startTestSession() |
+| `gps.js` | DT-40: inactividad tracking + DT-41: countryCode + Care.checkSpecialZone() |
+| `care.js` | DT-43: checkSpecialZone() + MESSAGES.special placeholder |
+| `sw.js` | v2 (DA-50) → v3 (DT-39/40/41/43) |
+| `docs/dt42_care_miniprompt.md` | DT-42: prompt de Care redactado, listo para implementar |
+
+---
+
+*Follower — Arquitectura v0.9 | Sesión 18 | 30 Junio 2026*

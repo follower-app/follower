@@ -2483,3 +2483,212 @@ en esta sesión — queda como DT-47.
 ---
 
 *Follower — Bitácora v0.9 | Sesión 17 | 30 Junio 2026*
+
+
+
+
+## Sesión 18 — 30 Junio 2026
+
+### Contexto
+
+Sesión de implementación pura. Sin definiciones nuevas — ejecutar el backlog
+priorizado de la Sesión 17. Punto de partida: revisión completa de la bitácora
+para mapear todos los pendientes técnicos abiertos.
+
+---
+
+### Sprint 1 — Fixes inmediatos y narrador único
+
+#### DT-27 cerrado sin cambios
+Al revisar `debug.js`, `clearCache()` ya tenía `setTimeout(() =>
+location.reload(), 300)` desde una sesión anterior. Se cierra como resuelto
+sin modificaciones.
+
+#### DT-26 — `debug.js`
+`Weather.invalidateCache()` en `startTestSession()` se llamaba
+incondicionalmente aunque no se cambiara de ciudad. Removido. La llamada
+correcta ya existía en `debug-sim.js` guardada por `if (_mode === 'teleport')`.
+
+#### DT-36 — `narration.js`
+Helper `cleanPOIName()` agregado. Elimina sufijos de desambiguación Wikipedia
+antes de pasarlos al prompt: `"Catedral de Sal (Colombia)"` → `"Catedral de
+Sal"`, `"Plaza Mayor (Madrid)"` → `"Plaza Mayor"`. Aplicado en `buildContext()`
+y `buildPrompt()` con `{ ...poi, name: cleanPOIName(poi.name) }`.
+
+#### DT-38 — `poi.js`
+`detectNearby()` cuando `_pois.length === 0` llamaba `loadPOIs()` async y
+salía con `return` sin esperar resultado. El siguiente `detectPOI()` ocurría
+hasta el próximo tick GPS (hasta 5s + tiempo de carga). Fix: `_pendingDetect`
+guarda la posición antes del `return`; `_flushPendingDetect()` llama
+`detectPOI()` inmediatamente cuando `loadPOIs()` termina, tanto en path OSM
+como en fallback IndexedDB.
+
+---
+
+### Sprint 2 — DA-50: Consolidación de narrador único
+
+La implementación más grande de la sesión. Cinco archivos afectados:
+
+**`narration.js`** — reescrito completo.
+- `STYLE_PROMPTS` (4 narradores × 2 idiomas) → `SYSTEM_PROMPT` bilingüe con
+  el Prompt Maestro v2.7 íntegro
+- `CITY_WELCOME` de 4 estilos → voz única (`"Un capítulo te espera en cada
+  esquina"`)
+- `buildPrompt(poi, style, lang, topic)` → `buildPrompt(poi, lang)`
+- `max_tokens` 350 → 480 (techo duro — S17)
+- Cache key `${poiId}_${style}_${lang}_${topic}` → `${poiId}_${lang}_${topic}`
+- `Music.playNarratorIntro()` eliminado
+- `getCityWelcome(city, style, lang)` → `getCityWelcome(city, _unused, lang)`
+
+**`config.js`**
+- `narrator` eliminado de `DEFAULTS`
+- `setNarrator()`, `NARRATOR_LABELS`, `getNarratorLabel()` eliminados
+
+**`app.js`**
+- `narrationStyle` / `narrationStyleLabel` eliminados de `AppState`
+- `STYLE_LABELS`, `STYLE_ICONS`, `initStyleSelector()` eliminados
+- `Config.setNarrator()` y `Music.initFromGesture()` eliminados de todos
+  los handlers
+
+**`index.html`**
+- Bloque "¿Quién te acompaña hoy?" eliminado del config modal
+- `styleSelector` bottom sheet eliminado
+- `btnStyleSelector` pill eliminado del bottom bar
+- `barStyleLbl` fijo como "Follower"
+
+**`music.js`** — stub vacío con comentario DA-50.
+
+**`poi.js`** — DT-38 (ver arriba).
+
+**`debug.js`** — DT-26 (ver arriba).
+
+`sw.js` bumpeado a `follower-v2`.
+
+---
+
+### Sprint 3 — DT-39/40/41/43
+
+#### DT-39 — Memoria de capítulo (DA-52)
+
+**Decisión de formato:** se pasa el texto completo del capítulo anterior, no
+un resumen extraído. Razones:
+- El v2.7 ya sabe qué buscar en él (idea central + recurso sensorial)
+- Una extracción separada costaría una llamada adicional con latencia
+- Costo: ~350 tokens extras × precio Haiku = irrelevante (~$0.000088/narración)
+
+**Implementación:**
+- `AppState._walkChapters = []` — array de `{ poiId, poiName, text, ts }`
+- `buildPrompt()` inyecta el último capítulo como prefijo del user message
+- Solo se almacenan capítulos reales (source !== 'fallback')
+- Log en debug: `Narration: capítulo #N guardado — {poi_name}`
+
+#### DT-41 — Tabla país→idioma local
+
+**Decisión:** saludo de bienvenida en el idioma local de la ciudad detectada,
+no en el idioma del usuario. Simplificación consciente: ciudades multilingües
+(Bruselas, Montreal, Barcelona) usan el idioma principal del país.
+
+**Implementación:**
+- `COUNTRY_LANG` en `narration.js` — 35+ códigos ISO 3166-1 → idioma local
+- `getLocalLang(countryCode)` expuesto en API pública de `Narration`
+- `CITY_WELCOME` expandido de 2 a 18 idiomas
+- `AppState.countryCode` en `app.js` para almacenar el código del país actual
+- `gps.js` almacena `AppState.countryCode = country` cuando Nominatim responde
+  y pasa `countryCode` a `welcomeCity(city, country)`
+- `welcomeCity()` en `app.js` usa `Narration.getLocalLang()` en vez de
+  `AppState.lang`
+
+#### DT-40 — Detección de inactividad para cierre de caminata
+
+**Umbrales definidos:**
+- Movimiento < 30m en 10 minutos → inactividad detectada
+- Solo aplica con ≥ 500m caminados (evita falso positivo en arranque)
+- No dispara si `AppState.phase === 'rest'` (pausa de Care intencional)
+- No dispara si `AppState.phase === 'diastole'` (narración en curso)
+
+**Implementación:**
+- `_lastSigMoveTs` y `_lastSigMovePos` en `gps.js`
+- `onWalkInactivity()` en `app.js` — solo loguea por ahora
+- DT-45/46 (pregunta hablada + tap) bloquean la implementación completa
+
+#### DT-43 — Zona especial por densidad de POIs
+
+**Umbrales definidos:** ≥ 3 POIs en 150m → zona especial.
+Reset al moverse > 200m desde el punto de disparo.
+
+**Implementación:**
+- `checkSpecialZone(lat, lng)` en `care.js`, llamada en cada tick GPS
+- Respeta cooldown de Care y fase `diastole`
+- Mensaje estático placeholder `'special'` en `MESSAGES` — DT-42 lo
+  reemplazará por Care generativo cuando el mini-prompt esté validado
+- `_specialZoneTriggerPos` para evitar re-disparo dentro de la misma zona
+
+#### DT-42 — Mini-prompt de Care (definido, no implementado)
+
+El prompt está redactado en `docs/dt42_care_miniprompt.md`. Incluye:
+- System prompt: voz de hospitalidad, máx 55 palabras, sin exclamaciones
+- 5 user prompts por trigger (hot, cold, tired, lunch, special)
+- Formato de `places_list` para los candidatos de Overpass
+- Ejemplo de respuesta esperada
+- Notas de implementación en care.js
+
+No se implementa hasta validar latencia en campo (DT-44 pendiente).
+
+`sw.js` bumpeado a `follower-v3`.
+
+---
+
+### DT-9 — Key OpenAI en git history
+
+Confirmado: ningún archivo activo contiene la key. Solo existe en commits
+`a249fee8`–`a303f110` en el historial público del repo. Acción requerida:
+revocar la key directamente en console.openai.com (API Keys → revocar
+`sk-proj-...`). Con la key revocada el historial queda inerte.
+
+---
+
+### Deuda técnica resuelta esta sesión
+
+| ID | Descripción |
+|----|-------------|
+| DT-26 | Weather.invalidateCache() en startTestSession() — removido |
+| DT-27 | clearCache() sin reload — ya estaba resuelto desde sesión anterior |
+| DT-36 | Limpiar nombres POIs Wikipedia — cleanPOIName() implementado |
+| DT-38 | TTF inmediato post-carga — _pendingDetect + _flushPendingDetect() |
+| DT-39 | Formato metadatos por capítulo — texto completo, _walkChapters[] |
+| DT-40 | Umbral inactividad — 30m/10min, onWalkInactivity() en app.js |
+| DT-41 | Tabla país→idioma — 35+ países, COUNTRY_LANG, getLocalLang() |
+| DT-43 | Zona especial — ≥3 POIs en 150m, checkSpecialZone() en care.js |
+| DA-50 | Narrador único — 5 archivos implementados, sw.js v2 |
+
+### Deuda técnica pendiente tras esta sesión
+
+| ID | Descripción | Prioridad |
+|----|-------------|-----------|
+| DT-44 | Medir latencia autoevaluación v2.7 en campo — antes de tocar narration.js | Crítica |
+| DT-42 | Implementar Care generativo con mini-prompt redactado | Alta |
+| DT-45 | UI: pantalla de bienvenida animada letra por letra | Alta |
+| DT-46 | UI: confirmación por tap para cierre de caminata | Media |
+| DT-47 | Wizard de configuración | Media |
+| DT-32 | Confirmar cola narrativa en campo | Alta |
+| DT-29 | Confirmar cobertura Wikipedia en Centro Histórico de Cali | Alta |
+| DT-30 | Confirmar TTF desde sesión nueva sin cache | Alta |
+| DT-9  | Revocar key OpenAI expuesta en commits a249fee8–a303f110 | Alta |
+| DT-1  | Logo SVG final + iconos PWA | Alta |
+| DT-4  | Pantalla resumen del paseo | Media |
+| DT-8  | debug.js deshabilitado antes de v1.0 | Media |
+| DT-16 | Rediseño pantalla POI expandida | Media |
+| DT-34 | Cooldown mínimo entre narraciones — post campo | Media |
+
+---
+
+### Próxima sesión
+
+1. Prueba de campo en Cali — prioridad: DT-44 (latencia v2.7), DT-32 (cola),
+   DT-29/30 (cobertura Wikipedia + TTF)
+2. Con log de campo: evaluar si DT-42 (Care generativo) puede implementarse
+3. DT-45 — diseño de pantalla de bienvenida animada
+
+---
+
+*Follower — Bitácora v0.9 | Sesión 18 | 30 Junio 2026*

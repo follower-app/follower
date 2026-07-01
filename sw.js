@@ -8,7 +8,7 @@
 
 // Incrementar CACHE_VERSION fuerza descarga de todos los archivos
 // en el proximo arranque — incluso si el navegador tiene version cacheada.
-const CACHE_VERSION = 'follower-v5';  // DA-55 pausa transito + debug panel 3 tabs + test buttons Care
+const CACHE_VERSION = 'follower-v6';  // DT-42: Care generativo + migracion de rain + trigger thirst
 
 const STATIC_ASSETS = [
   './',

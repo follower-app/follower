@@ -22,6 +22,10 @@ const AppState = {
   cityName:    '',
   // ── Bienvenida de ciudad ──
   _cityWelcomeDone: false,
+  countryCode:      '',    // DT-41: ISO code de la ciudad actual
+
+  // ── DA-52: memoria de capítulos ──
+  _walkChapters:    [],    // DT-39: { poiId, poiName, text, ts }
 
   // ── Métricas de ritmo cinematográfico ──
   _phaseStart:        null,
@@ -410,13 +414,16 @@ function welcomeCity(city) {
   if (AppState._cityWelcomeDone) return;
   AppState._cityWelcomeDone = true;
 
-  const lang  = AppState.lang || 'es';
+  // DT-41: saludo en idioma local de la ciudad, no del usuario
+  const localLang = (AppState.countryCode && typeof Narration !== 'undefined' && Narration.getLocalLang)
+    ? Narration.getLocalLang(AppState.countryCode)
+    : 'en';
 
   // Si es el fallback generico, no pasar por getCityWelcome
   const isFallback = (city === 'Tu ciudad te espera.' || city === 'Your city awaits.');
   let text = city;
   if (!isFallback && typeof Narration !== 'undefined' && typeof Narration.getCityWelcome === 'function') {
-    text = Narration.getCityWelcome(city, null, lang);
+    text = Narration.getCityWelcome(city, null, localLang);
   }
 
   const el = document.getElementById('cityWelcome');
@@ -455,6 +462,21 @@ function dismissCityWelcome(el) {
   if (!el) return;
   el.classList.remove('visible');
   setTimeout(() => el.classList.add('hidden'), 600);
+}
+
+/* ── DT-40: INACTIVIDAD DETECTADA — posible fin de caminata ──
+   Llamado desde gps.js cuando el usuario lleva 10 min sin moverse >30m.
+   No actuar si Care está activo (pausa intencional) o si hay narración. */
+function onWalkInactivity() {
+  if (AppState.phase === 'rest')     return;  // Care sugirió una pausa — no interrumpir
+  if (AppState.phase === 'diastole') return;  // narración en curso
+  if (AppState.kmWalked < 0.5)       return;  // caminata demasiado corta para despedirse
+
+  if (typeof Debug !== 'undefined') {
+    Debug.log('info', `GPS: inactividad 10min — ${AppState.kmWalked.toFixed(1)}km — evaluar cierre`);
+  }
+  // DT-45/46: aquí irá la pregunta hablada del narrador + confirmación por tap
+  // Pendiente de implementación — por ahora solo se loguea
 }
 
 /* ── EVENT LISTENERS — CONFIG MODAL ── */

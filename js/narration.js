@@ -36,6 +36,46 @@ const Narration = (() => {
       .trim();
   }
 
+  /* ── DT-41: TABLA PAIS→IDIOMA LOCAL ──
+     Devuelve el idioma de la ciudad detectada (no del usuario)
+     para la bienvenida de ciudad. Default: 'en'.
+  ── */
+  const COUNTRY_LANG = {
+    // Español
+    ES:'es', MX:'es', CO:'es', AR:'es', CL:'es', PE:'es', VE:'es',
+    EC:'es', BO:'es', PY:'es', UY:'es', CR:'es', PA:'es', DO:'es',
+    CU:'es', GT:'es', HN:'es', NI:'es', SV:'es', GQ:'es',
+    // Frances
+    FR:'fr', MC:'fr',
+    // Portugues
+    PT:'pt', BR:'pt', AO:'pt', MZ:'pt', CV:'pt',
+    // Italiano
+    IT:'it', VA:'it', SM:'it',
+    // Aleman
+    DE:'de', AT:'de', LI:'de', CH:'de',
+    // Holandes
+    NL:'nl',
+    // Nordico
+    SE:'sv', NO:'no', DK:'da', FI:'fi', IS:'is',
+    // Eslavo
+    RU:'ru', UA:'uk', PL:'pl', CZ:'cs', SK:'sk',
+    HR:'hr', RS:'sr', BG:'bg', SI:'sl', RO:'ro',
+    // Asian
+    JP:'ja', CN:'zh', TW:'zh', HK:'zh',
+    KR:'ko', TH:'th', VN:'vi', ID:'id', PH:'tl',
+    IN:'hi', PK:'ur',
+    // MENA
+    TR:'tr', GR:'el', IL:'he', IR:'fa',
+    MA:'ar', EG:'ar', SA:'ar', AE:'ar', IQ:'ar',
+    JO:'ar', KW:'ar', QA:'ar', BH:'ar', OM:'ar', YE:'ar', LY:'ar', TN:'ar', DZ:'ar', SD:'ar',
+    // Anglosaxon
+    GB:'en', US:'en', AU:'en', NZ:'en', IE:'en', CA:'en', ZA:'en', NG:'en',
+  };
+
+  function getLocalLang(countryCode) {
+    return COUNTRY_LANG[countryCode] || 'en';
+  }
+
   /* ── PROMPT MAESTRO v2.7 — DA-50: narrador único ──
      Sistema: la voz completa de Follower.
      Usuario: localización + entorno.
@@ -208,7 +248,23 @@ If any answer is negative, correct the chapter before delivering it. Do not show
   /* ── BIENVENIDA DE CIUDAD — voz única ── */
   const CITY_WELCOME = {
     es: (city) => `${city}. Un capítulo te espera en cada esquina.`,
-    en: (city) => `${city}. A chapter waits at every corner.`
+    en: (city) => `${city}. A chapter waits at every corner.`,
+    fr: (city) => `${city}. Un chapitre t'attend à chaque coin de rue.`,
+    de: (city) => `${city}. An jeder Ecke wartet ein neues Kapitel.`,
+    it: (city) => `${city}. Un capitolo ti aspetta ad ogni angolo.`,
+    pt: (city) => `${city}. Um capítulo te espera em cada esquina.`,
+    nl: (city) => `${city}. Op elke hoek wacht een nieuw hoofdstuk.`,
+    sv: (city) => `${city}. Ett kapitel väntar vid varje gathörn.`,
+    no: (city) => `${city}. Et kapittel venter rundt hvert hjørne.`,
+    da: (city) => `${city}. Et kapitel venter rundt hvert hjørne.`,
+    pl: (city) => `${city}. Za każdym rogiem czeka nowy rozdział.`,
+    ja: (city) => `${city}。すべての角に物語が待っています。`,
+    zh: (city) => `${city}。每个街角都有一个故事等待着你。`,
+    ko: (city) => `${city}. 모든 모퉁이에서 이야기가 기다리고 있습니다.`,
+    ar: (city) => `${city}. في كل زاوية فصل ينتظرك.`,
+    ru: (city) => `${city}. За каждым углом ждёт новая глава.`,
+    tr: (city) => `${city}. Her köşede seni bekleyen bir bölüm var.`,
+    el: (city) => `${city}. Σε κάθε γωνία σε περιμένει ένα κεφάλαιο.`,
   };
 
   function getCityWelcome(city, _unused, lang) {
@@ -300,13 +356,23 @@ Take a moment to observe the details — every stone, every arch, has a story to
   function buildPrompt(poi, lang) {
     const system  = SYSTEM_PROMPT[lang] || SYSTEM_PROMPT.es;
     const context = buildContext(lang);
-    // DT-36: limpiar nombre antes del prompt — evita sufijos Wikipedia
     const name    = cleanPOIName(poi.name);
     const city    = AppState.cityName || '';
 
+    // DT-39: inyectar capítulo anterior si existe (DA-52)
+    let prevBlock = '';
+    const chapters = AppState._walkChapters || [];
+    if (chapters.length > 0) {
+      const prev = chapters[chapters.length - 1];
+      const prevName = cleanPOIName(prev.poiName);
+      prevBlock = (lang === 'en')
+        ? `Previous chapter — ${prevName}:\n${prev.text}\n\n---\n\n`
+        : `Capítulo anterior — ${prevName}:\n${prev.text}\n\n---\n\n`;
+    }
+
     const user = (lang === 'en')
-      ? `I'm at "${name}" in ${city}. Write the chapter for this place.${context || ''}`
-      : `Estoy en "${name}" en ${city}. Escribe el capítulo de este lugar.${context || ''}`;
+      ? `${prevBlock}I'm at "${name}" in ${city}. Write the chapter for this place.${context || ''}`
+      : `${prevBlock}Estoy en "${name}" en ${city}. Escribe el capítulo de este lugar.${context || ''}`;
 
     return { system, user };
   }
@@ -534,6 +600,20 @@ Take a moment to observe the details — every stone, every arch, has a story to
     // Sanitizar antes de mostrar y hablar — elimina markdown que la voz leería
     text = sanitizeNarration(text);
 
+    // DT-39: guardar capítulo completado para continuidad DA-52
+    // Solo capítulos reales (no fallback) — el fallback genérico no aporta continuidad narrativa
+    if (source !== 'fallback' && AppState._walkChapters !== undefined) {
+      AppState._walkChapters.push({
+        poiId:   poi.id,
+        poiName: poi.name,
+        text:    text,
+        ts:      Date.now()
+      });
+      if (typeof Debug !== 'undefined') {
+        Debug.log('info', `Narration: capítulo #${AppState._walkChapters.length} guardado — ${cleanPOIName(poi.name)}`);
+      }
+    }
+
     updateNarrationUI(text);
 
     if (typeof Voice !== 'undefined') {
@@ -597,6 +677,6 @@ Take a moment to observe the details — every stone, every arch, has a story to
   function isNarrating()    { return _isNarrating; }
   function isPaused()       { return _isPaused; }
 
-  return { trigger, stop, pause, resume, getCurrentText, isNarrating, isPaused, getCityWelcome };
+  return { trigger, stop, pause, resume, getCurrentText, isNarrating, isPaused, getCityWelcome, getLocalLang };
 
 })();

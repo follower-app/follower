@@ -12,7 +12,8 @@ const Care = (() => {
   let _lastSuggestion  = 0;      // timestamp de última sugerencia
   let _suggestionShown = false;  // sugerencia activa en pantalla
   let _checkTimer      = null;   // timer de chequeo periódico
-  let _nearbyRest      = null;   // lugar de descanso cercano
+  let _nearbyRest           = null;   // lugar de descanso cercano
+  let _specialZoneTriggerPos = null;  // DT-43: posicion donde se disparo zona especial
 
   /* ── CONFIGURACIÓN ── */
   const CONFIG = {
@@ -24,7 +25,10 @@ const Care = (() => {
     COLD_TEMP:         5,               // °C — frío intenso
     HOUR_LUNCH_START:  12,              // hora de almuerzo inicio
     HOUR_LUNCH_END:    14,              // hora de almuerzo fin
-    REST_SEARCH_RADIUS: 400             // metros para buscar café cercano
+    REST_SEARCH_RADIUS: 400,            // metros para buscar cafe cercano
+    SPECIAL_ZONE_RADIUS: 150,            // DT-43: radio para detectar zona especial
+    SPECIAL_ZONE_MIN:    3,              // DT-43: minimo de POIs para zona especial
+    SPECIAL_ZONE_RESET:  200             // DT-43: metros para resetear el trigger
   };
 
   /* ── MENSAJES POR CONTEXTO ── */
@@ -77,7 +81,23 @@ const Care = (() => {
         btn:    'Find nearby restaurants →'
       })
     }
+,
+    special: {
+      es: (count) => ({
+        title: 'Un rincón especial ✨',
+        text:  `Hay ${count} historias concentradas aquí. Tómate un momento — este lugar merece más atención.`,
+        btn:   'Explorar este rincón →'
+      }),
+      en: (count) => ({
+        title: 'A special corner ✨',
+        text:  `There are ${count} stories concentrated here. Take a moment — this place deserves more attention.`,
+        btn:   'Explore this corner →'
+      })
+    }
   };
+  // DT-42: los mensajes anteriores son placeholders estáticos.
+  // Serán reemplazados por Care generativo (llamada a Claude) una vez
+  // que el mini-prompt de Care esté validado en campo.
 
   /* ── EVALUAR CONTEXTO — DA-3 función única ── */
   function checkCareContext() {
@@ -280,6 +300,43 @@ const Care = (() => {
     }
   }
 
+  /* ── DT-43: ZONA ESPECIAL — densidad de POIs Wikipedia ──
+     Se dispara cuando ≥3 POIs están a menos de 150m.
+     Reset al moverse >200m desde donde se disparó por primera vez.
+  ── */
+  function checkSpecialZone(lat, lng) {
+    if (_suggestionShown) return;
+    if (AppState.phase === 'diastole') return;  // no interrumpir narración
+
+    const now = Date.now();
+    if (now - _lastSuggestion < CONFIG.COOLDOWN_MS) return;
+
+    // Si ya disparó en esta zona, verificar si se alejaron lo suficiente para resetear
+    if (_specialZoneTriggerPos) {
+      if (typeof GPS === 'undefined') return;
+      const moved = GPS.distanceMeters(lat, lng, _specialZoneTriggerPos.lat, _specialZoneTriggerPos.lng);
+      if (moved < CONFIG.SPECIAL_ZONE_RESET) return;  // siguen en la zona
+      _specialZoneTriggerPos = null;
+    }
+
+    const allPOIs = (typeof POI !== 'undefined') ? POI.getPOIs() : [];
+    if (allPOIs.length === 0) return;
+
+    if (typeof GPS === 'undefined') return;
+    const nearbyCount = allPOIs.filter(p =>
+      GPS.distanceMeters(lat, lng, p.lat, p.lng) <= CONFIG.SPECIAL_ZONE_RADIUS
+    ).length;
+
+    if (nearbyCount >= CONFIG.SPECIAL_ZONE_MIN) {
+      _specialZoneTriggerPos = { lat, lng };
+      const lang = Config.get('lang');
+      if (typeof Debug !== 'undefined') {
+        Debug.log('info', `Care: zona especial detectada — ${nearbyCount} POIs en ${CONFIG.SPECIAL_ZONE_RADIUS}m`);
+      }
+      triggerSuggestion('special', lang, nearbyCount);
+    }
+  }
+
   /* ── CHEQUEO PERIÓDICO ── */
   function check() {
     checkCareContext();
@@ -309,6 +366,7 @@ const Care = (() => {
     start,
     stop,
     check,
+    checkSpecialZone,
     dismiss
   };
 

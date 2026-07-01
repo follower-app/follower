@@ -12,7 +12,9 @@ const GPS = (() => {
   let _userMarker   = null;   // marcador del usuario en el mapa
   let _watchId      = null;   // ID del watchPosition
   let _lastPos      = null;   // última posición conocida
-  let _lastPOICheck = 0;      // timestamp del último checkeo de POIs
+  let _lastPOICheck = 0;      // timestamp del ultimo checkeo de POIs
+  let _lastSigMoveTs  = null;  // DT-40: timestamp del ultimo movimiento significativo
+  let _lastSigMovePos = null;  // DT-40: posicion del ultimo movimiento significativo
 
   /* ── CONFIGURACIÓN ── */
   const CONFIG = {
@@ -179,12 +181,13 @@ const GPS = (() => {
 
       if (city) {
         const isFirst = !AppState.cityName;
-        AppState.cityName = country ? `${city}, ${country}` : city;
+        AppState.cityName   = country ? `${city}, ${country}` : city;
+        AppState.countryCode = country;  // DT-41: para getLocalLang en bienvenida
         updateTopPill();
 
         // Bienvenida de ciudad — solo la primera vez que se detecta
         if (isFirst && typeof welcomeCity === 'function') {
-          welcomeCity(city);
+          welcomeCity(city, country);
         }
       }
     } catch (e) {
@@ -236,6 +239,30 @@ const GPS = (() => {
       }
       if (typeof Care !== 'undefined') {
         Care.check();
+        Care.checkSpecialZone(lat, lng);  // DT-43: densidad de POIs
+      }
+    }
+
+    // DT-40: detectar inactividad para posible cierre de caminata
+    const INACT_THRESHOLD_MS = 10 * 60 * 1000;  // 10 minutos
+    const INACT_MIN_MOVE_M   = 30;               // movimiento minimo significativo
+    const INACT_MIN_KM       = 0.5;              // caminata minima para activarse
+
+    if (AppState.kmWalked >= INACT_MIN_KM) {
+      if (_lastSigMovePos) {
+        const movedM = distanceMeters(lat, lng, _lastSigMovePos.lat, _lastSigMovePos.lng);
+        if (movedM >= INACT_MIN_MOVE_M) {
+          _lastSigMoveTs  = now;
+          _lastSigMovePos = { lat, lng };
+        } else if ((now - _lastSigMoveTs) >= INACT_THRESHOLD_MS) {
+          if (typeof onWalkInactivity === 'function') {
+            onWalkInactivity();
+          }
+          _lastSigMoveTs = now;  // reset — no volver a disparar hasta otro periodo
+        }
+      } else {
+        _lastSigMoveTs  = now;
+        _lastSigMovePos = { lat, lng };
       }
     }
   }

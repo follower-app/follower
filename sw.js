@@ -8,7 +8,7 @@
 
 // Incrementar CACHE_VERSION fuerza descarga de todos los archivos
 // en el proximo arranque — incluso si el navegador tiene version cacheada.
-const CACHE_VERSION = 'follower-v7';  // preset bici 14km/h en debug-sim.js, borde del umbral DA-55
+const CACHE_VERSION = 'follower-v8';  // fix: flex-wrap en dbg-poi-btn-row, boton de bici no se veia
 
 const STATIC_ASSETS = [
   './',

@@ -20,6 +20,7 @@ const Narration = (() => {
     API_MODEL:   'claude-haiku-4-5-20251001',
     API_TIMEOUT: 15000,
     MAX_TOKENS:  380,   // S18b: 170 palabras max ≈ 250 tokens, 380 es techo seguro
+    CARE_MAX_TOKENS: 120  // DT-42: mensaje de Care, mucho mas corto que un capitulo
   };
 
   /* ── DT-36: LIMPIAR NOMBRES DE POIs WIKIPEDIA ──
@@ -356,6 +357,134 @@ Take a moment to observe the details — every stone, every arch, has a story to
     }
   }
 
+  /* ── DT-42: SYSTEM PROMPT DE CARE (invariante, no bilingue) ──
+     El idioma de respuesta se controla via la linea "Idioma: {lang}"
+     dentro de cada user prompt, no con un system prompt por idioma
+     como en narracion — ver docs/dt42_care_miniprompt.md v2. ── */
+  const CARE_SYSTEM_PROMPT = `Eres la voz de Follower en un momento de cuidado.
+
+No eres un asistente. No eres una app.
+Eres alguien que camina junto al usuario y nota que necesita algo.
+
+Tu tono: cálido, natural, como el amigo que conoce bien la ciudad.
+Cuidas sin interrumpir. Sugieres sin insistir.
+
+REGLAS:
+- Máximo 55 palabras
+- Sin saludos, sin signos de exclamación, sin emojis
+- Menciona el lugar elegido con algo específico — no genérico (no aplica si no hay lugar, ver instrucción puntual)
+- Si hay varios candidatos, elige el que suene más auténtico del lugar (no el primero, no el mejor valorado)
+- La razón del cuidado debe sentirse natural, no clínica
+- Termina con una invitación suave, nunca con una orden`;
+
+  /* ── DT-42: formato de lista de candidatos para el prompt ── */
+  function buildPlacesList(places) {
+    if (!places || places.length === 0) return '';
+    return places
+      .map(p => `- ${p.name} (${p.distanceMeters}m) — ${p.type}`)
+      .join('\n');
+  }
+
+  /* ── DT-42: user prompt por tipo de trigger ──
+     ctx = { city, lang, temp, km, hour, count } — solo se usan los campos
+     relevantes para cada tipo. places ya viene formateado por care.js. ── */
+  function buildCarePrompt(type, places, ctx) {
+    const { city = '', lang = 'es', temp, km, hour, count } = ctx || {};
+    const placesList = buildPlacesList(places);
+
+    switch (type) {
+      case 'rain':
+        return `Está por llover / está lloviendo en ${city}. El usuario sigue caminando.
+
+Candidatos cercanos para resguardarse (elige uno):
+${placesList}
+
+Sugiere buscar refugio hasta que pase. Menciona el lugar elegido con un
+detalle concreto — que suene a una pausa bienvenida, no a una alerta.
+Idioma: ${lang}`;
+
+      case 'hot':
+        return `El usuario lleva caminando en ${city}. Temperatura actual: ${temp}°C.
+
+Candidatos cercanos (elige uno):
+${placesList}
+
+Sugiere hacer una pausa por el calor. Menciona el lugar elegido con un detalle concreto.
+Idioma: ${lang}`;
+
+      case 'cold':
+        return `El usuario lleva caminando en ${city}. Temperatura actual: ${temp}°C.
+
+Candidatos cercanos (elige uno):
+${placesList}
+
+Sugiere entrar a calentarse. Menciona el lugar elegido con un detalle concreto.
+Idioma: ${lang}`;
+
+      case 'lunch':
+        return `El usuario lleva explorando ${city} y son las ${hour}h.
+
+Candidatos cercanos para comer (elige uno):
+${placesList}
+
+Sugiere parar a comer. Menciona algo del lugar que lo haga sonar como una buena decisión.
+Idioma: ${lang}`;
+
+      case 'thirst':
+        // DT-42: sin lugar, sin placesList — recordatorio puro de hidratacion
+        return `El usuario lleva caminando en ${city}. Temperatura actual: ${temp}°C (calor
+moderado, no extremo). Lleva ${km}km recorridos.
+
+Este es un recordatorio de hidratación, no una sugerencia de lugar —
+NO hay candidatos, no menciones ningún sitio específico.
+
+Recuérdale de forma cálida y breve que tome agua seguido, aunque no sienta
+sed todavía. Tono de amigo que avisa, no de app de salud. Sin instrucciones
+clínicas, sin tono de alarma.
+Idioma: ${lang}`;
+
+      case 'tired':
+        return `El usuario lleva ${km}km caminando por ${city}.
+
+Candidatos cercanos para descansar (elige uno):
+${placesList}
+
+Sugiere una pausa. Que suene como algo que el propio usuario ya estaba pensando.
+Idioma: ${lang}`;
+
+      case 'special':
+        return `El usuario está en una zona con ${count} lugares notables en 150 metros, en ${city}.
+
+POIs cercanos para contextualizar el momento:
+${placesList}
+
+Invita al usuario a detenerse y prestar atención al entorno. No expliques qué hay —
+sugiere que hay algo que merece ser notado.
+Idioma: ${lang}`;
+
+      default:
+        return null;
+    }
+  }
+
+  /* ── DT-42: GENERAR MENSAJE DE CARE ──
+     Una unica llamada a Claude que elige el candidato mas propio del lugar
+     (si aplica) y redacta el mensaje con la misma voz de Follower.
+     Devuelve el texto plano, o null si falla (care.js hace fallback a
+     los MESSAGES estaticos). ── */
+  async function getCareMessage(type, places, ctx) {
+    const userPrompt = buildCarePrompt(type, places, ctx);
+    if (!userPrompt) {
+      if (typeof Debug !== 'undefined') {
+        Debug.log('error', `Narration: getCareMessage tipo desconocido '${type}'`);
+      }
+      return null;
+    }
+
+    const text = await callClaude(CARE_SYSTEM_PROMPT, userPrompt, CONFIG.CARE_MAX_TOKENS);
+    return text ? sanitizeNarration(text) : null;
+  }
+
   /* ── CONSTRUIR PROMPT — DA-50: narrador único ── */
   function buildPrompt(poi, lang) {
     const system  = SYSTEM_PROMPT[lang] || SYSTEM_PROMPT.es;
@@ -381,15 +510,17 @@ Take a moment to observe the details — every stone, every arch, has a story to
     return { system, user };
   }
 
-  /* ── LLAMAR CLAUDE API (vía Cloudflare Worker — key oculta) ── */
-  async function callClaude(systemPrompt, userPrompt) {
+  /* ── LLAMAR CLAUDE API (vía Cloudflare Worker — key oculta) ──
+     DT-42: maxTokens opcional — Care necesita mensajes cortos (~120),
+     narración de capítulo sigue usando CONFIG.MAX_TOKENS (380) por default. */
+  async function callClaude(systemPrompt, userPrompt, maxTokens = CONFIG.MAX_TOKENS) {
     const controller = new AbortController();
     const timeout    = setTimeout(() => controller.abort(), CONFIG.API_TIMEOUT);
 
     try {
       const body = {
         model:      CONFIG.API_MODEL,
-        max_tokens: CONFIG.MAX_TOKENS,
+        max_tokens: maxTokens,
         messages: [{ role: 'user', content: userPrompt }]
       };
       if (systemPrompt) body.system = systemPrompt;
@@ -681,6 +812,6 @@ Take a moment to observe the details — every stone, every arch, has a story to
   function isNarrating()    { return _isNarrating; }
   function isPaused()       { return _isPaused; }
 
-  return { trigger, stop, pause, resume, getCurrentText, isNarrating, isPaused, getCityWelcome, getLocalLang };
+  return { trigger, stop, pause, resume, getCurrentText, isNarrating, isPaused, getCityWelcome, getLocalLang, getCareMessage };
 
 })();

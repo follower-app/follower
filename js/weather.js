@@ -1,7 +1,14 @@
 /* ═══════════════════════════════════════════
    FOLLOWER — weather.js
    Clima en tiempo real con OpenWeatherMap.
-   Alertas de lluvia, cache 30 min, fallback.
+   Cache 30 min, fallback.
+   DT-42: ya no decide UI de lluvia — solo entrega datos.
+   Care.checkCareContext() lee AppState.weather.isRaining
+   con su propio timer (2min) y cooldown (20min), misma
+   voz generativa que el resto de Care. Antes este archivo
+   tenia su propio sistema de alerta (showRainAlert,
+   findNearbyRefuge, dismissAlert) con texto hardcodeado,
+   sin idioma, sin cooldown propio — migrado por completo.
    ═══════════════════════════════════════════ */
 
 const Weather = (() => {
@@ -9,7 +16,6 @@ const Weather = (() => {
   /* ── ESTADO INTERNO ── */
   let _weather      = null;    // datos de clima actuales
   let _lastFetch    = 0;       // timestamp del último fetch
-  let _alertShown   = false;   // para no repetir la alerta
   let _checkTimer   = null;    // timer de chequeo periódico
 
   /* ── CONFIGURACIÓN ── */
@@ -117,119 +123,9 @@ const Weather = (() => {
     return null;
   }
 
-  /* ── MOSTRAR ALERTA DE LLUVIA ── */
-  function showRainAlert(weather) {
-    if (_alertShown) return;
-    _alertShown = true;
-
-    const careCard = document.getElementById('careCard');
-    if (!careCard) return;
-
-    // Estilo lluvia
-    careCard.classList.add('rain');
-
-    // Contenido
-    const title  = document.getElementById('careTitle');
-    const badge  = document.getElementById('careBadge');
-    const meta   = document.getElementById('careMeta');
-    const text   = document.getElementById('careText');
-    const btnAcc = document.getElementById('btnCareAccept');
-    const btnDis = document.getElementById('btnCareDismiss');
-
-    if (title)  title.textContent  = `${weather.icon} Se viene lluvia`;
-    if (badge)  badge.textContent  = `${weather.temp}°C`;
-    if (meta)   meta.textContent   = weather.description;
-    if (text)   text.textContent   = 'Va a llover en los próximos minutos. Busquemos un lugar cercano donde esperar.';
-    if (btnAcc) {
-      btnAcc.textContent = 'Ver refugio cercano →';
-      btnAcc.onclick     = () => findNearbyRefuge();
-    }
-    if (btnDis) {
-      btnDis.textContent = 'Seguir igual';
-      btnDis.onclick     = () => dismissAlert();
-    }
-
-    // Cambiar fase a alerta
-    setPhase('alert');
-
-    // Mostrar card
-    careCard.classList.remove('hidden');
-  }
-
-  /* ── BUSCAR REFUGIO CERCANO ── */
-  function findNearbyRefuge() {
-    // Buscar café, bar, museo o biblioteca cercano
-    if (!AppState.gps) return;
-
-    const { lat, lng } = AppState.gps;
-    const query = `
-      [out:json][timeout:10];
-      (
-        node["amenity"~"cafe|bar|library|museum"](around:400,${lat},${lng});
-      );
-      out 3;
-    `;
-
-    fetch('https://lz4.overpass-api.de/api/interpreter', {
-      method: 'POST',
-      body:   `data=${encodeURIComponent(query)}`
-    })
-    .then(r => r.json())
-    .then(data => {
-      const places = data.elements || [];
-      if (places.length > 0) {
-        const place = places[0];
-        showRefugeSuggestion(place);
-      }
-    })
-    .catch(() => dismissAlert());
-  }
-
-  /* ── MOSTRAR SUGERENCIA DE REFUGIO ── */
-  function showRefugeSuggestion(place) {
-    const tags = place.tags || {};
-    const name = tags.name || 'lugar cercano';
-    const type = tags.amenity || 'refugio';
-
-    const icons = { cafe: '☕', bar: '🍺', library: '📚', museum: '🖼️' };
-    const icon  = icons[type] || '🏠';
-
-    const title  = document.getElementById('careTitle');
-    const meta   = document.getElementById('careMeta');
-    const text   = document.getElementById('careText');
-    const btnAcc = document.getElementById('btnCareAccept');
-
-    if (title)  title.textContent = `${icon} ${name}`;
-    if (meta)   meta.textContent  = `${type} · a pocos metros`;
-    if (text)   text.textContent  = 'Perfecto para esperar que pase la lluvia y continuar explorando.';
-    if (btnAcc) {
-      btnAcc.textContent = 'Ir aquí →';
-      btnAcc.onclick     = () => {
-        // Centrar mapa en el refugio
-        const map = GPS.getMap();
-        if (map) map.setView([place.lat, place.lon], 18, { animate: true });
-        dismissAlert();
-      };
-    }
-  }
-
-  /* ── DESCARTAR ALERTA ── */
-  function dismissAlert() {
-    const careCard = document.getElementById('careCard');
-    if (careCard) {
-      careCard.classList.add('hidden');
-      careCard.classList.remove('rain');
-    }
-
-    // Volver a la fase anterior
-    if (AppState.activePOI) {
-      setPhase('diastole');
-    } else {
-      setPhase('systole');
-    }
-  }
-
-  /* ── CHEQUEAR CLIMA ── */
+  /* ── CHEQUEAR CLIMA — DT-42: solo actualiza datos, ya no decide UI.
+     La decision de mostrar algo (y que) vive en Care.checkCareContext(),
+     que lee AppState.weather.isRaining con su propio timer y cooldown. ── */
   async function check() {
     if (!AppState.gps) return;
 
@@ -240,16 +136,6 @@ const Weather = (() => {
 
     // Actualizar care strip con datos de clima
     if (typeof updateCareStrip === 'function') updateCareStrip();
-
-    // Alertar si llueve y no hemos alertado ya
-    if (weather.isRaining && !_alertShown) {
-      showRainAlert(weather);
-    }
-
-    // Resetear alerta si ya no llueve
-    if (!weather.isRaining && _alertShown) {
-      _alertShown = false;
-    }
   }
 
   /* ── INICIAR CHEQUEO PERIÓDICO ── */
@@ -276,7 +162,6 @@ const Weather = (() => {
   function invalidateCache() {
     _weather   = null;
     _lastFetch = 0;
-    _alertShown = false;
     try {
       localStorage.removeItem('follower_weather');
     } catch (e) {}

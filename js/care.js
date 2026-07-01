@@ -14,6 +14,7 @@ const Care = (() => {
   let _checkTimer      = null;   // timer de chequeo periódico
   let _nearbyRest           = null;   // lugar de descanso cercano
   let _specialZoneTriggerPos = null;  // DT-43: posicion donde se disparo zona especial
+  let _thirstShownThisWalk  = false;  // DT-42: thirst solo una vez por caminata
 
   /* ── CONFIGURACIÓN ── */
   const CONFIG = {
@@ -25,6 +26,9 @@ const Care = (() => {
     COLD_TEMP:         5,               // °C — frío intenso
     HOUR_LUNCH_START:  12,              // hora de almuerzo inicio
     HOUR_LUNCH_END:    14,              // hora de almuerzo fin
+    THIRST_TEMP_MIN:   22,              // DT-42: calor moderado, banda inferior
+    THIRST_TEMP_MAX:   29,              // DT-42: por debajo de HOT_TEMP (30)
+    THIRST_MIN_KM:     1.2,             // DT-42: menor que MIN_KM_FOR_REST — adelanta el aviso
     REST_SEARCH_RADIUS: 400,            // metros para buscar cafe cercano
     SPECIAL_ZONE_RADIUS: 150,            // DT-43: radio para detectar zona especial
     SPECIAL_ZONE_MIN:    3,              // DT-43: minimo de POIs para zona especial
@@ -93,13 +97,42 @@ const Care = (() => {
         text:  `There are ${count} stories concentrated here. Take a moment — this place deserves more attention.`,
         btn:   'Explore this corner →'
       })
+    },
+    // DT-42: rain migrado desde weather.js — antes vivia hardcodeado,
+    // sin pasar por lang, en showRainAlert(). Ahora es fallback como el resto.
+    rain: {
+      es: () => ({
+        title: '🌧️ Se viene lluvia',
+        text:  'Va a llover en los próximos minutos. Busquemos un lugar cercano donde esperar.',
+        btn:   'Ver refugio cercano →'
+      }),
+      en: () => ({
+        title: '🌧️ Rain is coming',
+        text:  "It's about to rain. Let's find a nearby place to wait it out.",
+        btn:   'Find shelter →'
+      })
+    },
+    // DT-42: thirst — sin lugar, un solo boton de cierre
+    thirst: {
+      es: () => ({
+        title: '💧 No olvides hidratarte',
+        text:  'Hace calor y ya llevas un buen tramo caminado. Tomá agua seguido, aunque no sientas sed todavía.',
+        btn:   'Entendido'
+      }),
+      en: () => ({
+        title: '💧 Stay hydrated',
+        text:  "It's warm out and you've covered some distance. Drink water regularly, even before you feel thirsty.",
+        btn:   'Got it'
+      })
     }
   };
-  // DT-42: los mensajes anteriores son placeholders estáticos.
-  // Serán reemplazados por Care generativo (llamada a Claude) una vez
-  // que el mini-prompt de Care esté validado en campo.
+  // DT-42: los mensajes anteriores son fallback estatico — se usan solo si
+  // Narration.getCareMessage() falla o AppState.offline es true. El camino
+  // normal reemplaza msg.text con el texto generado por Claude.
 
-  /* ── EVALUAR CONTEXTO — DA-3 función única ── */
+  /* ── EVALUAR CONTEXTO — DA-3 función única ──
+     DT-42: orden de prioridad ampliado a 6 (special se evalua aparte,
+     via checkSpecialZone() en cada tick de GPS, no aca). ── */
   function checkCareContext() {
     // No interrumpir si hay sugerencia activa
     if (_suggestionShown) return;
@@ -111,72 +144,108 @@ const Care = (() => {
     // No sugerir durante narración activa
     if (AppState.phase === 'diastole') return;
 
-    // No sugerir si ya hay alerta de lluvia
-    if (AppState.phase === 'alert') return;
-
     const lang    = Config.get('lang');
     const weather = AppState.weather;
     const km      = AppState.kmWalked;
     const steps   = AppState.steps;
     const hour    = new Date().getHours();
 
-    /* ── PRIORIDAD 1: Calor extremo ── */
+    /* ── PRIORIDAD 1: Lluvia — DT-42, migrado desde weather.js ──
+       Antes vivia en un sistema separado (showRainAlert), con su propio
+       timer y texto hardcodeado sin pasar por lang. Ahora es un trigger
+       mas de Care, con el mismo cooldown y la misma voz generativa. ── */
+    if (weather?.isRaining) {
+      triggerSuggestion('rain', lang);
+      return;
+    }
+
+    /* ── PRIORIDAD 2: Calor extremo ── */
     if (weather?.temp >= CONFIG.HOT_TEMP) {
       triggerSuggestion('hot', lang, weather.temp);
       return;
     }
 
-    /* ── PRIORIDAD 2: Frío extremo ── */
+    /* ── PRIORIDAD 3: Frío extremo ── */
     if (weather?.temp <= CONFIG.COLD_TEMP) {
       triggerSuggestion('cold', lang, weather.temp);
       return;
     }
 
-    /* ── PRIORIDAD 3: Hora de almuerzo ── */
+    /* ── PRIORIDAD 4: Hora de almuerzo ── */
     if (hour >= CONFIG.HOUR_LUNCH_START && hour < CONFIG.HOUR_LUNCH_END && km > 1) {
       triggerSuggestion('lunch', lang);
       return;
     }
 
-    /* ── PRIORIDAD 4: Cansancio por distancia ── */
+    /* ── PRIORIDAD 5: Sed / hidratacion — DT-42, nuevo ──
+       Calor moderado + distancia moderada. Una sola vez por caminata,
+       nunca por cooldown estandar — ver _thirstShownThisWalk. ── */
+    if (!_thirstShownThisWalk &&
+        weather?.temp >= CONFIG.THIRST_TEMP_MIN &&
+        weather?.temp <= CONFIG.THIRST_TEMP_MAX &&
+        km >= CONFIG.THIRST_MIN_KM) {
+      triggerSuggestion('thirst', lang, weather.temp);
+      return;
+    }
+
+    /* ── PRIORIDAD 6: Cansancio por distancia ── */
     if (km >= CONFIG.MIN_KM_FOR_REST || steps >= CONFIG.MIN_STEPS_FOR_REST) {
       triggerSuggestion('tired', lang, km);
       return;
     }
   }
 
-  /* ── DISPARAR SUGERENCIA ── */
+  /* ── DT-42: METADATA POR TRIGGER ──
+     Define si el trigger necesita candidatos de Overpass, con que amenity,
+     y si la card final tiene boton de "ir al lugar" o solo cierre. ── */
+  const TRIGGER_META = {
+    rain:    { amenity: 'cafe|bar|library|museum', usesOverpass: true,  hasPlaceButton: true  },
+    hot:     { amenity: 'cafe|bar',                 usesOverpass: true,  hasPlaceButton: true  },
+    cold:    { amenity: 'cafe|bar',                 usesOverpass: true,  hasPlaceButton: true  },
+    lunch:   { amenity: 'restaurant|cafe',           usesOverpass: true,  hasPlaceButton: true  },
+    thirst:  { amenity: null,                        usesOverpass: false, hasPlaceButton: false },
+    tired:   { amenity: 'cafe|bar',                 usesOverpass: true,  hasPlaceButton: true  },
+    special: { amenity: null,                        usesOverpass: false, hasPlaceButton: false }
+  };
+
+  /* ── DISPARAR SUGERENCIA — DT-42: ahora async, arma candidatos segun
+     el tipo (Overpass / POIs de zona / ninguno) y llama a Claude ── */
   function triggerSuggestion(type, lang, value = null) {
-    // Buscar lugar cercano primero
-    findNearbyRestPlace(type, () => {
-      showCareCard(type, lang, value);
-    });
+    const meta = TRIGGER_META[type];
+    if (!meta) {
+      if (typeof Debug !== 'undefined') Debug.log('error', `Care: trigger desconocido '${type}'`);
+      return;
+    }
+
+    if (meta.usesOverpass) {
+      findNearbyRestPlace(type, (candidates) => {
+        generateAndShowCard(type, lang, value, candidates);
+      });
+    } else if (type === 'special') {
+      generateAndShowCard(type, lang, value, buildSpecialZonePlaces());
+    } else {
+      // thirst — sin candidatos de ningun tipo
+      generateAndShowCard(type, lang, value, []);
+    }
   }
 
-  /* ── BUSCAR LUGAR CERCANO ── */
+  /* ── BUSCAR LUGARES CERCANOS — DT-42: 5 candidatos (antes 3), amenity
+     por TRIGGER_META (incluye rain, migrado de weather.js), devuelve el
+     array completo al callback en vez de quedarse solo con el primero ── */
   function findNearbyRestPlace(type, callback) {
     if (!AppState.gps || AppState.offline) {
-      callback();
+      callback([]);
       return;
     }
 
     const { lat, lng } = AppState.gps;
-
-    // Tipo de lugar según el contexto
-    const amenityMap = {
-      tired:  'cafe|bar',
-      hot:    'cafe|bar',
-      cold:   'cafe|bar',
-      lunch:  'restaurant|cafe'
-    };
-
-    const amenity = amenityMap[type] || 'cafe';
+    const amenity = (TRIGGER_META[type] && TRIGGER_META[type].amenity) || 'cafe';
     const query   = `
       [out:json][timeout:8];
       (
         node["amenity"~"${amenity}"](around:${CONFIG.REST_SEARCH_RADIUS},${lat},${lng});
       );
-      out 3;
+      out 5;
     `;
 
     fetch('https://lz4.overpass-api.de/api/interpreter', {
@@ -184,19 +253,88 @@ const Care = (() => {
       body:   `data=${encodeURIComponent(query)}`
     })
     .then(r => r.json())
-    .then(data => {
-      const places = data.elements || [];
-      _nearbyRest  = places.length > 0 ? places[0] : null;
-      callback();
-    })
-    .catch(() => {
-      _nearbyRest = null;
-      callback();
-    });
+    .then(data => callback(data.elements || []))
+    .catch(() => callback([]));
   }
 
-  /* ── MOSTRAR CARE CARD ── */
-  function showCareCard(type, lang, value) {
+  /* ── DT-42: candidatos de zona especial — POIs de Wikipedia ya
+     cargados, no Overpass. Mismo radio que checkSpecialZone(). ── */
+  function buildSpecialZonePlaces() {
+    if (!AppState.gps || typeof POI === 'undefined' || typeof GPS === 'undefined') return [];
+    const { lat, lng } = AppState.gps;
+    const allPOIs = POI.getPOIs() || [];
+    return allPOIs
+      .filter(p => GPS.distanceMeters(lat, lng, p.lat, p.lng) <= CONFIG.SPECIAL_ZONE_RADIUS)
+      .map(p => ({
+        name: p.name,
+        distanceMeters: Math.round(GPS.distanceMeters(lat, lng, p.lat, p.lng)),
+        type: 'poi'
+      }));
+  }
+
+  /* ── DT-42: formatear candidato de Overpass para el prompt ── */
+  function formatOverpassCandidate(el) {
+    const name    = el.tags?.name || 'lugar sin nombre';
+    const amenity = el.tags?.amenity || 'lugar';
+    let dist = 9999;
+    if (AppState.gps && typeof GPS !== 'undefined') {
+      dist = Math.round(GPS.distanceMeters(AppState.gps.lat, AppState.gps.lng, el.lat, el.lon));
+    }
+    return { name, distanceMeters: dist, type: amenity };
+  }
+
+  /* ── DT-42: matchear que candidato eligio Claude, por nombre exacto
+     en el texto de respuesta. Fallback silencioso al primero. ── */
+  function matchChosenPlace(text, candidates) {
+    if (!text || !candidates || candidates.length === 0) return null;
+    return candidates.find(c => c.tags?.name && text.includes(c.tags.name)) || null;
+  }
+
+  /* ── DT-42: NUCLEO GENERATIVO — arma contexto, llama a Claude,
+     matchea el lugar elegido, y muestra la card. Si Claude falla o
+     esta offline, showCareCard() cae sola al fallback estatico. ── */
+  async function generateAndShowCard(type, lang, value, rawCandidates) {
+    const meta = TRIGGER_META[type];
+
+    const ctx = {
+      city:  AppState.cityName || '',
+      lang,
+      temp:  (type === 'hot' || type === 'cold' || type === 'thirst')
+               ? value
+               : AppState.weather?.temp,
+      km:    type === 'tired'  ? value
+           : type === 'thirst' ? AppState.kmWalked
+           : undefined,
+      hour:  type === 'lunch' ? new Date().getHours() : undefined,
+      count: type === 'special' ? value : undefined
+    };
+
+    const places = type === 'special'
+      ? rawCandidates  // ya viene formateado por buildSpecialZonePlaces()
+      : (meta.hasPlaceButton ? rawCandidates.map(formatOverpassCandidate) : []);
+
+    let generatedText = null;
+    if (typeof Narration !== 'undefined' &&
+        typeof Narration.getCareMessage === 'function' &&
+        !AppState.offline) {
+      const genId = (typeof Debug !== 'undefined')
+        ? Debug.metricStart('care', `Care Worker call — ${type}`)
+        : null;
+      generatedText = await Narration.getCareMessage(type, places, ctx);
+      if (genId) Debug.metricEnd(genId, generatedText ? 'ok' : 'error', { type });
+    }
+
+    _nearbyRest = meta.hasPlaceButton
+      ? (matchChosenPlace(generatedText, rawCandidates) || rawCandidates[0] || null)
+      : null;
+
+    showCareCard(type, lang, value, generatedText);
+  }
+
+  /* ── MOSTRAR CARE CARD — DT-42: acepta texto generado opcional,
+     que reemplaza msg.text del fallback estatico. Adapta botones
+     segun si el trigger tiene lugar asociado (hasPlaceButton). ── */
+  function showCareCard(type, lang, value, generatedText) {
     const careCard = document.getElementById('careCard');
     if (!careCard) return;
 
@@ -204,10 +342,16 @@ const Care = (() => {
     const langKey = msgs[lang] ? lang : 'es';
     const msg     = msgs[langKey](value);
 
-    // Limpiar clases anteriores
-    careCard.classList.remove('rain');
+    // DT-42: si Claude respondio, su texto reemplaza al fallback estatico.
+    // Titulo y boton siguen siendo la etiqueta corta y fija de MESSAGES —
+    // no hace falta que sean generativos, solo el cuerpo del mensaje.
+    if (generatedText) msg.text = generatedText;
 
-    // Rellenar contenido
+    const hasPlace = TRIGGER_META[type]?.hasPlaceButton && !!_nearbyRest;
+
+    // Clase visual de lluvia se conserva — acento azul en vez de rojo
+    careCard.classList.toggle('rain', type === 'rain');
+
     const title  = document.getElementById('careTitle');
     const badge  = document.getElementById('careBadge');
     const meta   = document.getElementById('careMeta');
@@ -218,36 +362,41 @@ const Care = (() => {
     if (title) title.textContent = msg.title;
     if (text)  text.textContent  = msg.text;
 
-    // Badge con distancia al lugar si lo encontramos
+    // Badge con distancia al lugar si lo encontramos, si no, clima
     if (badge) {
-      if (_nearbyRest && AppState.gps) {
+      if (hasPlace && AppState.gps) {
         const dist = GPS.distanceMeters(
           AppState.gps.lat, AppState.gps.lng,
           _nearbyRest.lat, _nearbyRest.lon
         );
         badge.textContent = `${Math.round(dist)}m`;
       } else {
-        badge.textContent = AppState.weather
-          ? `${AppState.weather.temp}°C`
-          : '';
+        badge.textContent = AppState.weather ? `${AppState.weather.temp}°C` : '';
       }
     }
 
-    // Meta con nombre del lugar
+    // Meta con nombre del lugar — vacio si no hay lugar (thirst/special)
     if (meta) {
-      meta.textContent = _nearbyRest?.tags?.name || 'lugar cercano';
+      meta.textContent = hasPlace ? (_nearbyRest?.tags?.name || 'lugar cercano') : '';
     }
 
-    // Botón aceptar
+    // Boton principal — centra mapa si hay lugar, si no, solo cierra
     if (btnAcc) {
       btnAcc.textContent = msg.btn;
-      btnAcc.onclick     = () => onAccept();
+      btnAcc.onclick     = hasPlace ? () => onAccept() : () => dismiss();
+      btnAcc.style.display = '';
     }
 
-    // Botón dismissar
+    // Boton secundario — solo existe si hay lugar (par "Ir aqui / Seguir").
+    // thirst y special usan un solo boton de cierre (msg.btn ya lo cubre).
     if (btnDis) {
-      btnDis.textContent = lang === 'en' ? 'Keep going' : 'Seguir';
-      btnDis.onclick     = () => dismiss();
+      if (hasPlace) {
+        btnDis.textContent   = lang === 'en' ? 'Keep going' : 'Seguir';
+        btnDis.onclick       = () => dismiss();
+        btnDis.style.display = '';
+      } else {
+        btnDis.style.display = 'none';
+      }
     }
 
     // Ocultar care strip — la card ocupa su lugar
@@ -263,6 +412,7 @@ const Care = (() => {
     // Registrar estado
     _suggestionShown = true;
     _lastSuggestion  = Date.now();
+    if (type === 'thirst') _thirstShownThisWalk = true;
   }
 
   /* ── ACEPTAR — centrar mapa en el lugar ── */
@@ -283,7 +433,14 @@ const Care = (() => {
   /* ── DESCARTAR ── */
   function dismiss() {
     const careCard = document.getElementById('careCard');
-    if (careCard) careCard.classList.add('hidden');
+    if (careCard) {
+      careCard.classList.add('hidden');
+      careCard.classList.remove('rain');
+    }
+
+    // Restaurar botones a su estado por defecto (por si quedaron ocultos)
+    const btnDis = document.getElementById('btnCareDismiss');
+    if (btnDis) btnDis.style.display = '';
 
     // Restaurar care strip
     const strip = document.getElementById('careStrip');
@@ -292,12 +449,22 @@ const Care = (() => {
     _suggestionShown = false;
     _nearbyRest      = null;
 
-    // Volver a la fase correcta
+    // Volver a la fase correcta — 'alert' ya no existe como fase propia,
+    // rain usa el mismo flujo systole/diastole que el resto de Care
     if (AppState.activePOI) {
       setPhase('diastole');
     } else {
       setPhase('systole');
     }
+  }
+
+  /* ── DT-42: reset de estado por caminata — llamar junto con el reset
+     de AppState._walkChapters (DA-54, cierre de caminata) para que
+     thirst pueda volver a dispararse en la caminata siguiente.
+     PENDIENTE: cablear esta llamada en app.js donde se resetea
+     _walkChapters — no se toco app.js en esta sesion. ── */
+  function resetWalk() {
+    _thirstShownThisWalk = false;
   }
 
   /* ── DT-43: ZONA ESPECIAL — densidad de POIs Wikipedia ──
@@ -354,7 +521,9 @@ const Care = (() => {
       cold:    3,    // °C
       tired:   2.5,  // km
       lunch:   null, // MESSAGES.lunch() no usa valor
-      special: 4     // cantidad de POIs simulada
+      special: 4,    // cantidad de POIs simulada
+      rain:    null, // DT-42: MESSAGES.rain() no usa valor, weather.isRaining no se fuerza
+      thirst:  26    // DT-42: temp dentro de la banda 22-29
     };
 
     if (!(type in testValues)) {
@@ -396,6 +565,7 @@ const Care = (() => {
     check,
     checkSpecialZone,
     dismiss,
+    resetWalk,
     _testTrigger
   };
 

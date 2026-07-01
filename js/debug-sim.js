@@ -620,6 +620,10 @@ const DebugSim = (() => {
       </div>
       <div class="dbg-poi-btn-row" style="margin-top:6px;">
         <button class="dbg-poi-action" style="background:rgba(240,200,122,.2);color:#f0c87a;border:1px solid rgba(240,200,122,.3);" onclick="if(typeof Care!=='undefined'){Care._testTrigger('special');}">✨ Zona especial</button>
+        <button class="dbg-poi-action" style="background:rgba(26,82,118,.2);color:#5dade2;border:1px solid rgba(26,82,118,.3);" onclick="if(typeof Care!=='undefined'){Care._testTrigger('rain');}">🌧️ Lluvia</button>
+      </div>
+      <div class="dbg-poi-btn-row" style="margin-top:6px;">
+        <button class="dbg-poi-action" style="background:rgba(240,200,122,.2);color:#f0c87a;border:1px solid rgba(240,200,122,.3);" onclick="if(typeof Care!=='undefined'){Care._testTrigger('thirst');}">💧 Sed</button>
       </div>
 
       ${_renderRhythmCard()}

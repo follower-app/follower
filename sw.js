@@ -8,7 +8,7 @@
 
 // Incrementar CACHE_VERSION fuerza descarga de todos los archivos
 // en el proximo arranque — incluso si el navegador tiene version cacheada.
-const CACHE_VERSION = 'follower-v6';  // DT-42: Care generativo + migracion de rain + trigger thirst
+const CACHE_VERSION = 'follower-v7';  // preset bici 14km/h en debug-sim.js, borde del umbral DA-55
 
 const STATIC_ASSETS = [
   './',

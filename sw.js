@@ -8,7 +8,7 @@
 
 // Incrementar CACHE_VERSION fuerza descarga de todos los archivos
 // en el proximo arranque — incluso si el navegador tiene version cacheada.
-const CACHE_VERSION = 'follower-v8';  // fix: flex-wrap en dbg-poi-btn-row, boton de bici no se veia
+const CACHE_VERSION = 'follower-v9';  // DA-66: Prompt Maestro v2.7 - apertura con dato historico, limite de metafora, fe incluida, sin titulo
 
 const STATIC_ASSETS = [
   './',

@@ -16,6 +16,11 @@ const GPS = (() => {
   let _lastSigMoveTs  = null;  // DT-40: timestamp del ultimo movimiento significativo
   let _lastSigMovePos = null;  // DT-40: posicion del ultimo movimiento significativo
 
+  /* ── DA-55: pausa de deteccion en transito rapido ── */
+  let _lastPosTs             = null;   // timestamp de la ultima lectura (para calcular velocidad)
+  let _transitSustainedStart = null;   // ts desde que la velocidad supera el umbral sin cortarse
+  let _inTransitPause        = false;  // true = detectNearby() pausado, GPS sigue corriendo
+
   /* ── CONFIGURACIÓN ── */
   const CONFIG = {
     POI_CHECK_INTERVAL: 5000,    // ms entre chequeos de POIs cercanos
@@ -25,7 +30,10 @@ const GPS = (() => {
     CITY_UPDATE_KM:     0.5,     // actualizar nombre de ciudad cada 500m
     MAP_ZOOM:           17,      // zoom inicial del mapa
     MAP_ZOOM_MIN:       14,
-    MAP_ZOOM_MAX:       19
+    MAP_ZOOM_MAX:       19,
+    // DA-55: pausa de deteccion durante transito rapido (taxi, bus, metro)
+    TRANSIT_SPEED_KMH:  15,       // umbral inferior del rango 15-18 — conservador, prefiere no perder POIs reales
+    TRANSIT_WINDOW_MS:  45000     // 45s — punto medio del rango 30-60s sostenidos, evita falsos positivos por caminata energ.
   };
 
   /* ── INICIALIZAR MAPA LEAFLET ── */
@@ -195,6 +203,42 @@ const GPS = (() => {
     }
   }
 
+  /* ── DA-55: PAUSA DE DETECCIÓN EN TRÁNSITO RÁPIDO ──
+     GPS nunca se detiene — solo se suspende la evaluación de detectNearby().
+     Requiere velocidad sostenida (no un pico instantáneo) para evitar
+     falsos positivos por caminata enérgica o trote cuesta abajo. */
+  function _updateTransitState(lat, lng, now) {
+    if (_lastPos && _lastPosTs) {
+      const meters = distanceMeters(_lastPos.lat, _lastPos.lng, lat, lng);
+      const dtS = (now - _lastPosTs) / 1000;
+
+      // Ignorar ticks demasiado seguidos (ruido) o gaps largos (app en background)
+      if (dtS > 0.5 && dtS < 30) {
+        const speedKmh = (meters / dtS) * 3.6;
+
+        if (speedKmh >= CONFIG.TRANSIT_SPEED_KMH) {
+          if (_transitSustainedStart === null) _transitSustainedStart = now;
+
+          if (!_inTransitPause && (now - _transitSustainedStart) >= CONFIG.TRANSIT_WINDOW_MS) {
+            _inTransitPause = true;
+            if (typeof Debug !== 'undefined') {
+              Debug.log('info', `GPS: pausando detección de POIs — tránsito sostenido a ${Math.round(speedKmh)}km/h`);
+            }
+          }
+        } else {
+          _transitSustainedStart = null;
+          if (_inTransitPause) {
+            _inTransitPause = false;
+            if (typeof Debug !== 'undefined') {
+              Debug.log('info', 'GPS: reanudando detección de POIs — velocidad normal');
+            }
+          }
+        }
+      }
+    }
+    _lastPosTs = now;
+  }
+
   /* ── CALLBACK PRINCIPAL DE POSICIÓN ── */
   function onPosition(position) {
     const lat = position.coords.latitude;
@@ -218,6 +262,9 @@ const GPS = (() => {
     if (_lastPos) {
       updateDistance(lat, lng);
 
+      // DA-55: velocidad sostenida — necesita _lastPos ANTES de sobreescribirlo abajo
+      _updateTransitState(lat, lng, Date.now());
+
       // Actualizar ciudad si nos movimos más de CITY_UPDATE_KM
       const kmMoved = distanceMeters(
         _lastPos.lat, _lastPos.lng, lat, lng
@@ -234,8 +281,12 @@ const GPS = (() => {
     const now = Date.now();
     if (now - _lastPOICheck > CONFIG.POI_CHECK_INTERVAL) {
       _lastPOICheck = now;
-      if (typeof POI !== 'undefined') {
-        POI.detectNearby(lat, lng, CONFIG.POI_RADIUS_METERS, CONFIG.NEARBY_RADIUS);
+      // DA-55: en tránsito sostenido se pausa SOLO detectNearby() — Care sigue
+      // evaluando (lluvia/calor pueden anunciarse igual yendo en taxi)
+      if (!_inTransitPause) {
+        if (typeof POI !== 'undefined') {
+          POI.detectNearby(lat, lng, CONFIG.POI_RADIUS_METERS, CONFIG.NEARBY_RADIUS);
+        }
       }
       if (typeof Care !== 'undefined') {
         Care.check();
@@ -415,7 +466,8 @@ const GPS = (() => {
     getMap: () => _map,
     simulatePosition,
     setPOICheckInterval,
-    getRadiusConfig
+    getRadiusConfig,
+    isInTransit: () => _inTransitPause  // DA-55: para mostrar estado en tab Simular
   };
 
 })();

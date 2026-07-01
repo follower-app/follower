@@ -342,6 +342,34 @@ const Care = (() => {
     checkCareContext();
   }
 
+  /* ── TEST FORZADO — para debug-sim.js ──
+     Bypasea checkCareContext() por completo: no respeta cooldown de 20min,
+     ni clima real, ni hora real. Llama triggerSuggestion() directo con
+     valores de prueba razonables, para poder disparar cada trigger a
+     demanda y medir latencia en ráfaga. NUNCA usar en producción. */
+  function _testTrigger(type) {
+    const lang = Config.get('lang');
+    const testValues = {
+      hot:     32,   // °C
+      cold:    3,    // °C
+      tired:   2.5,  // km
+      lunch:   null, // MESSAGES.lunch() no usa valor
+      special: 4     // cantidad de POIs simulada
+    };
+
+    if (!(type in testValues)) {
+      if (typeof Debug !== 'undefined') {
+        Debug.log('error', `Care: _testTrigger tipo desconocido '${type}'`);
+      }
+      return;
+    }
+
+    if (typeof Debug !== 'undefined') {
+      Debug.log('info', `Care: test forzado — trigger '${type}'`);
+    }
+    triggerSuggestion(type, lang, testValues[type]);
+  }
+
   /* ── INICIAR ── */
   function start() {
     // Primer chequeo tras 5 minutos de uso
@@ -367,7 +395,8 @@ const Care = (() => {
     stop,
     check,
     checkSpecialZone,
-    dismiss
+    dismiss,
+    _testTrigger
   };
 
 })();

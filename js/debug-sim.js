@@ -474,7 +474,6 @@ const DebugSim = (() => {
         <div class="dbg-poi-btn-row" style="margin-top:6px;">
           <button class="dbg-poi-action map" onclick="Debug.switchTab('exp'); return false;">Ver score completo →</button>
           ${withPos > 0 ? `<button class="dbg-poi-action narrate" onclick="DebugSim.focusNarrationMap()">🗺️ Ver en mapa (${withPos})</button>` : ''}
-          <button class="dbg-poi-action" style="background:rgba(240,200,122,.2);color:#f0c87a;border:1px solid rgba(240,200,122,.3);" onclick="if(typeof Care!=='undefined'){Care.check();}">🧡 Test Care</button>
         </div>
       </div>
     `;
@@ -546,7 +545,18 @@ const DebugSim = (() => {
           <button class="dbg-poi-action ${_walkSpeedKmh === 3 ? 'narrate' : 'map'}" onclick="DebugSim.setSpeed(3)">3 km/h</button>
           <button class="dbg-poi-action ${_walkSpeedKmh === 5 ? 'narrate' : 'map'}" onclick="DebugSim.setSpeed(5)">5 km/h</button>
           <button class="dbg-poi-action ${_walkSpeedKmh === 8 ? 'narrate' : 'map'}" onclick="DebugSim.setSpeed(8)">8 km/h</button>
+          <button class="dbg-poi-action ${_walkSpeedKmh === 20 ? 'narrate' : 'map'}" onclick="DebugSim.setSpeed(20)"
+            title="Por encima del umbral 15-18km/h de DA-55 — deberia pausar deteccion de POIs">
+            🚗 Auto 20km/h
+          </button>
         </div>
+        ${_walkSpeedKmh >= 15 ? `
+          <div style="font-size:9px; color:${(typeof GPS !== 'undefined' && GPS.isInTransit()) ? '#2ecc71' : '#f0c87a'}; margin-top:4px;">
+            ${(typeof GPS !== 'undefined' && GPS.isInTransit())
+              ? '✅ DA-55 activa — detección de POIs pausada (velocidad sostenida detectada)'
+              : '⏳ DA-55 implementada — esperando 45s sostenidos a esta velocidad para pausar detección'}
+          </div>
+        ` : ''}
       </div>
 
       <div class="dbg-slider-row">
@@ -587,6 +597,29 @@ const DebugSim = (() => {
       </div>
       <div class="dbg-poi-btn-row" style="margin-top:6px;">
         <button class="dbg-poi-action narrate" onclick="DebugSim.skipToFreeMode()">🚀 Saltar a Modo Libre</button>
+      </div>
+
+      <div class="dbg-poi-meta" style="margin-top:12px; margin-bottom:4px;">Utilidades (antes en tab Estado)</div>
+      <div class="dbg-poi-btn-row">
+        <button class="dbg-poi-action narrate" onclick="Debug.forceLoadPOIs()">🔄 Recargar POIs</button>
+        <button class="dbg-poi-action map" onclick="Debug.testNarration()">🎙️ Test narracion</button>
+      </div>
+      <div class="dbg-poi-btn-row" style="margin-top:6px;">
+        <button class="dbg-poi-action map" onclick="Debug.checkWorker()">☁️ Verificar Worker</button>
+        <button class="dbg-poi-action map" onclick="Debug.clearCache()">🗑️ Limpiar cache</button>
+      </div>
+
+      <div class="dbg-poi-meta" style="margin-top:12px; margin-bottom:4px;">Test Care — dispara cada trigger sin cooldown, funciona desde el inicio</div>
+      <div class="dbg-poi-btn-row">
+        <button class="dbg-poi-action" style="background:rgba(240,200,122,.2);color:#f0c87a;border:1px solid rgba(240,200,122,.3);" onclick="if(typeof Care!=='undefined'){Care._testTrigger('hot');}">☀️ Calor</button>
+        <button class="dbg-poi-action" style="background:rgba(240,200,122,.2);color:#f0c87a;border:1px solid rgba(240,200,122,.3);" onclick="if(typeof Care!=='undefined'){Care._testTrigger('cold');}">🧊 Frío</button>
+      </div>
+      <div class="dbg-poi-btn-row" style="margin-top:6px;">
+        <button class="dbg-poi-action" style="background:rgba(240,200,122,.2);color:#f0c87a;border:1px solid rgba(240,200,122,.3);" onclick="if(typeof Care!=='undefined'){Care._testTrigger('tired');}">☕ Cansancio</button>
+        <button class="dbg-poi-action" style="background:rgba(240,200,122,.2);color:#f0c87a;border:1px solid rgba(240,200,122,.3);" onclick="if(typeof Care!=='undefined'){Care._testTrigger('lunch');}">🍽️ Almuerzo</button>
+      </div>
+      <div class="dbg-poi-btn-row" style="margin-top:6px;">
+        <button class="dbg-poi-action" style="background:rgba(240,200,122,.2);color:#f0c87a;border:1px solid rgba(240,200,122,.3);" onclick="if(typeof Care!=='undefined'){Care._testTrigger('special');}">✨ Zona especial</button>
       </div>
 
       ${_renderRhythmCard()}

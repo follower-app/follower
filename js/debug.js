@@ -422,12 +422,14 @@ const Debug = (() => {
     const bar = document.createElement('div');
     bar.id = 'dbg-bar';
     bar.style.display = 'none';   // oculto hasta navigateTo('explore')
+    // Estado, Tiempos y 🎬 (exp) se sacaron de la barra visible — quedan
+    // como tabs "ocultas" alcanzables por link directo (Debug.switchTab('timing')
+    // desde la rhythm card de Simular, por ejemplo). Sus funciones de render
+    // y sus datos (_metrics, _exp) siguen vivos y salen completos en el .txt
+    // exportado desde Logs, aunque no tengan botón propio acá.
     bar.innerHTML = `<div id="dbg-tabs">
-      <button class="dbg-tab" data-tab="status"  onclick="Debug.switchTab('status')">Estado</button>
-      <button class="dbg-tab" data-tab="search"  onclick="Debug.switchTab('search')">Buscar</button>
+      <button class="dbg-tab" data-tab="search"  onclick="Debug.switchTab('search')">POIs</button>
       <button class="dbg-tab" data-tab="logs"    onclick="Debug.switchTab('logs')">Logs</button>
-      <button class="dbg-tab" data-tab="timing"  onclick="Debug.switchTab('timing')">Tiempos</button>
-      <button class="dbg-tab" data-tab="exp"     onclick="Debug.switchTab('exp')">🎬</button>
     </div>`;
     document.body.appendChild(bar);
 
@@ -473,11 +475,23 @@ const Debug = (() => {
   }
 
   /* ── AUTO REFRESH — tab status ── */
-  let _currentTab = 'status';
+  let _currentTab = 'search';
   function startAutoRefresh() {
     setInterval(() => {
       const panel = document.getElementById('dbg-panel');
       if (!panel || panel.classList.contains('hidden')) return;
+
+      // POIs vive del GPS/simulador — se refresca solo, salvo que el
+      // usuario esté escribiendo un filtro (no pisar el input con foco)
+      if (_currentTab === 'search') {
+        const input = document.getElementById('dbg-search-input');
+        if (input && document.activeElement === input) return;
+        renderTab('search');
+        return;
+      }
+
+      // status/timing/exp quedaron sin botón en la barra, pero si se
+      // llegó a ellas por link directo igual se refrescan mientras estén abiertas
       if (_currentTab === 'status' || _currentTab === 'exp') renderTab(_currentTab);
     }, 1500);
   }
@@ -669,26 +683,30 @@ const Debug = (() => {
         <button class="dbg-poi-action map" onclick="Debug.testNarration()">🎙️ Test</button>
         <button class="dbg-poi-action map" onclick="Debug.checkWorker()">☁️ Worker</button>
         <button class="dbg-poi-action map" onclick="Debug.clearCache()">🗑️ Cache</button>
-        <button class="dbg-poi-action narrate" onclick="Debug.exportLog()">📤 Exportar</button>
       </div>
     `;
   }
 
-  /* ── RENDER SEARCH ── */
+  /* ── RENDER SEARCH — ahora tab "POIs": refleja qué cargó el GPS real
+     o el simulador en cada momento, ordenado por distancia. El input
+     de nombre queda como filtro opcional, no como propósito principal. ── */
   function renderSearch() {
-    const pois = typeof POI !== 'undefined' ? POI.getPOIs() : [];
+    const pois  = typeof POI !== 'undefined' ? POI.getPOIs() : [];
     const count = pois.length;
+    const sorted = [...pois].sort((a, b) =>
+      (a._distanceMeters ?? Infinity) - (b._distanceMeters ?? Infinity)
+    );
 
     return `
       <div style="margin-bottom:6px; font-size:10px; color:#4a5568;">
-        ${count} POIs cargados en memoria
+        ${count} POIs cargados en memoria · orden por distancia
       </div>
       <div id="dbg-search-wrap">
-        <input id="dbg-search-input" placeholder="Buscar POI por nombre..." />
-        <button id="dbg-search-btn">Buscar</button>
+        <input id="dbg-search-input" placeholder="Filtrar por nombre (opcional)..." />
+        <button id="dbg-search-btn">Filtrar</button>
       </div>
       <div id="dbg-search-results">
-        ${renderPOIList(pois.slice(0, 8))}
+        ${renderPOIList(sorted.slice(0, 20))}
       </div>
     `;
   }
@@ -729,12 +747,15 @@ const Debug = (() => {
     const doSearch = () => {
       const q    = input.value.trim().toLowerCase();
       const pois = typeof POI !== 'undefined' ? POI.getPOIs() : [];
+      const sorted = [...pois].sort((a, b) =>
+        (a._distanceMeters ?? Infinity) - (b._distanceMeters ?? Infinity)
+      );
       const filtered = q
-        ? pois.filter(p => p.name.toLowerCase().includes(q))
-        : pois.slice(0, 8);
+        ? sorted.filter(p => p.name.toLowerCase().includes(q))
+        : sorted;
 
       const results = document.getElementById('dbg-search-results');
-      if (results) results.innerHTML = renderPOIList(filtered.slice(0, 15));
+      if (results) results.innerHTML = renderPOIList(filtered.slice(0, 20));
     };
 
     btn.addEventListener('click', doSearch);
@@ -773,9 +794,6 @@ const Debug = (() => {
     if (_metrics.length === 0) {
       return `<div style="color:#4a5568; font-size:11px; padding:12px 0; text-align:center;">
         Sin tiempos registrados aún — explora, narra o carga POIs y se irán llenando
-      </div>
-      <div class="dbg-actions-row">
-        <button id="dbg-export-btn" onclick="Debug.exportLog()">📤 Exportar .txt</button>
       </div>`;
     }
 
@@ -845,7 +863,6 @@ const Debug = (() => {
       <div class="dbg-section-label">Últimas mediciones ${isHistoric ? '(histórico)' : '(sesión actual)'}</div>
       ${recentRows}
       <div class="dbg-actions-row">
-        <button id="dbg-export-btn" onclick="Debug.exportLog()">📤 Exportar .txt</button>
         <button id="dbg-clear-btn" onclick="Debug.clearTimings()">Limpiar histórico</button>
       </div>
     `;
@@ -1332,7 +1349,7 @@ const Debug = (() => {
 
         <div class="dbg-section-label">Música</div>
         <div style="font-size:9px; color:#4a5568; padding:2px 0 6px;">
-          ℹ️ MP3s pendientes (DT-19) — métricas siempre en 0 hasta implementar
+          ℹ️ music.js eliminado en v0.9 (DA-50) — métricas siempre en 0, sección legada
         </div>
         <div class="dbg-grid">
           <div class="dbg-cell">
@@ -1347,7 +1364,6 @@ const Debug = (() => {
       </details>
 
       <div class="dbg-actions-row">
-        <button id="dbg-export-btn" onclick="Debug.exportLog()">📤 Exportar .txt</button>
         <button id="dbg-clear-btn" onclick="Debug.startTestSession()">🔄 Nueva sesión</button>
       </div>
     `;

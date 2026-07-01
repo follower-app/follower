@@ -2682,89 +2682,109 @@ revocar la key directamente en console.openai.com (API Keys → revocar
 
 ---
 
+## Sesión 19 — 1 Julio 2026
+
+### Contexto
+
+Sesión de tooling, no de producto. Punto de partida: preparar el terreno
+para implementar DT-42 (Care generativo) con un banco de pruebas real en el
+simulador, antes de tocar `narration.js`. En el camino se encontraron y
+cerraron dos deudas que no estaban en el plan original de la sesión.
+
+---
+
+### Debug panel — de 5 tabs a 3 (DA-62)
+
+Al revisar `debug.js` para conectar Care al simulador, se encontró el botón
+`📤 Exportar` duplicado en 6 lugares (Estado, Logs ×2, Tiempos ×2, 🎬),
+todos llamando a la misma `exportLog()`. No era un problema funcional —
+`exportLog()` ya arma un solo reporte con todo (score, tiempos, logs)
+independientemente de cuántos botones lo disparen — pero sí de mantenimiento
+y de ruido visual.
+
+Se decidió sacar Estado, Tiempos y 🎬 de la barra visible sin borrar su
+código — siguen accesibles por link directo si hace falta un detalle puntual
+(`Debug.switchTab('timing')` desde la rhythm card de Simular). El dato de
+esas tres vistas se sigue grabando igual en segundo plano; lo único que
+cambia es que no hay un dashboard en vivo mirándolo todo el tiempo.
+
+`renderSearch()` (tab "Buscar") se renombró a "POIs" y pasó de mostrar los
+primeros 8 sin orden a mostrar los 20 más cercanos, ordenados por
+`_distanceMeters` — el dato ya existía en cada POI, solo no se usaba para
+ordenar. Se agregó auto-refresco cada 1.5s, con guardia para no pisar el
+filtro si el usuario está escribiendo.
+
+Las 4 utilidades que vivían en Estado (recargar POIs, test de narración,
+verificar Worker, limpiar cache) se movieron al tab Simular — son
+herramientas de uso mientras se simula, no información de estado pasiva.
+
+---
+
+### DA-55 — de decisión documentada a código real
+
+Al revisar qué faltaba para el modo "Auto/carro" del simulador, se encontró
+que **DA-55 (pausa de detección en tránsito rápido) estaba en
+`arquitectura.md` desde Sesión 17 pero nunca se implementó** — `gps.js` no
+tenía ningún cálculo de velocidad. Se cerró en la misma sesión.
+
+Implementación: `_updateTransitState()` en `gps.js`, corre en cada tick de
+`onPosition()` (no throttleada), calcula velocidad instantánea entre
+lecturas consecutivas usando la posición anterior antes de que se
+sobreescriba. Si se sostiene ≥15km/h por 45s seguidos, pausa
+`POI.detectNearby()` — `Care.check()` sigue evaluando igual (lluvia/calor
+tienen sentido avisados aunque el usuario vaya en taxi). El GPS
+(`watchPosition`) nunca se detiene, coherente con DA-7.
+
+Botón "🚗 Auto 20km/h" agregado al simulador con indicador en vivo
+(`GPS.isInTransit()`) — naranja mientras espera los 45s, verde cuando la
+pausa está confirmadamente activa.
+
+---
+
+### Care testeable desde el simulador (DA-63)
+
+`Care._testTrigger(type)` nuevo — bypasea `checkCareContext()` completo
+(cooldown, clima real, hora real) y dispara `triggerSuggestion()` directo
+con valores de prueba. 5 botones en `debug-sim.js`, uno por trigger
+(calor/frío/cansancio/almuerzo/zona especial).
+
+Detalle encontrado al implementar: el primer intento puso los botones dentro
+de `_renderRhythmCard()`, que solo se renderiza completa después de la
+primera narración — hubiera hecho imposible probar Care recién llegado a una
+ciudad, antes de cualquier narración. Se movieron al cuerpo fijo del tab.
+
+**Importante — no confundir con DT-42:** estos botones hoy siguen mostrando
+los mensajes estáticos de `MESSAGES`. Care generativo (`getCareMessage()` en
+`narration.js`) todavía no está implementado — este es el banco de pruebas
+para cuando sí lo esté, construido primero a propósito para no debuggear a
+ciegas con clima real y cooldown de 20 minutos.
+
+---
+
+### `sw.js` v4 → v5
+
+Bump por cambios en `gps.js`, `care.js`, `debug.js`, `debug-sim.js`.
+
+---
+
+### Deuda técnica — actualización
+
+| ID | Estado |
+|----|--------|
+| DA-55 | ✅ Resuelta — implementada, ver arriba |
+| DT-42 | Sigue abierta — mini-prompt listo, código de `getCareMessage()` pendiente. Banco de pruebas del simulador ya listo para cuando se implemente |
+
+---
+
 ### Próxima sesión
 
-1. Prueba de campo en Cali — prioridad: DT-44 (latencia v2.7), DT-32 (cola),
-   DT-29/30 (cobertura Wikipedia + TTF)
-2. Con log de campo: evaluar si DT-42 (Care generativo) puede implementarse
-3. DT-45 — diseño de pantalla de bienvenida animada
+1. DT-42: implementar `Narration.getCareMessage()` reemplazando `MESSAGES`
+   estáticos en `triggerSuggestion()` — usar los 5 botones de test ya
+   construidos para validar sin esperar campo
+2. Medir latencia de Care vs. narración normal con `Debug.metricStart`
+   conectado a la nueva llamada, exportable desde Logs
+3. Prueba de campo en Cali — sigue pendiente: DT-44, DT-32, DT-29/30
 
 ---
 
-*Follower — Bitácora v0.9 | Sesión 18 | 30 Junio 2026*
-
----
-
-## Sesión 18b — 1 Julio 2026 (post-campo)
-
-### Primera prueba de campo — análisis del log
-
-Primera caminata real con el código de Sesión 18 (DA-50 + DT-39/40/41/43).
-Exportación de debug desde iPhone iOS 18.7, Safari.
-
-**Hallazgos confirmados:**
-- DT-38 funcionando: `POI: chequeo inmediato post-carga (DT-38)` en logs ✓
-- DT-39 funcionando: `capítulo #1 guardado — John Lennon`, `capítulo #2 guardado` ✓
-- DA-50 funcionando: sin intro musical, sin style en métricas nuevas ✓
-- Voice lag mejorado: 119-136ms vs 340ms promedio anterior ✓
-
-**Problemas detectados:**
-
-#### Narración demasiado larga
-- John Lennon: 1523 chars → 103 segundos hablados
-- Monument a Anselm Clavé: 1490 chars
-- Causa: Prompt Maestro v2.7 decía "220-280 palabras" y Claude lo cumplía
-  (~300 palabras = ~130 segundos). Demasiado para experiencia de bolsillo.
-- Decisión: reducir target a 130-160 palabras, máximo absoluto 170.
-
-#### POI sin valor editorial local
-- "John Lennon" narrado en Barcelona — mural de artista foráneo
-- Causa: tag `artwork` en Overpass incluye murales de cualquier artista
-- Decisión: eliminar `artwork` de la query Overpass y del priority map
-
-**Nota sobre el log:** las métricas con `style=explorer` e `intro musical`
-son de sesiones anteriores almacenadas en localStorage — no del código nuevo.
-El log mezcla sesiones viejas y nuevas. Solo las dos últimas narraciones
-(19:53:59 y 19:55:55) corresponden al código de S18.
-
----
-
-### Fixes aplicados
-
-#### narration.js
-- Longitud: `220-280 palabras` → `130-160 palabras, máximo absoluto 170`
-- Se agregó frase de refuerzo: "Una narración de 140 palabras bien
-  construida vale más que una de 280 que el usuario no termina de escuchar"
-- `max_tokens`: 480 → 380
-
-#### poi.js
-- `artwork` eliminado de la query Overpass
-- `artwork` eliminado del priority map
-- Comentario: "murales de artistas foraneos sin valor editorial local"
-
-#### sw.js
-- Bumpeado a `follower-v4`
-
----
-
-### Deuda técnica pendiente tras S18b
-
-| ID | Descripción | Prioridad |
-|----|-------------|-----------|
-| DT-44 | Medir latencia v2.7 en próxima caminata real | Crítica |
-| DT-42 | Implementar Care generativo (prompt ya redactado) | Alta |
-| DT-32 | Confirmar cola narrativa en campo | Alta |
-| DT-29 | Confirmar cobertura Wikipedia en Centro Histórico Cali | Alta |
-| DT-30 | Confirmar TTF desde sesión nueva sin cache | Alta |
-| DT-45 | UI: pantalla de bienvenida animada | Alta |
-| DT-46 | UI: confirmación por tap para cierre de caminata | Media |
-| DT-47 | Wizard de configuración | Media |
-| DT-9  | Revocar key OpenAI expuesta (console.openai.com) | Alta |
-| DT-1  | Logo SVG final + iconos PWA | Alta |
-| DT-4  | Pantalla resumen del paseo | Media |
-| DT-16 | Rediseño pantalla POI expandida | Media |
-| DT-34 | Cooldown mínimo entre narraciones — post campo | Media |
-
----
-
-*Follower — Bitácora v0.9 | Sesión 18b | 1 Julio 2026*
+*Follower — Bitácora v0.9 | Sesión 19 | 1 Julio 2026*

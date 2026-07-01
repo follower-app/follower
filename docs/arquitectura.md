@@ -1301,6 +1301,10 @@ caminata completa").
 
 ### DA-55 — Pausa de detección durante tránsito rápido (taxi, bus, metro)
 
+**✅ Implementado — Sesión 19, 1 Julio 2026.** Estaba documentada desde
+Sesión 17 pero sin código — se detectó y cerró en la misma sesión donde se
+armó el banco de pruebas del simulador.
+
 **Decisión:** se calcula velocidad de desplazamiento a partir de los puntos
 GPS ya disponibles (distancia/tiempo entre lecturas consecutivas). Si la
 velocidad sostenida supera un umbral durante una ventana mínima, se pausa la
@@ -1311,6 +1315,29 @@ suspende temporalmente la evaluación de `detectNearby()`.
 UMBRAL_VELOCIDAD = 15-18 km/h   // sostenido, no pico instantáneo
 VENTANA_MINIMA   = 30-60s       // evita falsos positivos por caminata enérgica
 ```
+
+**Valores implementados:** `TRANSIT_SPEED_KMH: 15` (extremo inferior del
+rango, conservador — prefiere no perder POIs reales), `TRANSIT_WINDOW_MS:
+45000` (45s, punto medio del rango).
+
+**Implementación real (`gps.js`):** nueva función `_updateTransitState(lat,
+lng, now)`, llamada en cada tick de `onPosition()` — sin throttle propio,
+corre siempre, en el mismo punto donde ya se calculaba `updateDistance()`
+usando el `_lastPos` anterior a que se sobreescriba. Mantiene un contador
+`_transitSustainedStart`: si la velocidad instantánea entre dos lecturas
+consecutivas supera el umbral, arranca el contador; si se sostiene 45s
+seguidos, activa `_inTransitPause = true`. Cualquier lectura bajo el umbral
+resetea el contador y reanuda.
+
+El guard se aplica **solo** sobre `POI.detectNearby()` dentro del bloque
+throttleado de chequeo — `Care.check()` y `Care.checkSpecialZone()` se
+excluyeron deliberadamente del guard: lluvia o calor extremo tienen sentido
+anunciados aunque el usuario vaya en taxi, coherente con la separación de
+categorías de Care definida en DA-49 (protección real vs. bienestar).
+
+Estado expuesto vía `GPS.isInTransit()` — usado por `debug-sim.js` para
+mostrar en vivo si la pausa está activa mientras se prueba con el botón
+"🚗 Auto 20km/h" del simulador.
 
 **Razón de la decisión (vs. narrar el salto):** se descartó la alternativa de
 pedirle al modelo que reconozca narrativamente una transición en vehículo.
@@ -1432,7 +1459,7 @@ Se resuelve en sesión de redacción de prompts.
 | `music.js` | Eliminado |
 | `app.js` | Flujo de splash/bienvenida rediseñado, lógica de cierre de caminata (señal + pregunta + tap), eliminar referencias a `Music` y a estilo de narrador |
 | `care.js` | Mayor — de `MESSAGES` estáticos a generación vía Claude, nuevo trigger de densidad de POIs, regla de momento correcto sin timers |
-| `gps.js` / `poi.js` | Nuevo guard de velocidad para pausar detección en tránsito rápido |
+| `gps.js` / `poi.js` | ✅ Implementado (Sesión 19) — guard de velocidad `_updateTransitState()` en gps.js, pausa solo `detectNearby()` |
 | `index.html` | Eliminar selector de narrador |
 | IndexedDB | Clave de caché de narraciones sin `style` |
 
@@ -1552,4 +1579,73 @@ validado en campo.
 
 ---
 
-*Follower — Arquitectura v0.9 | Sesión 18 | 30 Junio 2026*
+### DA-62 — Debug panel consolidado a 3 tabs (Simular / POIs / Logs)
+
+**Decisión:** las tabs Estado, Tiempos y 🎬 (Score) se sacan de la barra
+visible de `debug.js`. No se borran — sus funciones de render y los datos
+que alimentan (`_metrics`, `_exp`) siguen vivos, solo dejan de tener botón
+propio. Siguen alcanzables por link directo (`Debug.switchTab('timing')`,
+usado desde la rhythm card de Simular) para consulta puntual sin volver a
+mostrarlas en la barra.
+
+**Razón:** uso diario del panel es casi exclusivamente simulación (moverse,
+cargar POIs, probar Care) — Estado/Tiempos/Score son vistas de análisis que
+se consultan rara vez y competían por espacio visual sin aportar al flujo
+principal. El dato no se pierde: `exportLog()` ya arma un reporte único con
+tiempos y score completos independientemente de si hay tab visible.
+
+**Cambios de `debug.js`:**
+- Barra reducida a `POIs` (antes "Buscar") y `Logs` — Simular sigue
+  registrándose aparte vía `Debug.registerTab()` desde `debug-sim.js`
+- Un solo botón de exportar, en Logs — eliminado de los 4 lugares donde
+  estaba duplicado (Estado, Tiempos ×2 estados, 🎬)
+- `renderSearch()`: ordena por `_distanceMeters` (ya existía el dato, no se
+  usaba para ordenar), muestra 20 resultados en vez de 8, auto-refresco cada
+  1.5s salvo que el input de filtro tenga foco
+
+**Cambios de `debug-sim.js`:**
+- Botón "🚗 Auto 20km/h" agregado a la fila de velocidad — sirve para
+  validar DA-55 en el momento, con indicador en vivo (`GPS.isInTransit()`)
+- 4 utilidades movidas desde la extinta tab Estado: recargar POIs, test de
+  narración, verificar Worker, limpiar cache
+- 5 botones de test de Care (`Care._testTrigger()`, ver DA-63) — colocados
+  en el cuerpo fijo del tab, no en la rhythm card, porque esa card solo
+  aparece después de la primera narración y hubiera bloqueado probar Care
+  justo en el momento más útil (recién llegado a una ciudad nueva)
+
+---
+
+### DA-63 — `Care._testTrigger()`: forzar triggers de Care sin condiciones reales
+
+**Decisión:** nueva función en `care.js`, exclusiva para testing desde el
+simulador. Bypasea `checkCareContext()` por completo — no respeta cooldown
+de 20 min, clima real ni hora real — y llama `triggerSuggestion(type, lang,
+valorDePrueba)` directo con un valor razonable por tipo (32°C calor, 3°C
+frío, 2.5km cansancio, 4 POIs zona especial).
+
+**Por qué no reusar `Care.check()`:** ese es el flujo real, con todos los
+filtros — perfecto para producción, inútil para probar los 5 triggers en
+ráfaga y medir latencia. `_testTrigger()` es deliberadamente un atajo de
+testing, nunca debe llamarse desde código de producción.
+
+**Vigencia de esta implementación:** hoy dispara los mensajes estáticos de
+`MESSAGES` (aún no existe Care generativo, DT-42 sigue en implementación).
+El mismo botón funcionará sin cambios cuando `triggerSuggestion()` pase a
+llamar `Narration.getCareMessage()` — el cableado de testing es independiente
+de qué hay detrás.
+
+---
+
+### Resumen de archivos — Sesión 19
+
+| Archivo | Cambios |
+|---------|---------|
+| `gps.js` | DA-55 implementado: `_updateTransitState()`, `CONFIG.TRANSIT_SPEED_KMH`/`TRANSIT_WINDOW_MS`, `isInTransit()` expuesto |
+| `debug.js` | DA-62: barra a 2 tabs (POIs/Logs), export único en Logs, POIs ordenado por distancia con auto-refresh |
+| `debug-sim.js` | DA-62: modo Auto 20km/h, utilidades movidas desde Estado, 5 botones de test de Care |
+| `care.js` | DA-63: `_testTrigger()` nuevo, expuesto en API pública |
+| `sw.js` | v4 → v5 |
+
+---
+
+*Follower — Arquitectura v0.9 | Sesión 19 | 1 Julio 2026*

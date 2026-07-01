@@ -2767,23 +2767,136 @@ Bump por cambios en `gps.js`, `care.js`, `debug.js`, `debug-sim.js`.
 
 ---
 
-### Deuda técnica — actualización
+## Continuación Sesión 19 — Revisión de triggers y DT-42 real
+
+Segunda mitad de la sesión: antes de programar `getCareMessage()`, se hizo
+una revisión completa de qué triggers de Care existían en código vs. qué
+pedía el manifiesto (`manifiesto_care_strip.md`, `contexto_maestro.md`).
+Encontrar los gaps ahí, en vez de después de programar, evitó tener que
+tocar `narration.js` dos veces.
+
+### Hallazgo — lluvia era un sistema separado, no un trigger de Care
+
+Al revisar el guard `AppState.phase === 'alert'` en `checkCareContext()`,
+se encontró que la lluvia **no pasaba por Care en absoluto**. Vivía
+completa en `weather.js`: timer propio de 10 min, texto 100% hardcodeado
+en español sin usar `lang` (única alerta de Care sin bilingüe), y su propia
+búsqueda de refugio (`findNearbyRefuge()`) casi idéntica pero separada de
+`findNearbyRestPlace()` de `care.js`. Era, literalmente, el "segundo
+sistema separado" que el manifiesto prohíbe explícitamente ("No existe un
+segundo narrador. No existe un sistema separado").
+
+Decisión: migrar por completo. Ver DA-65.
+
+### Decisiones sobre triggers nuevos — atardecer descartado, sed sumada
+
+Revisando la lista completa del manifiesto (lluvia, calor/frío, cansancio,
+almuerzo, sed, zona especial, atardecer), se evaluaron los dos que faltaban:
+
+- **Atardecer — descartado.** Sin datos de elevación o línea de vista,
+  un trigger basado solo en hora sugeriría un atardecer con la vista
+  tapada por edificios la mayoría de las veces en el centro denso de
+  una ciudad. Rompe el principio de "solo lo verificable" del Prompt
+  Maestro — queda anotado como posible visión futura si se suma alguna
+  fuente de datos de elevación, no como deuda técnica de esta versión.
+- **Sed — sumada, como trigger nuevo.** Ver DA-64 para el diseño completo.
+  Iteración importante: la primera versión ("calor moderado + distancia")
+  se descartó al notar que en climas como Cali (22-29°C es el estado
+  normal del día, no una excepción) dispararía en casi toda caminata,
+  rompiendo el principio de "el caminante nunca debe sentir que una
+  máquina le está dando instrucciones". Se resolvió limitando el trigger
+  a una sola vez por caminata (`_thirstShownThisWalk`), no por el
+  cooldown estándar de 20 min.
+
+### DT-42 implementado — Care generativo real
+
+Con el alcance de 7 triggers cerrado y documentado en
+`dt42_care_miniprompt.md` v2, se implementó de punta a punta:
+
+- **`narration.js`**: `callClaude()` con `maxTokens` parametrizable (Care
+  usa 120, narración sigue en 380). `CARE_SYSTEM_PROMPT` + `buildCarePrompt()`
+  con los 7 templates. `getCareMessage(type, places, ctx)` nueva, expuesta
+  en la API pública.
+- **`care.js`**: reescritura de `triggerSuggestion()` — ahora async,
+  ramifica por `TRIGGER_META` entre Overpass (hot/cold/lunch/tired/rain),
+  POIs de zona ya cargados (special), o ningún candidato (thirst).
+  `findNearbyRestPlace()` a 5 candidatos (antes 3), callback recibe el
+  array completo en vez de quedarse con el primero sin criterio.
+  `matchChosenPlace()` nuevo — identifica que candidato mencionó Claude
+  por nombre exacto en la respuesta, para saber donde centrar el mapa.
+  `showCareCard()` acepta texto generado opcional; si `Narration.getCareMessage()`
+  falla o `AppState.offline`, cae sola al fallback estático de `MESSAGES`
+  (ahora con entradas nuevas para `rain` y `thirst` también).
+- **`weather.js`**: eliminado el sistema paralelo completo —
+  `showRainAlert()`, `findNearbyRefuge()`, `showRefugeSuggestion()`,
+  `dismissAlert()`, `_alertShown`. `check()` pasa a solo actualizar
+  `AppState.weather`, sin decidir nada de UI — esa decisión es de Care
+  ahora, con el mismo cooldown de 20 min que el resto de los triggers.
+- **`debug-sim.js`**: 5 botones de test pasan a 7 — se suman `🌧️ Lluvia`
+  y `💧 Sed`.
+
+Instrumentación de latencia incluida desde el primer commit:
+`generateAndShowCard()` en `care.js` usa `Debug.metricStart('care', ...)`
+por tipo de trigger — sale directo en el `.txt` exportado desde Logs, sin
+necesidad de tocar nada más.
+
+### Deuda generada, sin cerrar en esta sesión
+
+- **`Care.resetWalk()` sin cablear en `app.js`.** La función existe y
+  resetea `_thirstShownThisWalk`, pero nadie la llama todavía. Hasta que
+  no se conecte donde se resetea `AppState._walkChapters` (DA-54), el
+  trigger `thirst` va a mostrarse una sola vez en toda la vida de la
+  sesión del navegador, no una vez por caminata como fue diseñado.
+- **`'alert'` sigue en la lista de fases válidas** de `setPhase()` en
+  `app.js`, aunque ya no se usa en ningún lado — código muerto, no rompe
+  nada, pendiente de limpieza cosmética.
+
+### Bug encontrado en campo — botón de bici no visible (Firefox y Chrome)
+
+Al agregar el preset `🚲 Bici 14km/h` a la fila de velocidad del simulador
+(quinto botón en una fila que antes tenía 3), el botón no aparecía en
+ningún navegador. Causa: `.dbg-poi-btn-row { display: flex; gap: 6px; }`
+sin `flex-wrap` — por default eso es `nowrap`, así que los 5 botones
+intentaban entrar en una sola línea en el panel angosto (pensado para
+mobile), recortando o empujando el último fuera del área visible. Mismo
+bug en cualquier navegador porque es el mismo CSS — no era cache.
+
+Fix: `flex-wrap: wrap` agregado a `.dbg-poi-btn-row`. Sin `flex: 1` ni
+ancho fijo en `.dbg-poi-action`, el wrap acomoda limpio sin deformar
+ningún botón existente en ninguna otra fila del panel.
+
+### `sw.js` v5 → v8
+
+- v6: DT-42 (narration.js, care.js, weather.js, debug-sim.js)
+- v7: preset de bici en debug-sim.js
+- v8: fix de flex-wrap en debug.js
+
+---
+
+### Deuda técnica — actualización final de sesión
 
 | ID | Estado |
 |----|--------|
-| DA-55 | ✅ Resuelta — implementada, ver arriba |
-| DT-42 | Sigue abierta — mini-prompt listo, código de `getCareMessage()` pendiente. Banco de pruebas del simulador ya listo para cuando se implemente |
+| DA-55 | ✅ Resuelta |
+| DA-57 | ✅ Resuelta — Care generativo implementado, ver DA-64/DA-65 para el detalle ampliado a 7 triggers |
+| DT-42 | ✅ Resuelta — implementado de punta a punta, ver arriba |
+| Nueva | 🔲 Cablear `Care.resetWalk()` en `app.js`, donde se resetea `_walkChapters` |
+| Nueva | 🔲 Limpiar `'alert'` de la lista de fases válidas en `setPhase()` (`app.js`) — código muerto |
 
 ---
 
 ### Próxima sesión
 
-1. DT-42: implementar `Narration.getCareMessage()` reemplazando `MESSAGES`
-   estáticos en `triggerSuggestion()` — usar los 5 botones de test ya
-   construidos para validar sin esperar campo
-2. Medir latencia de Care vs. narración normal con `Debug.metricStart`
-   conectado a la nueva llamada, exportable desde Logs
-3. Prueba de campo en Cali — sigue pendiente: DT-44, DT-32, DT-29/30
+1. Cablear `Care.resetWalk()` en `app.js` — bloqueante para que `thirst`
+   funcione como fue diseñado (una vez por caminata, no una vez por sesión
+   de navegador)
+2. Validar en campo real los 7 triggers — especial atención a `rain`
+   (primera vez que pasa por voz generativa) y `thirst` (primera vez que
+   se prueba el patrón de "una sola vez por caminata")
+3. Con datos de latencia ya exportables por tipo de trigger: decidir si
+   `max_tokens: 120` de Care es suficiente o necesita ajuste
+4. Prueba de campo en Cali — sigue pendiente: DT-44, DT-32, DT-29/30
+5. Limpieza cosmética: quitar `'alert'` de `setPhase()`
 
 ---
 

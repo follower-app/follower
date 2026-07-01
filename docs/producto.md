@@ -154,18 +154,23 @@ Ciudades planificadas para versiones futuras: Barcelona (Gaudí), París Románt
 
 `care.js` evalúa condiciones en orden de prioridad. La experiencia humana tiene prioridad sobre la narración.
 
-| Prioridad | Condición | Acción |
-|-----------|-----------|--------|
-| 1 | Temp ≥ 30°C | Buscar refugio del calor |
-| 2 | Temp ≤ 5°C | Buscar lugar cálido |
-| 3 | Hora almuerzo + > 1km caminado | Sugerir restaurante |
-| 4 | > 2km caminados | Sugerir café de descanso |
-| 5 | Lluvia | Alerta + buscar refugio |
-| 6 *(v0.9)* | ≥ 3 POIs en radio de 150m | Trigger "zona especial" (`checkSpecialZone()`, DT-43) |
+| Prioridad | Condición | Trigger | Lugar asociado |
+|-----------|-----------|---------|-----------------|
+| 1 | Lluvia (`weather.isRaining`) | `rain` | Sí — café/bar/biblioteca/museo |
+| 2 | Temp ≥ 30°C | `hot` | Sí — café/bar |
+| 3 | Temp ≤ 5°C | `cold` | Sí — café/bar |
+| 4 | Hora almuerzo + > 1km caminado | `lunch` | Sí — restaurante/café |
+| 5 | Temp 22-29°C + ≥ 1.2km, una vez por caminata | `thirst` | No — solo recordatorio de hidratación |
+| 6 | ≥ 2km caminados o ≥ 2600 pasos | `tired` | Sí — café/bar |
+| — *(evaluado aparte, en cada tick de GPS)* | ≥ 3 POIs en radio de 150m | `special` | POIs de Wikipedia ya cargados |
 
-Cooldown de 20 minutos entre sugerencias. Primer chequeo a los 5 minutos de sesión.
+Cooldown de 20 minutos entre sugerencias (excepto `thirst`, que se limita a una vez por caminata en vez de por tiempo). Primer chequeo a los 5 minutos de sesión.
 
-**En curso (DT-42):** las sugerencias de Care dejan de usar plantillas de texto fijas (`MESSAGES.*`) y pasan a generarse vía una llamada a Claude que selecciona el candidato más propio del lugar y redacta el mensaje con la misma voz del Prompt Maestro. Prompt redactado en `docs/dt42_care_miniprompt.md`; código pendiente de implementar.
+**Implementado — Care generativo (DT-42).** Las sugerencias ya no usan plantillas de texto fijas: se generan vía una llamada a Claude (`Narration.getCareMessage()`) que selecciona el candidato más propio del lugar y redacta el mensaje con la misma voz del Prompt Maestro. `MESSAGES.*` estático sigue existiendo como fallback si el Worker falla o la sesión está offline.
+
+**Lluvia migrada desde `weather.js` (DA-65).** Antes vivía en un sistema completamente separado — timer propio, texto hardcodeado sin idioma, cooldown propio. Ahora es un trigger de Care más, con la misma voz generativa y el mismo cooldown que el resto.
+
+**Atardecer evaluado y descartado.** Sin datos de elevación o línea de vista, no hay forma confiable de confirmar que el usuario puede ver el atardecer en un centro urbano denso — queda como visión futura, no como deuda de esta versión.
 
 ---
 
@@ -253,7 +258,7 @@ El Prompt Maestro v2.7 (narrador único) tiene versiones en español e inglés. 
 | v0.7s | Estabilización: voz latam · narraciones cortas · sanitización · laboratorio confiable | ✅ |
 | v0.8 | Wikipedia GeoSearch primaria · cola narrativa · visited-on-complete · iOS voz fix (BUG-036) | ✅ |
 | v0.9 | Narrador único (DA-50) · memoria de capítulo · idioma local · zona especial · inactividad | ✅ |
-| v0.9 | Care generativo (DT-42) · pantalla de bienvenida animada (DT-45) · cierre de caminata (DT-46) · validación en campo | 🔄 En curso |
+| v0.9 | Care generativo (DT-42, 7 triggers) · pantalla de bienvenida animada (DT-45) · cierre de caminata (DT-46) · validación en campo | 🔄 En curso — DT-42 listo, resto pendiente |
 | v1.0 | Piloto con viajeros reales | 🔲 |
 | v2.0 | Recorridos curados · más ciudades · monetización | 🔲 |
 
@@ -279,17 +284,17 @@ El Prompt Maestro v2.7 (narrador único) tiene versiones en español e inglés. 
 | DT-30 | Confirmar TTF con Wikipedia desde sesión nueva — validar con arquitectura v0.9 | Alta |
 | DT-31 | Mejorar type/icon de POIs Wikipedia con categorías Wikidata | Baja |
 | DT-32 | Validar en campo real la arquitectura consolidada de narrador único | Alta |
-| DT-42 | Implementar Care generativo en `care.js` (prompt listo en `docs/dt42_care_miniprompt.md`) | Alta |
+| Nueva | Cablear `Care.resetWalk()` en `app.js`, donde se resetea `_walkChapters` — bloqueante para que `thirst` funcione una vez por caminata y no una vez por sesión de navegador | Alta |
 | DT-44 | Medir en campo si la autoevaluación interna del Prompt Maestro v2.7 afecta latencia | Alta |
 | DT-45 | Diseño de UI: pantalla de bienvenida animada (splash mínimo + texto letra por letra) | Alta |
 | DT-46 | Diseño de UI: confirmación por tap para cierre de caminata | Media |
 | DT-47 | Wizard de configuración tipo Organiza2 (reemplaza modal único actual) | Media |
 
-### Resueltas recientemente (Sesión 18 y anteriores — referencia)
+### Resueltas recientemente
 
 | ID | Descripción |
 |----|-------------|
-| ~~DT-3~~ | sw.js — service worker, en v4 |
+| ~~DT-3~~ | sw.js — service worker, en v8 |
 | ~~DT-19 / DT-33~~ | MP3 de narradores — obsoletas, no hay narrador múltiple ni música (DA-50) |
 | ~~DT-22 a DT-27~~ | Cola narrativa, visited-on-complete, cache Overpass, backoff, invalidateCache — resueltas Sesiones 12-18 |
 | ~~DT-36~~ | `cleanPOIName()` — limpieza de sufijos Wikipedia antes del prompt |
@@ -298,6 +303,8 @@ El Prompt Maestro v2.7 (narrador único) tiene versiones en español e inglés. 
 | ~~DT-40~~ | Umbral de inactividad (30m en 10min con ≥500m caminados) |
 | ~~DT-41~~ | Tabla país→idioma (`COUNTRY_LANG`, 35+ códigos) + `CITY_WELCOME` en 18 idiomas |
 | ~~DT-43~~ | Umbral de zona especial (≥3 POIs en 150m) — `checkSpecialZone()` |
+| ~~DA-55~~ | *(Sesión 19)* Pausa de detección en tránsito — `_updateTransitState()` en `gps.js` |
+| ~~DT-42~~ | *(Sesión 19)* Care generativo — 7 triggers, `getCareMessage()`, migración de `rain` desde `weather.js` |
 
 ---
 
@@ -313,4 +320,4 @@ El Prompt Maestro v2.7 (narrador único) tiene versiones en español e inglés. 
 
 ---
 
-*Follower — Documento de Producto v0.9 | Sesión 18 | 30 Junio 2026*
+*Follower — Documento de Producto v0.9 | Sesión 19 | 1 Julio 2026*

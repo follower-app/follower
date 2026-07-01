@@ -1397,6 +1397,13 @@ idioma del **usuario** (`Config.get('lang')`) — no se omite la pantalla.
 
 ### DA-57 — Care Strip con voz generativa (deroga el sistema de `MESSAGES` estáticos)
 
+**✅ Implementado — Sesión 19 (continuación), 1 Julio 2026.** El alcance
+real terminó siendo mayor al descrito abajo: 7 triggers en vez de 5 (se
+sumaron `rain` y `thirst`, ver DA-64/DA-65), y `special` usa POIs de
+Wikipedia ya cargados en vez de Overpass. `getCareMessage(type, places,
+ctx)` implementada en `narration.js`, `care.js` reescrito por completo.
+Detalle de implementación completo en `docs/dt42_care_miniprompt.md` v2.
+
 **Decisión:** `care.js` deja de usar plantillas de texto fijas
 (`MESSAGES.tired`, `.hot`, `.cold`, `.lunch`). Cada sugerencia se genera vía
 una **única llamada a Claude** que hace dos cosas a la vez:
@@ -1628,23 +1635,106 @@ filtros — perfecto para producción, inútil para probar los 5 triggers en
 ráfaga y medir latencia. `_testTrigger()` es deliberadamente un atajo de
 testing, nunca debe llamarse desde código de producción.
 
-**Vigencia de esta implementación:** hoy dispara los mensajes estáticos de
-`MESSAGES` (aún no existe Care generativo, DT-42 sigue en implementación).
-El mismo botón funcionará sin cambios cuando `triggerSuggestion()` pase a
-llamar `Narration.getCareMessage()` — el cableado de testing es independiente
-de qué hay detrás.
+**Vigencia de esta implementación:** al momento de crear `_testTrigger()`
+disparaba los mensajes estáticos de `MESSAGES` — Care generativo (DT-42)
+se implementó más tarde, en la misma sesión (ver DA-57 actualizada). El
+mismo botón siguió funcionando sin cambios una vez que `triggerSuggestion()`
+pasó a llamar `Narration.getCareMessage()` — el cableado de testing fue
+deliberadamente independiente de qué había detrás.
 
 ---
 
-### Resumen de archivos — Sesión 19
+### DA-64 — Ampliación de Care a 7 triggers: `thirst` nuevo, `sunset` descartado
+
+**Decisión:** revisión completa de los triggers de Care contra el manifiesto
+(`manifiesto_care_strip.md`) antes de implementar DT-42, para no tener que
+tocar `narration.js` dos veces.
+
+**`thirst` (sed/hidratación) — nuevo, estructuralmente distinto al resto:**
+
+```javascript
+THIRST_TEMP_MIN: 22   // banda inferior — por debajo no hace sentido
+THIRST_TEMP_MAX: 29   // banda superior — por encima ya es 'hot' (30)
+THIRST_MIN_KM:   1.2  // menor que MIN_KM_FOR_REST (2.0) — adelanta el aviso
+```
+
+No usa `findNearbyRestPlace()` — no hay candidatos, no hay `places_list` en
+el prompt, la card muestra un solo botón de cierre en vez del par
+"Ir aquí / Seguir igual". Se dispara **una sola vez por caminata**
+(`_thirstShownThisWalk`), no por el cooldown estándar de 20 min — reseteado
+junto con `AppState._walkChapters` (mismo ciclo de vida que DA-58).
+
+**Iteración de diseño documentada:** la primera versión (calor moderado +
+distancia, sin límite de frecuencia) se descartó al notar que en climas
+como Cali, 22-29°C es el estado normal del día — el trigger dispararía en
+casi toda caminata, rompiendo "el caminante nunca debe sentir que una
+máquina le está dando instrucciones". El límite de una vez por caminata
+resolvió el problema sin perder el valor del recordatorio.
+
+**`sunset` (atardecer) — evaluado y descartado.** Sin datos de elevación o
+línea de vista, un trigger basado solo en hora sugeriría un atardecer con
+la vista tapada por edificios la mayoría de las veces en un centro urbano
+denso. Rompe el principio de "solo lo verificable" del Prompt Maestro.
+Queda anotado como posible visión futura si se suma alguna fuente de datos
+de elevación — no es deuda técnica de esta versión, es una decisión de
+alcance consciente.
+
+**Orden de prioridad final en `checkCareContext()`:**
+```
+1. rain    — proteccion real, ver DA-65
+2. hot     — temp >= 30°C
+3. cold    — temp <= 5°C
+4. lunch   — 12-14h + km > 1
+5. thirst  — 22-29°C + km >= 1.2, una vez por caminata
+6. tired   — km >= 2.0 o pasos >= 2600
+```
+`special` se evalúa aparte, en cada tick de GPS vía `checkSpecialZone()`.
+
+---
+
+### DA-65 — Migración de `rain` desde `weather.js` a Care
+
+**Decisión:** eliminado el sistema paralelo completo que vivía en
+`weather.js` — `showRainAlert()`, `findNearbyRefuge()`,
+`showRefugeSuggestion()`, `dismissAlert()`, `_alertShown`, y el disparo
+directo dentro de `Weather.check()` sobre su propio timer de 10 min.
+
+**Por qué era un problema real, no solo inconsistencia:** el manifiesto de
+Care es explícito — *"No existe un segundo narrador. No existe un sistema
+separado."* La lluvia lo era, literalmente: texto 100% hardcodeado en
+español sin pasar por `lang` (única alerta de Care sin bilingüe), cooldown
+propio que no respetaba los 20 min del resto de Care, y una búsqueda de
+refugio (`findNearbyRefuge`) casi idéntica pero separada de
+`findNearbyRestPlace()`.
+
+**Después de la migración:** `Weather.check()` solo actualiza
+`AppState.weather` — cero decisiones de UI. `Care.checkCareContext()` lee
+`weather.isRaining` como prioridad 1, con el mismo cooldown de 20 min y la
+misma voz generativa que cualquier otro trigger. `findNearbyRestPlace()`
+unificada — amenity `cafe|bar|library|museum` para `rain` (heredado de
+`findNearbyRefuge`), configurado vía `TRIGGER_META`. La fase `'alert'`
+deja de dispararse — rain usa el mismo flujo `systole`/`diastole`/`rest`
+que el resto de Care.
+
+**Deuda cosmética generada:** `'alert'` sigue en la lista de fases válidas
+de `setPhase()` en `app.js`, sin uso real — pendiente de limpieza, no
+bloqueante.
+
+---
+
+### Resumen de archivos — Sesión 19 (completa)
 
 | Archivo | Cambios |
 |---------|---------|
-| `gps.js` | DA-55 implementado: `_updateTransitState()`, `CONFIG.TRANSIT_SPEED_KMH`/`TRANSIT_WINDOW_MS`, `isInTransit()` expuesto |
-| `debug.js` | DA-62: barra a 2 tabs (POIs/Logs), export único en Logs, POIs ordenado por distancia con auto-refresh |
-| `debug-sim.js` | DA-62: modo Auto 20km/h, utilidades movidas desde Estado, 5 botones de test de Care |
-| `care.js` | DA-63: `_testTrigger()` nuevo, expuesto en API pública |
-| `sw.js` | v4 → v5 |
+| `gps.js` | DA-55: `_updateTransitState()`, `isInTransit()` expuesto |
+| `debug.js` | DA-62: barra a 2 tabs, export único en Logs, POIs ordenado por distancia · fix flex-wrap en `.dbg-poi-btn-row` |
+| `debug-sim.js` | DA-62: modo Auto 20km/h, utilidades movidas · preset bici 14km/h · 7 botones de test de Care (DA-63 + DA-64/65) |
+| `care.js` | DA-63: `_testTrigger()` · DA-57/64/65: `triggerSuggestion()` reescrito, `TRIGGER_META`, `generateAndShowCard()`, `matchChosenPlace()`, `resetWalk()` (sin cablear en app.js) |
+| `narration.js` | DA-57: `getCareMessage()`, `CARE_SYSTEM_PROMPT`, `buildCarePrompt()`, `callClaude()` con `maxTokens` parametrizable |
+| `weather.js` | DA-65: sistema de alerta de lluvia eliminado por completo |
+| `sw.js` | v4 → v8 |
+
+**Pendiente para Sesión 20:** cablear `Care.resetWalk()` en `app.js`.
 
 ---
 

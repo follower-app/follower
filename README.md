@@ -167,7 +167,7 @@ follower/
 └── docs/
     ├── contexto_maestro.md       → alma del producto, principios fundamentales
     ├── producto.md               → producto v0.9, usuarios, principios
-    ├── arquitectura.md           → decisiones DA-1 a DA-61
+    ├── arquitectura.md           → decisiones DA-1 a DA-65
     ├── bitacora.md               → historial, bugs, deuda técnica (hasta Sesión 18)
     ├── manifiesto_narrativo.md   → voz, capítulos, tesis de ciudad
     ├── manifiesto_care_strip.md  → hospitalidad urbana, voz del cuidado
@@ -240,8 +240,8 @@ Funciones únicas — nunca duplicar:
 | v0.7 | Sistema de narradores · música por intro · bienvenida ciudad | ✅ |
 | v0.7s | Estabilización: voz latam · narraciones cortas · laboratorio | ✅ |
 | v0.8 | Wikipedia GeoSearch · cola narrativa · visited-on-complete | ✅ |
-| v0.9 | Narrador único (DA-50) · memoria de capítulo · idioma local · zona especial · inactividad | ✅ |
-| v0.9 | Care generativo (DT-42) · validación en campo | 🔄 En curso |
+| v0.9 | Narrador único (DA-50) · memoria de capítulo · idioma local · zona especial · inactividad · DA-55 tránsito · Care generativo (DT-42, 7 triggers) | ✅ |
+| v0.9 | Bienvenida animada (DT-45) · cierre de caminata (DT-46) · validación en campo | 🔄 En curso |
 | v1.0 | Piloto con viajeros reales | 🔲 |
 | v2.0 | Recorridos curados · interacción por voz · más ciudades | 🔲 |
 

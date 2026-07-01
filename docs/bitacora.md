@@ -2692,3 +2692,79 @@ revocar la key directamente en console.openai.com (API Keys → revocar
 ---
 
 *Follower — Bitácora v0.9 | Sesión 18 | 30 Junio 2026*
+
+---
+
+## Sesión 18b — 1 Julio 2026 (post-campo)
+
+### Primera prueba de campo — análisis del log
+
+Primera caminata real con el código de Sesión 18 (DA-50 + DT-39/40/41/43).
+Exportación de debug desde iPhone iOS 18.7, Safari.
+
+**Hallazgos confirmados:**
+- DT-38 funcionando: `POI: chequeo inmediato post-carga (DT-38)` en logs ✓
+- DT-39 funcionando: `capítulo #1 guardado — John Lennon`, `capítulo #2 guardado` ✓
+- DA-50 funcionando: sin intro musical, sin style en métricas nuevas ✓
+- Voice lag mejorado: 119-136ms vs 340ms promedio anterior ✓
+
+**Problemas detectados:**
+
+#### Narración demasiado larga
+- John Lennon: 1523 chars → 103 segundos hablados
+- Monument a Anselm Clavé: 1490 chars
+- Causa: Prompt Maestro v2.7 decía "220-280 palabras" y Claude lo cumplía
+  (~300 palabras = ~130 segundos). Demasiado para experiencia de bolsillo.
+- Decisión: reducir target a 130-160 palabras, máximo absoluto 170.
+
+#### POI sin valor editorial local
+- "John Lennon" narrado en Barcelona — mural de artista foráneo
+- Causa: tag `artwork` en Overpass incluye murales de cualquier artista
+- Decisión: eliminar `artwork` de la query Overpass y del priority map
+
+**Nota sobre el log:** las métricas con `style=explorer` e `intro musical`
+son de sesiones anteriores almacenadas en localStorage — no del código nuevo.
+El log mezcla sesiones viejas y nuevas. Solo las dos últimas narraciones
+(19:53:59 y 19:55:55) corresponden al código de S18.
+
+---
+
+### Fixes aplicados
+
+#### narration.js
+- Longitud: `220-280 palabras` → `130-160 palabras, máximo absoluto 170`
+- Se agregó frase de refuerzo: "Una narración de 140 palabras bien
+  construida vale más que una de 280 que el usuario no termina de escuchar"
+- `max_tokens`: 480 → 380
+
+#### poi.js
+- `artwork` eliminado de la query Overpass
+- `artwork` eliminado del priority map
+- Comentario: "murales de artistas foraneos sin valor editorial local"
+
+#### sw.js
+- Bumpeado a `follower-v4`
+
+---
+
+### Deuda técnica pendiente tras S18b
+
+| ID | Descripción | Prioridad |
+|----|-------------|-----------|
+| DT-44 | Medir latencia v2.7 en próxima caminata real | Crítica |
+| DT-42 | Implementar Care generativo (prompt ya redactado) | Alta |
+| DT-32 | Confirmar cola narrativa en campo | Alta |
+| DT-29 | Confirmar cobertura Wikipedia en Centro Histórico Cali | Alta |
+| DT-30 | Confirmar TTF desde sesión nueva sin cache | Alta |
+| DT-45 | UI: pantalla de bienvenida animada | Alta |
+| DT-46 | UI: confirmación por tap para cierre de caminata | Media |
+| DT-47 | Wizard de configuración | Media |
+| DT-9  | Revocar key OpenAI expuesta (console.openai.com) | Alta |
+| DT-1  | Logo SVG final + iconos PWA | Alta |
+| DT-4  | Pantalla resumen del paseo | Media |
+| DT-16 | Rediseño pantalla POI expandida | Media |
+| DT-34 | Cooldown mínimo entre narraciones — post campo | Media |
+
+---
+
+*Follower — Bitácora v0.9 | Sesión 18b | 1 Julio 2026*

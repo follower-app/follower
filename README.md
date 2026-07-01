@@ -123,9 +123,9 @@ Ciudades planificadas: Barcelona (Gaudí), París Romántico, Cali Salsera, Lisb
 
 ```
 follower/
-├── index.html              → shell mínimo
+├── index.html              → shell mínimo, sin selector de narrador (DA-50)
 ├── manifest.json           → PWA config
-├── sw.js                   → service worker (siempre último en commits)
+├── sw.js                   → service worker v4 (siempre último en commits)
 ├── REGLAS_IA.md
 ├── README.md
 │
@@ -139,22 +139,23 @@ follower/
 │
 ├── js/
 │   ├── keys.js             → API keys LOCAL ONLY (.gitignore)
-│   ├── config.js           → idioma, mode, volúmenes, localStorage
+│   ├── config.js           → idioma, mode, volúmenes, localStorage (narrator eliminado en DA-50)
 │   ├── app.js              → AppState, navigateTo(), setPhase(),
-│   │                         welcomeCity(), updateCareStrip()
+│   │                         welcomeCity(), onWalkInactivity(), _walkChapters
 │   ├── gps.js              → Leaflet, watchPosition, Haversine, Nominatim,
-│   │                         simulatePosition(), detección velocidad tránsito
+│   │                         countryCode, simulatePosition(), detección inactividad (DT-40)
 │   ├── poi.js              → Wikipedia GeoSearch (primaria) + Overpass (fallback),
-│   │                         IndexedDB, detectPOI, cola narrativa
+│   │                         IndexedDB, detectPOI, cola narrativa, _pendingDetect (DT-38)
 │   ├── narration.js        → Claude Haiku vía Worker, Prompt Maestro v2.7,
-│   │                         memoria de sesión, getFarewell(), getCareMessage()
+│   │                         _walkChapters, COUNTRY_LANG, cleanPOIName(), getFarewell(), getCareMessage()
 │   ├── voice.js            → Web Speech API, 12 idiomas BCP-47, prioridad latam
 │   ├── weather.js          → OpenWeatherMap vía Worker, cache 30min
-│   ├── care.js             → checkCareContext, triggers + momentos memorables,
-│   │                         generación de mensajes vía Claude
+│   ├── care.js             → checkCareContext(), checkSpecialZone() (DT-43),
+│   │                         triggers + momentos memorables, generación de mensajes vía Claude
 │   ├── routes.js           → recorridos temáticos, Leaflet polyline
 │   ├── debug.js            → dashboard de experiencia, métricas 3 capas
-│   └── debug-sim.js        → simulador GPS, tab Simular
+│   ├── debug-sim.js        → simulador GPS, tab Simular
+│   └── music.js            → eliminado en v0.9 (DA-50) — stub vacío, no recrear
 │
 ├── cloudflare/
 │   └── worker.js           → proxy Claude API + OpenWeatherMap
@@ -165,12 +166,13 @@ follower/
 │
 └── docs/
     ├── contexto_maestro.md       → alma del producto, principios fundamentales
-    ├── producto.md               → producto, usuarios, principios
-    ├── arquitectura.md           → decisiones DA-1 a DA-57
-    ├── bitacora.md               → historial, bugs, deuda técnica
+    ├── producto.md               → producto v0.9, usuarios, principios
+    ├── arquitectura.md           → decisiones DA-1 a DA-61
+    ├── bitacora.md               → historial, bugs, deuda técnica (hasta Sesión 18)
     ├── manifiesto_narrativo.md   → voz, capítulos, tesis de ciudad
     ├── manifiesto_care_strip.md  → hospitalidad urbana, voz del cuidado
-    └── prompt_maestro_follower.md → Prompt Maestro v2.7 oficial
+    ├── prompt_maestro_follower.md → Prompt Maestro v2.7 oficial
+    └── dt42_care_miniprompt.md   → mini-prompt de Care, listo para implementar
 ```
 
 ---
@@ -207,20 +209,24 @@ Funciones únicas — nunca duplicar:
 | Función | Archivo |
 |---------|---------|
 | `detectNearby()` | poi.js |
+| `cleanPOIName()` | narration.js |
 | `trigger(poi, lang, topic)` | narration.js |
 | `getFarewell()` | narration.js |
 | `getCareMessage(type, candidatos, ctx)` | narration.js |
 | `checkCareContext()` | care.js |
+| `checkSpecialZone()` | care.js |
 | `setPhase(phase)` | app.js |
 | `navigateTo(screen)` | app.js |
 | `welcomeCity(city)` | app.js |
+| `onWalkInactivity()` | app.js |
 
 **Reglas absolutas:**
 - Sístole `#1a5276` = caminando · Diástole `#c0392b` = narrando · Nunca invertir
 - GPS nunca se interrumpe — es el latido de la app
 - `sw.js` siempre último en commits
 - Nunca mostrar errores al usuario — siempre hay fallback
-- La ciudad sonora vive en el prompt, no en archivos de audio
+- La ciudad sonora vive en el prompt, no en archivos de audio — `music.js` no existe (eliminado DA-50)
+- Narración: objetivo 130-160 palabras, máximo duro 170 (`max_tokens: 380`)
 
 ---
 
@@ -234,10 +240,11 @@ Funciones únicas — nunca duplicar:
 | v0.7 | Sistema de narradores · música por intro · bienvenida ciudad | ✅ |
 | v0.7s | Estabilización: voz latam · narraciones cortas · laboratorio | ✅ |
 | v0.8 | Wikipedia GeoSearch · cola narrativa · visited-on-complete | ✅ |
-| v0.9 | Narrador único (Prompt Maestro v2.7) · Care generativo · bienvenida en idioma local · cierre de caminata · pausa en tránsito | 🔄 En curso |
+| v0.9 | Narrador único (DA-50) · memoria de capítulo · idioma local · zona especial · inactividad | ✅ |
+| v0.9 | Care generativo (DT-42) · validación en campo | 🔄 En curso |
 | v1.0 | Piloto con viajeros reales | 🔲 |
 | v2.0 | Recorridos curados · interacción por voz · más ciudades | 🔲 |
 
 ---
 
-*Follower | Junio 2026*
+*Follower | Julio 2026*

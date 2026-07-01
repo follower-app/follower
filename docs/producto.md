@@ -1,6 +1,6 @@
 # 📋 Follower — Documento de Producto v0.9
 
-> Junio 2026 — Narrador único · Prompt Maestro v2.7 · Memoria de sesión · Idioma local
+> Junio-Julio 2026 — Narrador único (DA-50) · Prompt Maestro v2.7 · Memoria de capítulo · Idioma local · Care generativo (en curso)
 
 ---
 
@@ -85,26 +85,21 @@ La ciudad siempre es la protagonista. Follower nunca debe sentirse más importan
 
 ---
 
-## 7. Sistema de Narradores *(v0.7 — activo)*
+## 7. El Narrador *(v0.9 — narrador único, DA-50 — activo)*
 
-En v0.7, el sistema de "moods" fue reemplazado completamente por **cuatro narradores con personalidad propia**. Cada narrador tiene voz, sistema de prompts (system + user, en español e inglés) y caché independiente por estilo.
+Desde v0.9, el sistema de **cuatro narradores intercambiables** (Storyteller, Historiador, Explorador, Local) fue **eliminado** (DA-50, deroga DA-17). No hay selector de narrador en la UI ni en `config.js`.
 
-| Narrador | Emoji | Personalidad | Estilo narrativo |
-|----------|-------|--------------|-----------------|
-| **Storyteller** | 🎭 | Cuentero apasionado | Personajes reales, emoción, suspenso |
-| **Historiador** | 🏛️ | Académico riguroso | Fechas, contexto, causa y consecuencia |
-| **Explorador** | 🔎 | Curioso incansable | Datos sorprendentes, conexiones inesperadas |
-| **Local** | ❤️ | Vecino orgulloso | Vida cotidiana, anécdotas, orgullo de barrio |
+Un solo **system prompt** — el **Prompt Maestro v2.7** — define la voz completa de Follower: *"el amigo más culto que conoces, que nunca presume de lo que sabe."* Los cuatro registros anteriores no desaparecen como capacidades — el narrador único los absorbe implícitamente, eligiendo el ángulo (histórico, curioso, cotidiano, narrativo) según el POI, no según una preferencia de configuración.
 
-Un quinto narrador (**Familiar**) está planificado para una versión futura.
+**Principio técnico:** `trigger()` ya no recibe ni usa parámetro de estilo. La caché de narraciones en IndexedDB usa clave `poiId_lang_topic` (antes `poiId_style_lang_topic`) — el caché de narradores previos a v0.9 queda huérfano, no se migra.
 
-**Principio técnico:** `trigger()` ignora el parámetro `mood` heredado y lee `AppState.narrationStyle`. La caché usa `style` en la key (`poiId_style_lang_topic`) — cada narrador guarda su propia narración para el mismo POI.
+Un quinto registro (**Familiar**) queda anotado como posible ángulo narrativo futuro, no como narrador seleccionable.
 
 ---
 
 ## 8. Ciudad Sonora *(v0.9 — activo)*
 
-En v0.9, `music.js` fue eliminado completamente (DA-53). No hay audio reproducido por la app.
+En v0.9, `music.js` fue eliminado completamente (**DA-50**). No hay audio reproducido por la app — el archivo se conserva vacío en el repo solo para no romper referencias antiguas, sin exponer ningún objeto `Music`.
 
 La presencia sonora de la ciudad es responsabilidad **narrativa**, no técnica: el Prompt Maestro v2.7 instruye al narrador a evocar campanas, mercados, tranvías, viento, conversaciones — los sonidos reales del entorno. La ciudad misma es la banda sonora.
 
@@ -116,12 +111,12 @@ La presencia sonora de la ciudad es responsabilidad **narrativa**, no técnica: 
 
 ## 9. Bienvenida de Ciudad *(v0.9 — activo)*
 
-Al entrar a una ciudad, aparece una frase única centrada sobre el mapa con fade in/out. La frase se pronuncia en el **idioma local de la ciudad** (no en el idioma del usuario) — detectado desde el `country_code` de Nominatim via tabla ISO 3166-1 → BCP-47 (35+ países). Voz única.
+Al entrar a una ciudad, aparece una frase única centrada sobre el mapa con fade in/out. La frase se pronuncia en el **idioma local de la ciudad** (no en el idioma del usuario) — detectado desde el `country_code` de Nominatim vía tabla ISO 3166-1 → BCP-47 (35+ países, `COUNTRY_LANG` en `narration.js`). Voz única.
 
 - Texto en DM Serif Display, centrado, sobre el mapa
 - Se dispara una vez por sesión
 - Desaparece automáticamente a los 5 segundos o al tocar
-- Si Nominatim no responde en 10s, aparece un fallback genérico según idioma activo
+- Si Nominatim no responde en 10s, aparece un fallback genérico en el idioma del usuario (`Config.get('lang')`)
 - `_cityWelcomeDone` se resetea en cada `initExplore()` — nueva sesión, nueva bienvenida
 
 ---
@@ -166,8 +161,11 @@ Ciudades planificadas para versiones futuras: Barcelona (Gaudí), París Románt
 | 3 | Hora almuerzo + > 1km caminado | Sugerir restaurante |
 | 4 | > 2km caminados | Sugerir café de descanso |
 | 5 | Lluvia | Alerta + buscar refugio |
+| 6 *(v0.9)* | ≥ 3 POIs en radio de 150m | Trigger "zona especial" (`checkSpecialZone()`, DT-43) |
 
 Cooldown de 20 minutos entre sugerencias. Primer chequeo a los 5 minutos de sesión.
+
+**En curso (DT-42):** las sugerencias de Care dejan de usar plantillas de texto fijas (`MESSAGES.*`) y pasan a generarse vía una llamada a Claude que selecciona el candidato más propio del lugar y redacta el mensaje con la misma voz del Prompt Maestro. Prompt redactado en `docs/dt42_care_miniprompt.md`; código pendiente de implementar.
 
 ---
 
@@ -194,7 +192,7 @@ Web Speech API — 12 idiomas BCP-47:
 
 Prioridad de selección en español: `es-CO → es-MX → es-US → es-419 → (otras latam) → es-ES`. Voces locales siempre sobre voces online (las online ignoran el parámetro `rate`).
 
-Los prompts de narradores tienen versiones en español e inglés. Otros idiomas usan el prompt en inglés como base.
+El Prompt Maestro v2.7 (narrador único) tiene versiones en español e inglés. Otros idiomas usan el prompt en inglés como base.
 
 ---
 
@@ -212,16 +210,18 @@ Los prompts de narradores tienen versiones en español e inglés. Otros idiomas 
 
 ## 16. Pantallas
 
-| Pantalla | Estado | Notas v0.7 |
-|----------|--------|-----------|
+| Pantalla | Estado | Notas |
+|----------|--------|-------|
 | Splash — latido + carga | ✅ | Flujo returning-user → exploración directa |
 | Config inicial — idioma | ✅ | v0.9: selector de narrador eliminado (DA-50) |
 | Selección de modo | ✅ | |
-| Bienvenida de ciudad — fade sobre mapa | ✅ | Nuevo v0.7 · DM Serif Display |
+| Bienvenida de ciudad — fade sobre mapa | ✅ | v0.9: idioma local de la ciudad, no del usuario |
 | Exploración — care strip + mapa + bottom bar | ✅ | Bottom bar sólida, dos pills simétricos |
-| Care card — descanso / lluvia / calor | ✅ | Reemplaza care strip en top, height 32px |
+| Care card — descanso / lluvia / calor / zona especial | ✅ | Reemplaza care strip en top, height 32px |
 | POI expandido | ✅ | btnBookmark/btnShare eliminados (DT-17) |
 | Selección de recorrido | ✅ | |
+| Bienvenida animada (splash → pantalla de carga real) | 🔲 | Pendiente — DT-45 |
+| Cierre de caminata — pregunta hablada + confirmación tap | 🔲 | Pendiente — DT-46 |
 | Resumen del paseo | 🔲 | Pendiente — DT-4 |
 
 ---
@@ -249,23 +249,21 @@ Los prompts de narradores tienen versiones en español e inglés. Otros idiomas 
 | v0.4 | Código base completo | ✅ |
 | v0.5 | Panel de debug + métricas de experiencia | ✅ |
 | v0.6 | UI rediseñada — bottom bar, pills, care strip, brújula | ✅ |
-| v0.7 | Sistema de narradores · música por intro · bienvenida ciudad | ✅ |
+| v0.7 | Sistema de narradores (4 estilos) · música por intro · bienvenida ciudad | ✅ |
 | v0.7s | Estabilización: voz latam · narraciones cortas · sanitización · laboratorio confiable | ✅ |
-| v0.8 | Wikipedia GeoSearch · cola narrativa · iOS voz fix (BUG-036) | ✅ |
-| v0.9 | Narrador único (Prompt Maestro v2.7) · memoria de capítulo · idioma local · zona especial | ✅ |
-| v0.8 | Wikipedia GeoSearch como fuente primaria · visited-on-complete · cola narrativa · MP3 intros | 🔄 En curso |
-| v0.9 | Arquitectura de providers formal · scoring POI · Logo SVG · sw.js | 🔲 |
+| v0.8 | Wikipedia GeoSearch primaria · cola narrativa · visited-on-complete · iOS voz fix (BUG-036) | ✅ |
+| v0.9 | Narrador único (DA-50) · memoria de capítulo · idioma local · zona especial · inactividad | ✅ |
+| v0.9 | Care generativo (DT-42) · pantalla de bienvenida animada (DT-45) · cierre de caminata (DT-46) · validación en campo | 🔄 En curso |
 | v1.0 | Piloto con viajeros reales | 🔲 |
-| v2.0 | Más ciudades · narrador Familiar · monetización | 🔲 |
+| v2.0 | Recorridos curados · más ciudades · monetización | 🔲 |
 
 ---
 
-## 19. Deuda Técnica Activa
+## 19. Deuda Técnica Activa *(actualizada a Sesión 18 — 30 junio 2026)*
 
 | ID | Descripción | Prioridad |
 |----|-------------|-----------|
 | DT-1 | Logo SVG final + iconos PWA | Alta |
-| DT-3 | sw.js — service worker (siempre último en commit) | Alta |
 | DT-4 | Pantalla resumen del paseo | Media |
 | DT-5 | Más ciudades en routes.js | Baja |
 | DT-8 | debug.js + debug-sim.js deshabilitados antes de v1.0 | Media |
@@ -274,25 +272,36 @@ Los prompts de narradores tienen versiones en español e inglés. Otros idiomas 
 | DT-12 | Atribución CARTO/OSM no visible | Baja |
 | DT-16 | Pantalla POI expandida: rediseñar con nuevo sistema visual | Media |
 | DT-17 | Implementar bookmark y share (Web Share API) en pantalla POI | Baja |
-| DT-19 | 4 MP3 de intro por narrador | Alta |
 | DT-20 | Test en campo con brújula real — verificar DeviceOrientation iOS | Alta |
 | DT-21 | Worker 400 en arranque — endpoint /weather sin key configurada | Baja |
-| DT-22 | `visited = true` al completar narración, no al activar POI | Alta |
-| DT-23 | Cola narrativa — POIs encolados durante narración, no perdidos | Alta |
-| DT-24 | Cache agresivo Overpass — priorizar IndexedDB en sesión activa | Alta |
-| DT-25 | Backoff Overpass — esperar 30-60s después de 429 | Alta |
-| DT-25 | Backoff Overpass — esperar 30-60s después de 429 | Media |
-| DT-26 | Weather.invalidateCache() en modo ruta — solo debe dispararse en teleport | Media |
-| DT-27 | clearCache() en debug.js no recarga la página — estado inconsistente | Media |
 | DT-28 | Verificar cap 80 POIs con nwr en ciudades muy densas | Baja |
-| DT-29 | Confirmar cobertura Wikipedia en Centro Histórico de Cali | Alta |
-| DT-30 | Confirmar TTF con Wikipedia desde sesión nueva sin cache previo | Alta |
+| DT-29 | Confirmar cobertura Wikipedia en Centro Histórico de Cali — validar con arquitectura v0.9 | Alta |
+| DT-30 | Confirmar TTF con Wikipedia desde sesión nueva — validar con arquitectura v0.9 | Alta |
 | DT-31 | Mejorar type/icon de POIs Wikipedia con categorías Wikidata | Baja |
-| ~~DT-24~~ | ~~Cache agresivo Overpass~~ — resuelto: Wikipedia primaria + filtro geográfico | — |
+| DT-32 | Validar en campo real la arquitectura consolidada de narrador único | Alta |
+| DT-42 | Implementar Care generativo en `care.js` (prompt listo en `docs/dt42_care_miniprompt.md`) | Alta |
+| DT-44 | Medir en campo si la autoevaluación interna del Prompt Maestro v2.7 afecta latencia | Alta |
+| DT-45 | Diseño de UI: pantalla de bienvenida animada (splash mínimo + texto letra por letra) | Alta |
+| DT-46 | Diseño de UI: confirmación por tap para cierre de caminata | Media |
+| DT-47 | Wizard de configuración tipo Organiza2 (reemplaza modal único actual) | Media |
+
+### Resueltas recientemente (Sesión 18 y anteriores — referencia)
+
+| ID | Descripción |
+|----|-------------|
+| ~~DT-3~~ | sw.js — service worker, en v4 |
+| ~~DT-19 / DT-33~~ | MP3 de narradores — obsoletas, no hay narrador múltiple ni música (DA-50) |
+| ~~DT-22 a DT-27~~ | Cola narrativa, visited-on-complete, cache Overpass, backoff, invalidateCache — resueltas Sesiones 12-18 |
+| ~~DT-36~~ | `cleanPOIName()` — limpieza de sufijos Wikipedia antes del prompt |
+| ~~DT-38~~ | `_pendingDetect` / `_flushPendingDetect()` — detección inmediata post-carga de POIs |
+| ~~DT-39~~ | Memoria de capítulo anterior inyectada en cada narración (DA-58) |
+| ~~DT-40~~ | Umbral de inactividad (30m en 10min con ≥500m caminados) |
+| ~~DT-41~~ | Tabla país→idioma (`COUNTRY_LANG`, 35+ códigos) + `CITY_WELCOME` en 18 idiomas |
+| ~~DT-43~~ | Umbral de zona especial (≥3 POIs en 150m) — `checkSpecialZone()` |
 
 ---
 
-## Principios aprendidos en campo (v0.8)
+## Principios aprendidos en campo
 
 **Wikipedia como filtro editorial:** un lugar con artículo en Wikipedia es un lugar que merece ser narrado. Esta alineación entre la curaduría de Wikipedia y la visión cinematográfica de Follower no es coincidencia — es el modelo mental correcto para el descubrimiento de POIs.
 
@@ -300,54 +309,8 @@ Los prompts de narradores tienen versiones en español e inglés. Otros idiomas 
 
 **La fuente de datos es parte del producto:** Overpass era un bottleneck técnico que afectaba directamente la promesa de Follower. Cambiar la fuente de datos no fue una decisión técnica — fue una decisión de producto.
 
----
-
-
+**La pregunta cambió (Sprint S2):** antes del laboratorio de campo la pregunta era *¿funciona el pipeline?* Después, con Wikipedia entregando 50 POIs en 237-513ms y Claude narrando en ~5s, la pregunta pasó a ser *¿se siente cinematográfico?* — el trabajo se volvió editorial, no técnico.
 
 ---
-
-## Sprint S2 — Ritmo emocional (26 Junio 2026)
-
-### La pregunta cambió
-
-Antes del laboratorio: **¿funciona el pipeline?**
-Después del laboratorio: **¿se siente cinematográfico?**
-
-El pipeline funciona. Wikipedia entrega 50 POIs en 237-513ms. Claude narra en 5s. La voz habla en 195ms. Ahora el trabajo es editorial, no técnico.
-
-### Lo que implementamos
-
-**Cola narrativa** — Follower ya no ignora los lugares que encuentra mientras habla. Los anota, espera, y los narra si el usuario sigue cerca. Como haría un guía humano.
-
-**visited on complete** — Un lugar solo se considera "visitado" cuando su historia llegó completa al usuario. Si algo interrumpe la narración, el lugar vuelve a estar disponible.
-
-**Música desbloqueada** — La regla "narración siempre sobre música" ahora se cumple. Mientras llegan los MP3 definitivos, cada narración arranca con un tono diferenciado por narrador.
-
-### Lo que no implementamos todavía
-
-**Cooldown fijo de 4 minutos.** La idea es correcta — el silencio es parte del producto. Pero el valor exacto necesita evidencia de campo. La cola narrativa puede hacer ese trabajo de forma más elegante que un temporizador fijo.
-
-**Scoring de POIs.** Wikipedia ya filtra por relevancia. El scoring es una optimización de segundo orden que agregaremos cuando tengamos datos reales de qué POIs generan las mejores narraciones.
-
-### Roadmap actualizado
-
-| Versión | Foco | Estado |
-|---------|------|--------|
-| v0.7s | Estabilización técnica — voz, narraciones, laboratorio | ✅ |
-| v0.8 | Wikipedia GeoSearch + ritmo narrativo (cola + visited + música) | 🔄 En pruebas |
-| v0.9 | Cooldown, scoring, MP3 definitivos, resumen de sesión | 🔲 |
-| v1.0 | Piloto con viajeros reales | 🔲 |
-
-### Métricas de éxito para v0.8
-
-Una sesión de v0.8 es exitosa si:
-- ⏱ TTF ≤ 90s desde arranque en frío
-- 🎬 Cinematic Score ≥ 65/100
-- Al menos 3 narraciones completas en 30 minutos
-- Al menos 1 POI narrado desde la cola (no solo el primero detectado)
-- La música sonó antes de cada narración
-- 0 líneas "ignorando trigger [POI diferente]" en los logs
 
 *Follower — Documento de Producto v0.9 | Sesión 18 | 30 Junio 2026*
-
-*Follower — Documento de Producto v0.8 | Junio 2026*

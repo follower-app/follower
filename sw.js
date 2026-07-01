@@ -8,7 +8,7 @@
 
 // Incrementar CACHE_VERSION fuerza descarga de todos los archivos
 // en el próximo arranque — incluso si el navegador tiene versión cacheada.
-const CACHE_VERSION = 'follower-v2';  // DA-50: narrador unico, music.js eliminado
+const CACHE_VERSION = 'follower-v3'  // DT-39/40/41/43: memoria capítulos, idioma local, inactividad, zona especial;  // DA-50: narrador unico, music.js eliminado
 
 const STATIC_ASSETS = [
   './',

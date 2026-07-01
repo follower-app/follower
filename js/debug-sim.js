@@ -545,11 +545,20 @@ const DebugSim = (() => {
           <button class="dbg-poi-action ${_walkSpeedKmh === 3 ? 'narrate' : 'map'}" onclick="DebugSim.setSpeed(3)">3 km/h</button>
           <button class="dbg-poi-action ${_walkSpeedKmh === 5 ? 'narrate' : 'map'}" onclick="DebugSim.setSpeed(5)">5 km/h</button>
           <button class="dbg-poi-action ${_walkSpeedKmh === 8 ? 'narrate' : 'map'}" onclick="DebugSim.setSpeed(8)">8 km/h</button>
+          <button class="dbg-poi-action ${_walkSpeedKmh === 14 ? 'narrate' : 'map'}" onclick="DebugSim.setSpeed(14)"
+            title="Justo debajo del umbral 15km/h de DA-55 — NO deberia pausar deteccion">
+            🚲 Bici 14km/h
+          </button>
           <button class="dbg-poi-action ${_walkSpeedKmh === 20 ? 'narrate' : 'map'}" onclick="DebugSim.setSpeed(20)"
             title="Por encima del umbral 15-18km/h de DA-55 — deberia pausar deteccion de POIs">
             🚗 Auto 20km/h
           </button>
         </div>
+        ${_walkSpeedKmh === 14 ? `
+          <div style="font-size:9px; color:#5dade2; margin-top:4px;">
+            🚲 Bajo el umbral de DA-55 (15km/h) — la deteccion de POIs NO deberia pausarse a esta velocidad
+          </div>
+        ` : ''}
         ${_walkSpeedKmh >= 15 ? `
           <div style="font-size:9px; color:${(typeof GPS !== 'undefined' && GPS.isInTransit()) ? '#2ecc71' : '#f0c87a'}; margin-top:4px;">
             ${(typeof GPS !== 'undefined' && GPS.isInTransit())

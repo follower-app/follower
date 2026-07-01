@@ -19,7 +19,7 @@ const Narration = (() => {
     API_URL:     'https://followernarration.jaimeand.workers.dev/narration',
     API_MODEL:   'claude-haiku-4-5-20251001',
     API_TIMEOUT: 15000,
-    MAX_TOKENS:  480,   // DA-50: techo duro — S17
+    MAX_TOKENS:  380,   // S18b: 170 palabras max ≈ 250 tokens, 380 es techo seguro
   };
 
   /* ── DT-36: LIMPIAR NOMBRES DE POIs WIKIPEDIA ──
@@ -110,9 +110,11 @@ Cada capítulo debe ayudar al usuario a entender mejor cómo nació la ciudad, c
 
 LONGITUD
 
-Objetivo ideal: entre 220 y 280 palabras. Puede superar ligeramente este rango cuando la complejidad histórica o cultural lo justifique.
+Objetivo: entre 130 y 160 palabras. Máximo absoluto: 170 palabras.
 
-Nunca añadas relleno para alcanzar una longitud determinada. Si necesitas recortar, elimina primero adjetivos redundantes, descripciones repetidas, prosa decorativa. Nunca elimines el elemento verificable que sostiene la idea central.
+Una narración de 140 palabras bien construida vale más que una de 280 que el usuario no termina de escuchar.
+
+Nunca añadas relleno. Si necesitas recortar, elimina primero adjetivos redundantes, descripciones repetidas, prosa decorativa. Nunca elimines el elemento verificable que sostiene la idea central.
 
 CONTINUIDAD — SOLO EL CAPÍTULO ANTERIOR
 
@@ -194,9 +196,11 @@ Each chapter must help the user better understand how the city was born, how it 
 
 LENGTH
 
-Ideal target: between 220 and 280 words. May slightly exceed this range when historical or cultural complexity justifies it.
+Target: between 130 and 160 words. Hard maximum: 170 words.
 
-Never add filler to reach a target length. If you need to cut, remove first: redundant adjectives, repeated descriptions, decorative prose. Never remove the verifiable element that supports the central idea.
+A well-crafted 140-word chapter is worth more than a 280-word one the user stops listening to.
+
+Never add filler. If you need to cut, remove first: redundant adjectives, repeated descriptions, decorative prose. Never remove the verifiable element that supports the central idea.
 
 CONTINUITY — ONLY THE PREVIOUS CHAPTER
 

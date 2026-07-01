@@ -94,7 +94,8 @@ const POI = (() => {
       [out:json][timeout:25];
       (
         node(around:${radius},${lat},${lng})["historic"];
-        node(around:${radius},${lat},${lng})["tourism"~"museum|attraction|artwork|viewpoint|gallery"];
+        node(around:${radius},${lat},${lng})["tourism"~"museum|attraction|viewpoint|gallery"
+        // artwork excluido: murales de artistas foraneos sin valor editorial local];
         node(around:${radius},${lat},${lng})["amenity"~"place_of_worship|fountain|theatre|cinema"];
         node(around:${radius},${lat},${lng})["leisure"~"park|garden"];
         node(around:${radius},${lat},${lng})["man_made"~"monument|memorial|statue"];
@@ -141,7 +142,7 @@ const POI = (() => {
       // Ordenar por relevancia: historic > tourism > amenity > leisure
       const MAX_POIS = 80;
       if (normalized.length > MAX_POIS) {
-        const PRIORITY = { historic: 4, museum: 3, monument: 3, artwork: 3,
+        const PRIORITY = { historic: 4, museum: 3, monument: 3,
                            place_of_worship: 2, theatre: 2, viewpoint: 2,
                            fountain: 1, park: 1, garden: 1 };
         normalized = normalized

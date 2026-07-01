@@ -1738,4 +1738,72 @@ bloqueante.
 
 ---
 
+### DA-66 — Prompt Maestro v2.7: 4 correcciones tras laboratorio de campo
+
+**Decisión:** revisión del `SYSTEM_PROMPT` (ambos idiomas) contra evidencia
+real — dos capítulos completos recibidos en campo (Palacio de San
+Francisco, Catedral Metropolitana de Cali) mostraron un patrón repetido de
+prosa sobrecargada. Se armó un laboratorio comparando prompt actual vs.
+propuesta sobre el mismo POI (Iglesia de San Francisco / Torre Mudéjar,
+con datos verificados) antes de tocar código.
+
+**Cuatro correcciones, todas con evidencia de campo que las motiva:**
+
+1. **Metáfora sin freno → límite estricto de una por capítulo.** El
+   capítulo del Palacio acumuló 6 metáforas/personificaciones en 174
+   palabras ("código genético arquitectónico", "la ciudad se mira al
+   espejo", "sería el latido... sería la mente", etc.). Sección RIESGO
+   CULTURAL ahora dice explícito: "como máximo una metáfora o imagen
+   central por capítulo... el resto se mantiene concreto". Sumado a EVITA:
+   ejemplo explícito de personificación prohibida (ciudad que "decide",
+   "se mira al espejo", "tiene código genético", "late", "siente").
+
+2. **IDEA CENTRAL sin fe/espiritualidad → agregada a la lista.** La
+   narración de la Catedral negó explícitamente el significado religioso
+   ("las campanas... no llaman a la oración. Llaman a la pausa") para
+   poder encajar en una de las diez ideas permitidas, ninguna de las
+   cuales era fe. Se agregaron `fe` y `espiritualidad` a la lista de IDEA
+   CENTRAL, con instrucción explícita de no negar artificialmente el
+   significado religioso de un lugar de culto.
+
+3. **Estructura invertida — apertura ahora es nombre + dato histórico.**
+   Cambio de mayor alcance de los cuatro: el punto 1 de ESTRUCTURA DEL
+   CAPÍTULO pasó de "Experiencia presente" (regla previa: "nunca empieces
+   con una fecha") a "Apertura" (nombre del lugar + hecho verificable,
+   sin metáfora). La experiencia sensorial pasa al punto 2, conectada al
+   dato de apertura en vez de reemplazarlo. **Decisión de producto
+   explícita, no solo técnica** — revierte un principio fundacional
+   documentado en `contexto_maestro.md` y `manifiesto_narrativo.md`
+   ("primero se vive, después se comprende"). Ambos documentos se
+   actualizaron en el mismo commit para no dejar la contradicción que ya
+   se había encontrado dos veces antes en esta sesión (ver DA-64/65).
+   Razón: los hechos verificables son el dato que sostiene toda la
+   credibilidad de Follower — quedaban diluidos entre metáforas cuando no
+   abrían el capítulo.
+
+4. **Título inventado, no pedido en ningún lado del prompt.** Ambos
+   capítulos de campo traían un título tipo "Donde la ciudad aprendió a
+   tener memoria" / "La catedral que escucha antes de creer" — formato
+   que el modelo generó por su cuenta, y que además tendía a la misma
+   personificación que el punto 1. Nueva sección FORMATO — SIN TÍTULO,
+   explícita: el capítulo arranca directo con la primera frase, sin
+   encabezado, sin guion largo tipo "Nombre — frase poética".
+
+**Efecto colateral positivo:** el conteo de palabras del laboratorio (174
+en la versión problema, 136 en la propuesta) confirma que quitar el título
+inventado y limitar la metáfora también resuelve el problema de longitud
+que se venía reportando — sin necesidad de bajar `max_tokens` ni acortar
+artificialmente el contenido real.
+
+**AUTOEVALUACIÓN INTERNA** ampliada con 4 verificaciones nuevas
+correspondientes a cada corrección — el modelo se autochequea contra las
+mismas reglas antes de entregar, no solo se le pide seguirlas.
+
+**Pendiente de campo:** validar que las correcciones se sostienen con
+narraciones nuevas, no solo con el laboratorio manual hecho en esta
+sesión — el laboratorio comparó dos versiones escritas a mano siguiendo
+cada set de reglas, no dos llamadas reales a Claude Haiku vía el Worker.
+
+---
+
 *Follower — Arquitectura v0.9 | Sesión 19 | 1 Julio 2026*

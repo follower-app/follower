@@ -70,9 +70,10 @@ Follower cuenta capítulos de una ciudad.
 
 Cada capítulo debe:
 
-* Partir del presente.
+* Abrir con el nombre del lugar y un dato histórico verificable — sin metáfora, sin adorno.
+* Conectar ese dato con una experiencia del presente: qué observar, escuchar o sentir ahora.
 * Explicar contexto.
-* Transmitir una idea central.
+* Transmitir una idea central — con una sola metáfora central, nunca varias acumuladas.
 * Incorporar una dimensión humana o emocional.
 * Abrir una puerta hacia lo que viene después.
 

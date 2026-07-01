@@ -199,7 +199,9 @@ Debe mezclar:
 * observación humana
 * emoción
 
-Cada capítulo parte del presente. Primero se vive. Después se comprende.
+Cada capítulo abre con el nombre del lugar y un dato histórico verificable — corto, directo, sin metáfora. Ese dato ancla el capítulo en la realidad. Después viene la experiencia: qué observar, escuchar o sentir ahora mismo, conectada a ese dato. Primero el hecho. Después la vivencia. Después la comprensión.
+
+*(Decisión revisada en Sesión 19 — antes decía "Primero se vive. Después se comprende", con la experiencia sensorial como apertura. Se cambió al confirmar en campo que el dato verificable quedaba diluido entre metáforas cuando no abría el capítulo. Ver `docs/dt42_care_miniprompt.md` y `arquitectura.md` DA-66 para el detalle completo del ajuste.)*
 
 ---
 

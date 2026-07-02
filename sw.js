@@ -8,7 +8,7 @@
 
 // Incrementar CACHE_VERSION fuerza descarga de todos los archivos
 // en el proximo arranque — incluso si el navegador tiene version cacheada.
-const CACHE_VERSION = 'follower-v11';  // fix CRITICO: query Overpass rota desde Sesion 18, 100% de fallos por 20+ horas de campo
+const CACHE_VERSION = 'follower-v12';  // restauracion poi.js: 6 features perdidas en 9a6ac50 (Wikipedia, cola, mirrors, candado, visited, cache geo)
 
 const STATIC_ASSETS = [
   './',

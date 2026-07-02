@@ -1853,3 +1853,55 @@ sesión, motivados por un pendiente distinto (cablear `resetWalk()`).
 ---
 
 *Follower — Arquitectura v0.9 | Sesión 19 (cierre) | 1 Julio 2026*
+
+---
+
+### DA-68 — Regresión masiva en `poi.js`: el commit DA-50 revirtió 7 features independientes
+
+**Hallazgo, no decisión de diseño.** Reportado un bug de campo (query
+Overpass rota, ver arriba) que llevó a auditar por qué Overpass es la
+única fuente de POIs pese a que 4 documentos distintos afirman que
+Wikipedia GeoSearch es la fuente primaria. Investigación con `git log -S`
+y `git show` confirmó: **Wikipedia GeoSearch existió, funcionó, y se
+perdió** — no es una decisión documentada que nunca se implementó.
+
+**Commit responsable:** `9a6ac50` — *"DA-50: consolidate to single
+narrator voice (Prompt Maestro v2.7)"*, 30 de junio. El mensaje del
+commit no menciona `poi.js` como cambio sustancial (solo *"DT-38
+immediate detectPOI"*), pero el diff real revirtió el archivo a un
+estado anterior al 26 de junio — perdiendo 7 features que no tenían
+relación con el narrador:
+
+| Feature perdida | Introducida | Efecto de la pérdida |
+|---|---|---|
+| Wikipedia GeoSearch (`fetchWikipediaPOIs`, pipeline completo) | 26 jun, `a31ab95` | Overpass única fuente — causa raíz de que la query rota (ver arriba) tumbara el 100% de la detección de POIs nuevos |
+| `_visitedInSession`/`markVisited()`/`resetVisited()` (BUG-044) | 27 jun, `6de7186` | Fix de "POI narrado se repite" revertido — puede estar ocurriendo de nuevo sin que nada lo reporte |
+| Candado `_isFetchingPOIs` (BUG-014) | Antes del 26 jun | Riesgo de fetches paralelos a Overpass pisándose entre sí |
+| Cola narrativa `enqueuePOI`/`processQueue` (S2-A2) | Antes del 26 jun | POIs detectados durante narración activa ya no se encolan |
+| Mirrors de Overpass con fallback (`kumi.systems`, `overpass-api.de`, `lz4`) | Antes del 26 jun | Un solo mirror hardcodeado — el mismo que lleva 20+ horas fallando en el log de campo |
+| Query `nwr` optimizada (node+way+relation en una pasada) | Antes del 26 jun | Reversión a `node`/`way` separados, más lento |
+| Filtro geográfico del cache (`CACHE_RADIUS_M`) | Antes del 26 jun | Cache ya no filtra por proximidad — riesgo de POIs de otra ciudad apareciendo |
+
+**Por qué pasó — el mismo patrón de toda la sesión, a máxima escala:**
+firma clásica de trabajar sobre una copia de `poi.js` desactualizada (de
+antes del 26 de junio) para hacer cambios que en realidad no necesitaban
+tocar ese archivo. Es exactamente el riesgo que la Regla de Oro existe
+para prevenir — violado en la sesión que más lo necesitaba, por el
+volumen de cambios (DA-50, "7 archivos afectados").
+
+**Confirmado sin crash activo, pero con regresión silenciosa:**
+`narration.js`, `debug.js` y `app.js` siguen llamando
+`POI.markVisited()`, `POI.processQueue()`, `POI.resetVisited()` — todas
+protegidas con `typeof POI.X === 'function'` (el patrón defensivo
+estándar de Follower), así que no tiran error. Pero tampoco corren nunca.
+Los fixes que representan quedaron desconectados sin ningún aviso visible.
+
+**Decisión:** no restaurar en esta sesión — alcance demasiado grande para
+el cierre de una sesión ya extensa, y cada pieza necesita evaluarse contra
+el estado actual de `poi.js` (DT-43 zona especial, DA-58 memoria de
+capítulo) en vez de pegarse a ciegas. Plan de restauración documentado en
+`docs/restauracion_poi_js.md`, ejecución en sesión/chat dedicado.
+
+---
+
+*Follower — Arquitectura v0.9 | Sesión 19 (cierre) | 1 Julio 2026*

@@ -2971,3 +2971,61 @@ sesión.
 ---
 
 *Follower — Bitácora v0.9 | Sesión 19 (cierre) | 1 Julio 2026*
+
+---
+
+## Continuación Sesión 19 (cierre real) — Arqueología de git: la regresión de `poi.js`
+
+### Cómo se encontró
+
+Se compartió un log real de campo (exportado desde el debug panel del
+iPhone) mostrando **cero éxitos de Overpass en ~20 horas de uso**, en 3
+sesiones distintas. El log también reveló algo que no se esperaba: **nunca
+aparece un solo intento de Wikipedia GeoSearch** — solo `[poi] Overpass
+fetch`, siempre con error.
+
+Se confirmó con `poi.js` real que, en efecto, no existe ningún código de
+Wikipedia GeoSearch — contradiciendo `README.md`, `producto.md`,
+`arquitectura.md` y `REGLAS_IA.md`, los cuatro afirmando que es la fuente
+primaria.
+
+### El fix inmediato — query Overpass rota
+
+Causa del 100% de fallos: un comentario (`// artwork excluido...`) quedó
+metido dentro de un filtro Overpass QL sin cerrar la comilla ni el
+corchete antes de él — sintaxis inválida, el servidor devolvía HTTP 400
+con una página de error HTML. Bug introducido en el commit `ba52f5e` de
+Sesión 18 ("remove artwork from POI query"), vigente desde el 30 de junio
+hasta hoy. **Fix aplicado y subido** — ver `js/poi.js`.
+
+### La investigación más grande — ¿Wikipedia se perdió o nunca existió?
+
+Usando `git log -S "wikipedia" --oneline -- js/poi.js` se reconstruyó la
+línea de tiempo completa: Wikipedia GeoSearch se implementó el 26 de
+junio (`a31ab95`), se mejoró dos veces más ese mismo día (BUG-041, DA-49
+idioma local), y seguía funcionando el 27 de junio (`6de7186`, que incluso
+la usa activamente). Descartando candidatos uno por uno con `git show`,
+se confirmó que el commit `9a6ac50` (DA-50, narrador único, 30 de junio)
+revirtió `poi.js` a un estado anterior al 26 de junio — perdiendo Wikipedia
+y 6 features más que nada tenían que ver con el narrador. Detalle completo
+en `arquitectura.md`, DA-68.
+
+### Por qué importa más allá del bug puntual
+
+Es la prueba más contundente de toda la sesión de por qué existe la Regla
+de Oro. No es un bug de código — es el resultado directo de trabajar sobre
+un archivo desactualizado sin confirmarlo primero, exactamente lo que la
+regla pide preguntar siempre antes de tocar cualquier archivo. La ironía:
+pasó en la sesión de mayor volumen de cambios (DA-50, "7 archivos
+afectados"), donde más falta hacía.
+
+### Decisión de cierre
+
+No se restauran las 6 features perdidas en esta sesión — alcance
+demasiado grande, cada una necesita evaluarse contra el `poi.js` actual
+en vez de pegarse a ciegas. Plan de restauración documentado en
+`docs/restauracion_poi_js.md`. Ejecución: **chat nuevo**, dedicado.
+
+---
+
+*Follower — Bitácora v0.9 | Sesión 19 (cierre real) | 1 Julio 2026*

@@ -90,12 +90,15 @@ const POI = (() => {
 
     // Query optimizada: usa (around:...) UNA sola vez por bloque
     // en vez de repetirlo en cada cláusula — mucho más rápido para Overpass.
+    // BUG-045: el comentario de "artwork excluido" quedaba dentro del filtro
+    // de tourism, sin cerrar la comilla ni el corchete antes del comentario.
+    // Eso rompia la sintaxis de Overpass QL — 100% de las queries fallaban
+    // con HTTP 400 desde que se agrego este comentario en Sesion 18.
     const query  = `
       [out:json][timeout:25];
       (
         node(around:${radius},${lat},${lng})["historic"];
-        node(around:${radius},${lat},${lng})["tourism"~"museum|attraction|viewpoint|gallery"
-        // artwork excluido: murales de artistas foraneos sin valor editorial local];
+        node(around:${radius},${lat},${lng})["tourism"~"museum|attraction|viewpoint|gallery"];
         node(around:${radius},${lat},${lng})["amenity"~"place_of_worship|fountain|theatre|cinema"];
         node(around:${radius},${lat},${lng})["leisure"~"park|garden"];
         node(around:${radius},${lat},${lng})["man_made"~"monument|memorial|statue"];
@@ -104,6 +107,8 @@ const POI = (() => {
       );
       out center;
     `;
+    // artwork excluido del filtro de tourism a proposito: murales de
+    // artistas foraneos sin valor editorial local (fix post-campo Sesion 18)
 
     const url = 'https://lz4.overpass-api.de/api/interpreter';
     console.log(`POI: fetching lat=${lat} lng=${lng} radius=${radius}m`);

@@ -2901,3 +2901,73 @@ ningún botón existente en ninguna otra fila del panel.
 ---
 
 *Follower — Bitácora v0.9 | Sesión 19 | 1 Julio 2026*
+
+---
+
+## Continuación Sesión 19 (cierre) — Fixes de `app.js` y definición de DT-45
+
+### Bug reportado en campo — mensaje de bienvenida congelado
+
+Captura real: "Tu ciudad te espera." pegado al borde izquierdo de la
+pantalla, sin desaparecer nunca, con un ícono ✨ desconocido al lado.
+Diagnóstico en dos partes:
+
+- El ícono ✨ es **Writing Tools nativo de iOS** (aparece al seleccionar
+  texto en Safari) — no es un bug de Follower, no requirió ninguna acción.
+- El texto congelado sí era un bug real, y la causa no era la que se
+  sospechaba en un principio (posicionamiento CSS) — era un
+  **`ReferenceError` silencioso** en `welcomeCity()` (`app.js`):
+  `Debug.log('info', \`Bienvenida ciudad: "${text}" · narrador=${style}\`)`
+  referenciaba una variable `style` que ya no existe desde DA-50
+  (narrador único). El error se disparaba **después** de mostrar el texto
+  pero **antes** de programar el `setTimeout` de auto-cierre a 5s y el
+  listener de tap-to-dismiss — ambos quedaban sin ejecutarse nunca. El
+  mensaje quedaba visualmente en pantalla para siempre porque el código
+  que lo hubiera cerrado nunca llegaba a correr.
+
+### Deuda adicional encontrada — memoria de capítulo sin resetear
+
+Al revisar `initExplore()` para cablear `Care.resetWalk()` (pendiente
+desde la implementación de DT-42), se encontró que **`AppState._walkChapters`
+nunca se reseteaba en ningún lado** — ni ahí ni en `Debug.startTestSession()`.
+Crecía sin límite mientras la pestaña del navegador siguiera abierta entre
+caminatas distintas, con el riesgo de que la memoria de capítulo (DA-58)
+inyectara contexto de una caminata de días atrás como si fuera el capítulo
+inmediatamente anterior.
+
+### Los 4 fixes — todos en `app.js`, primera vez que se tocó en la sesión
+
+1. Eliminada la referencia a `style` en `welcomeCity()` — causa raíz del
+   bug de la captura
+2. `AppState._walkChapters = []` agregado a `initExplore()`
+3. `Care.resetWalk()` cableado en el mismo lugar — pendiente desde DA-63
+4. `'alert'` eliminado de las fases válidas de `setPhase()` — código
+   muerto desde la migración de lluvia a Care (DA-65)
+
+`sw.js` v9 → v10.
+
+### Comparación de UI — capturas de Citymapper (derivó a documento aparte)
+
+Sesión de comparación de patrones de interfaz (no funcionalidades — se
+aclaró explícitamente que Follower no incorpora transporte público) contra
+capturas reales de Citymapper. Ideas capturadas para DT-47 (wizard de
+configuración, sin diseñar): pantalla de "priming" antes del permiso nativo
+del sistema, jerarquía tipográfica de datos resaltados (distancia/tiempo)
+en cards. Se extrajo a un documento separado (`docs/deuda_tecnica_interfaz.md`)
+para continuar en otro chat sin mezclar con los fixes operativos de esta
+sesión.
+
+### Deuda que sigue abierta al cierre de Sesión 19
+
+| ID | Estado |
+|----|--------|
+| DA-66 validación con llamadas reales | Pendiente — el laboratorio fue manual, no probó contra el Worker real |
+| DT-9 | Pendiente — revocar key OpenAI |
+| DT-29/30/32 | Pendiente — validación de campo |
+| DT-44 | Pendiente — más relevante ahora que el prompt creció con DA-66 |
+| DT-45 | Diseño cerrado (`docs/dt45_bienvenida_animada.md`), código pendiente a propósito |
+| DT-47 | Sin diseñar — notas de referencia en `docs/deuda_tecnica_interfaz.md` |
+
+---
+
+*Follower — Bitácora v0.9 | Sesión 19 (cierre) | 1 Julio 2026*

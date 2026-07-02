@@ -1807,3 +1807,49 @@ cada set de reglas, no dos llamadas reales a Claude Haiku vía el Worker.
 ---
 
 *Follower — Arquitectura v0.9 | Sesión 19 | 1 Julio 2026*
+
+---
+
+### DA-67 — Fixes críticos en `app.js`: bug de bienvenida, memoria de capítulo sin resetear
+
+**Contexto:** primera vez que `app.js` se tocó en toda la Sesión 19 —
+disparado por un reporte de campo con captura real (mensaje de bienvenida
+de ciudad congelado en pantalla, nunca desaparece).
+
+**Bug 1 — `ReferenceError` silencioso en `welcomeCity()`.** La línea de
+logging referenciaba `` `narrador=${style}` ``, variable eliminada desde
+DA-50 (narrador único). El error se disparaba después de mostrar el texto
+pero antes de programar el auto-cierre a 5s y el listener de
+tap-to-dismiss — ambos quedaban sin ejecutarse. Efecto visible: el mensaje
+de bienvenida quedaba congelado para siempre. Este era el bug real detrás
+del reporte de campo — no un problema de posicionamiento CSS como se
+sospechó en un principio (aunque ese posicionamiento sigue sin revisarse
+a fondo, ver `docs/deuda_tecnica_interfaz.md`).
+
+**Bug 2 — `AppState._walkChapters` nunca se reseteaba.** Ni en
+`initExplore()` ni en `Debug.startTestSession()`. Crecía sin límite entre
+caminatas mientras la pestaña siguiera abierta — riesgo de que DA-58
+(memoria de capítulo) inyectara contexto de una caminata muy anterior.
+
+**Fix aplicado — los 4 cambios en `initExplore()` y `setPhase()`:**
+1. `welcomeCity()`: eliminada la referencia a `style`
+2. `initExplore()`: `AppState._walkChapters = []` agregado, corre siempre
+   (fuera del bloque condicional de `Debug`)
+3. `initExplore()`: `Care.resetWalk()` cableado — pendiente desde DA-63,
+   ahora `thirst` funciona una vez por caminata como fue diseñado
+4. `setPhase()`: `'alert'` eliminado de las fases válidas — código muerto
+   desde DA-65
+
+`sw.js` v9 → v10.
+
+**Nota de proceso:** ambos bugs (`style` indefinido y `_walkChapters` sin
+resetear) son ejemplos del mismo patrón que se repitió toda la sesión —
+código que quedó huérfano tras una refactorización anterior (DA-50, DA-58)
+sin que nadie volviera a revisar las funciones que lo consumían. Ninguno
+de los dos habría aparecido en una revisión de `care.js`/`narration.js`
+solos — solo se encontraron al abrir `app.js` por primera vez en la
+sesión, motivados por un pendiente distinto (cablear `resetWalk()`).
+
+---
+
+*Follower — Arquitectura v0.9 | Sesión 19 (cierre) | 1 Julio 2026*

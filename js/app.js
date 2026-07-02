@@ -63,7 +63,8 @@ function navigateTo(screenId) {
 
 /* ── SET PHASE — sístole / diástole ── */
 function setPhase(phase) {
-  const valid = ['systole', 'diastole', 'rest', 'alert'];
+  // DA-65: 'alert' se elimino — rain ahora usa el mismo flujo systole/diastole/rest que el resto de Care
+  const valid = ['systole', 'diastole', 'rest'];
   if (!valid.includes(phase)) {
     console.warn(`setPhase: fase inválida "${phase}"`);
     return;
@@ -378,6 +379,16 @@ function initExplore() {
   AppState._cityWelcomeDone = false;
   _audioUnlocked = false;
 
+  // DA-58: memoria de capitulo — nunca se reseteaba, crecia sin limite
+  // mientras la pestaña siguiera abierta entre caminatas distintas
+  AppState._walkChapters = [];
+
+  // DT-42: thirst se dispara una sola vez por caminata — sin este reset,
+  // solo aparecia una vez por sesion de navegador, no por caminata
+  if (typeof Care !== 'undefined' && typeof Care.resetWalk === 'function') {
+    Care.resetWalk();
+  }
+
   // Limpiar Set de POIs visitados — nueva sesión en campo (BUG-044)
   if (typeof POI !== 'undefined' && typeof POI.resetVisited === 'function') {
     POI.resetVisited();
@@ -437,7 +448,7 @@ function welcomeCity(city) {
   });
 
   if (typeof Debug !== 'undefined') {
-    Debug.log('info', `Bienvenida ciudad: "${text}" · narrador=${style}`);
+    Debug.log('info', `Bienvenida ciudad: "${text}"`);
   }
 
   const autoClose = setTimeout(() => dismissCityWelcome(el), 5000);

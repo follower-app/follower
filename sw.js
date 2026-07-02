@@ -8,7 +8,7 @@
 
 // Incrementar CACHE_VERSION fuerza descarga de todos los archivos
 // en el proximo arranque — incluso si el navegador tiene version cacheada.
-const CACHE_VERSION = 'follower-v9';  // DA-66: Prompt Maestro v2.7 - apertura con dato historico, limite de metafora, fe incluida, sin titulo
+const CACHE_VERSION = 'follower-v10';  // fix critico: style indefinido en welcomeCity, reset de _walkChapters y thirst por caminata, alert eliminado
 
 const STATIC_ASSETS = [
   './',

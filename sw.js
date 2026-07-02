@@ -8,7 +8,7 @@
 
 // Incrementar CACHE_VERSION fuerza descarga de todos los archivos
 // en el proximo arranque — incluso si el navegador tiene version cacheada.
-const CACHE_VERSION = 'follower-v10';  // fix critico: style indefinido en welcomeCity, reset de _walkChapters y thirst por caminata, alert eliminado
+const CACHE_VERSION = 'follower-v11';  // fix CRITICO: query Overpass rota desde Sesion 18, 100% de fallos por 20+ horas de campo
 
 const STATIC_ASSETS = [
   './',

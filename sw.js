@@ -8,7 +8,7 @@
 
 // Incrementar CACHE_VERSION fuerza descarga de todos los archivos
 // en el proximo arranque — incluso si el navegador tiene version cacheada.
-const CACHE_VERSION = 'follower-v12';  // restauracion poi.js: 6 features perdidas en 9a6ac50 (Wikipedia, cola, mirrors, candado, visited, cache geo)
+const CACHE_VERSION = 'follower-v13';  // fusion idiomas Wikipedia + filtro editorial gsprop + purga versionada cache POIs
 
 const STATIC_ASSETS = [
   './',

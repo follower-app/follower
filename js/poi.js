@@ -25,6 +25,8 @@ const POI = (() => {
   const CONFIG = {
     FETCH_RADIUS_KM:    2,      // radio de fetch de POIs desde OSM
     REFETCH_KM:         2,      // refetch si nos movemos más de 2km
+    POI_CACHE_VERSION:  1,      // REGLA: incrementar en el MISMO commit que cambie
+                                // query, filtros o normalización de POIs (Sesión 21)
     DB_NAME:            'follower_db',
     DB_VERSION:         1,
     STORE_POIS:         'pois',
@@ -71,6 +73,37 @@ const POI = (() => {
     });
   }
 
+  /* ── PURGA VERSIONADA DEL CACHE DE POIs (Sesión 21 — Punto 3) ──
+     Un cambio de criterio de fuente (query, filtros, normalización)
+     invalida los POIs guardados con el criterio anterior — los 359 POIs
+     heredados con bancos y provincias nacieron de esta ausencia.
+     La versión vive en localStorage; si difiere de POI_CACHE_VERSION
+     se purga el store completo. El cache de narraciones NO se toca aquí
+     (tiene su propia DT — mismo patrón, sesión aparte). */
+  function clearPOIsFromDB() {
+    if (!_db) return Promise.resolve();
+    return new Promise((resolve) => {
+      const tx = _db.transaction(CONFIG.STORE_POIS, 'readwrite');
+      tx.objectStore(CONFIG.STORE_POIS).clear();
+      tx.oncomplete = () => resolve();
+      tx.onerror    = () => resolve();  // el cache nunca rompe el arranque
+    });
+  }
+
+  async function checkCacheVersion() {
+    const KEY = 'follower_poi_cache_version';
+    let stored = null;
+    try { stored = localStorage.getItem(KEY); } catch (e) { /* Safari modo privado */ }
+
+    if (stored !== String(CONFIG.POI_CACHE_VERSION)) {
+      await clearPOIsFromDB();
+      try { localStorage.setItem(KEY, String(CONFIG.POI_CACHE_VERSION)); } catch (e) {}
+      if (typeof Debug !== 'undefined') {
+        Debug.log('info', `POI: cache purgado — criterio v${stored || '0'} → v${CONFIG.POI_CACHE_VERSION}`);
+      }
+    }
+  }
+
   /* ── GUARDAR POIs EN INDEXEDDB ── */
   async function savePOIsToDB(pois) {
     if (!_db) return;
@@ -109,13 +142,23 @@ const POI = (() => {
       ? Narration.getLocalLang(AppState.countryCode)
       : null;
 
-    // Orden: idioma local → español → inglés (Set elimina duplicados)
-    const urlSet = new Set([
+    // Cadena de idiomas (Sesión 21 — Punto 1): local y es se consultan
+    // ACUMULANDO — nada pisa lo ya encontrado (el bug de Pasto era un
+    // `places =` que reemplazaba resultados en cada vuelta del loop).
+    // en.wikipedia queda degradada a EMERGENCIA: solo entra si el
+    // acumulado es < EMERGENCY_MIN (la alternativa es el silencio) y sus
+    // POIs se marcan _lang:'en' para tratamiento futuro (grounding).
+    // Excepción: si el idioma local ES inglés (EEUU, UK...), en.wikipedia
+    // es primaria por derecho propio.
+    const EMERGENCY_MIN = 3;
+    const ENOUGH        = 10;  // con esto ya no vale la pena otra llamada
+
+    const EN_URL = 'https://en.wikipedia.org/w/api.php';
+    const primaryUrls = [...new Set([
       ...(cityLang ? [`https://${cityLang}.wikipedia.org/w/api.php`] : []),
       'https://es.wikipedia.org/w/api.php',
-      'https://en.wikipedia.org/w/api.php',
-    ]);
-    const urls = [...urlSet];
+    ])];
+    const emergencyUrl = primaryUrls.includes(EN_URL) ? null : EN_URL;
 
     const params = new URLSearchParams({
       action:   'query',
@@ -123,6 +166,7 @@ const POI = (() => {
       gscoord:  `${lat}|${lng}`,
       gsradius: radius,
       gslimit:  limit,
+      gsprop:   'type|name', // Punto 2 — tipo de coordenada para filtro editorial
       format:   'json',
       origin:   '*',     // CORS — necesario para llamadas desde el browser
     });
@@ -130,7 +174,7 @@ const POI = (() => {
     const t0 = performance.now();
     let places = [];
 
-    for (const baseUrl of urls) {
+    async function fetchLang(baseUrl, isEmergency) {
       try {
         const controller = new AbortController();
         const tid        = setTimeout(() => controller.abort(), 8000); // 8s — mucho menos que Overpass
@@ -146,21 +190,32 @@ const POI = (() => {
           if (typeof Debug !== 'undefined') {
             Debug.log('warn', `Wikipedia: ${baseUrl.split('/')[2]} → status=${res.status} — probando siguiente`);
           }
-          continue;
+          return;
         }
 
-        const data = await res.json();
-        places = data?.query?.geosearch || [];
+        const data    = await res.json();
+        const results = data?.query?.geosearch || [];
+        if (isEmergency) results.forEach(r => { r._lang = 'en'; });
 
-        // Si el primer idioma devuelve pocos POIs, intentar el siguiente
-        if (places.length >= 10) break; // suficientes — no seguir buscando
+        places.push(...results);  // ACUMULA — nunca reemplaza
 
       } catch (err) {
         if (typeof Debug !== 'undefined') {
           Debug.log('warn', `Wikipedia: fetch falló (${err.message}) — probando siguiente`);
         }
-        continue;
       }
+    }
+
+    for (const baseUrl of primaryUrls) {
+      await fetchLang(baseUrl, false);
+      if (places.length >= ENOUGH) break;
+    }
+
+    if (emergencyUrl && places.length < EMERGENCY_MIN) {
+      if (typeof Debug !== 'undefined') {
+        Debug.log('info', `Wikipedia: solo ${places.length} POIs en idiomas primarios — activando emergencia en.wikipedia`);
+      }
+      await fetchLang(emergencyUrl, true);
     }
 
     const elapsed = Math.round(performance.now() - t0);
@@ -175,7 +230,42 @@ const POI = (() => {
 
     if (places.length === 0) return [];
 
+    // Filtro editorial (Sesión 21 — Punto 2): GeoSearch devuelve CUALQUIER
+    // artículo geoetiquetado — la propia ciudad, provincias, eventos
+    // ("Pasto, Colombia", "Provincia de Buenaventura", "Solar Decathlon").
+    // Blacklist de tipos, no whitelist: type null PASA (la mayoría de
+    // iglesias, teatros y plazas no tienen tipo asignado en Wikipedia).
+    // Agujero residual documentado: basura SIN tipo se cuela — la cierra
+    // el grounding con extracts (sesión futura), no este filtro.
+    const TYPE_BLACKLIST = new Set([
+      'city', 'adm1st', 'adm2nd', 'adm3rd',
+      'country', 'continent', 'event', 'satellite'
+    ]);
+    const cityNorm = (typeof AppState !== 'undefined' && AppState.city)
+      ? AppState.city.trim().toLowerCase()
+      : null;
+
+    const beforeFilter = places.length;
+    places = places.filter(p => {
+      if (p.type && TYPE_BLACKLIST.has(p.type)) return false;
+      // Cinturón: el artículo de la propia ciudad puede venir sin tipo
+      // en alguna Wikipedia — comparar título base contra AppState.city
+      if (cityNorm) {
+        const titleNorm = p.title.split(',')[0].trim().toLowerCase();
+        if (titleNorm === cityNorm) return false;
+      }
+      return true;
+    });
+
+    if (typeof Debug !== 'undefined' && beforeFilter !== places.length) {
+      Debug.log('info', `Wikipedia: ${beforeFilter - places.length} artículos no-lugar descartados (filtro editorial)`);
+    }
+
+    if (places.length === 0) return [];
+
     // Deduplicar por coordenadas aproximadas (mismo lugar en idiomas distintos)
+    // El orden importa: local/es llegaron primero, así que ante duplicado
+    // cross-idioma sobrevive el título en el idioma correcto.
     const seen = new Set();
     places = places.filter(p => {
       const key = `${Math.round(p.lat * 1000)},${Math.round(p.lon * 1000)}`;
@@ -202,6 +292,7 @@ const POI = (() => {
       visited:     false,
       cachedAt:    Date.now(),
       _source:     'wikipedia',   // metadato de diagnóstico — no lo usa ningún consumidor
+      _lang:       p._lang || null, // 'en' si vino de la emergencia — insumo para grounding futuro
     }));
   }
 
@@ -838,6 +929,7 @@ const POI = (() => {
   /* ── INICIALIZAR ── */
   async function init() {
     await initDB();
+    await checkCacheVersion();  // purga versionada — Sesión 21
   }
 
   /* ── ACTIVAR DESDE LISTA DEL BOTTOM BAR ── */

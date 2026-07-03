@@ -3029,3 +3029,94 @@ en vez de pegarse a ciegas. Plan de restauración documentado en
 ---
 
 *Follower — Bitácora v0.9 | Sesión 19 (cierre real) | 1 Julio 2026*
+
+## Sesión 20 — Restauración de `poi.js`: las 6 features vuelven a casa
+
+*2 de Julio 2026*
+
+### Verificación de freshness — la Regla de Oro se paga sola otra vez
+
+Antes de tocar una línea, se verificó la copia de `poi.js` contra el repo
+real. Resultado: la copia montada en el chat estaba **desactualizada** —
+todavía contenía la query Overpass rota (BUG-045), mientras el panel del
+proyecto y GitHub ya tenían el fix. De haber trabajado sobre ella, se
+habría reintroducido el bug de las 20 horas de campo en la misma sesión
+destinada a reparar sus consecuencias.
+
+De ahí salió una aclaración operativa importante: los archivos del panel
+del proyecto son la fuente de verdad, pero cada chat recibe una
+**fotografía estática** tomada al iniciar. Protocolo de cierre de sesión
+formalizado: **commit → actualizar panel → actualizar instrucciones →
+chat nuevo**, en ese orden. La verificación contra GitHub queda como
+árbitro cuando haya sospecha de desfase.
+
+### Método: arqueología, no memoria
+
+Las features no se reescribieron — se **trasplantaron del commit
+`6de7186`** (27 de junio, la última versión que las contenía), clonando el
+repo con historial completo. Código ya probado en campo, adaptado solo
+donde el archivo actual cambió después.
+
+### Lo restaurado (commit en `js/poi.js`, sw.js → v12)
+
+1. **Pieza 2 — BUG-044:** `_visitedInSession` + `markVisited()` +
+   `resetVisited()`. Loop de restauración de `visited` en las 3 rutas de
+   carga (Wikipedia, Overpass, cache). Los llamadores con guards en
+   `narration.js`, `debug.js` y `app.js` se reactivaron solos.
+2. **Pieza 3 — BUG-014:** candado `_isFetchingPOIs` con liberación en
+   `finally`. Verificado sin colisión con DT-38: el flush del detect
+   pendiente vive en la ruta ganadora, no en la rechazada. Nota de campo:
+   cuando el candado rechaza una llamada, `loadPOIs` loguea el warning de
+   "0 POIs normalizados" — engañoso pero inofensivo (junio igual).
+3. **Pieza 7 — filtro geográfico del cache:** `CACHE_RADIUS_M` =
+   `FETCH_RADIUS_KM × 1.5`. Previene POIs de otra ciudad. Se restauró
+   también `_lastFetchPos` en la ruta de cache (comportamiento de junio).
+4. **Pieza 5 — mirrors Overpass:** kumi.systems → overpass-api.de → lz4,
+   timeout 20s por mirror con `AbortController`, header `Content-Type`
+   restaurado (fix `93bb9aa` también perdido). `lz4` — el que falló 20
+   horas — pasa de único endpoint a última opción. Cadena completa de
+   fallbacks: kumi → overpass-api.de → lz4 → IndexedDB.
+5. **Pieza 4 — cola narrativa S2-A2:** `QUEUE_MAX_SIZE=3`,
+   `QUEUE_TTL_MS=4min`, `enqueuePOI()` con dedup y respeto de `visited`,
+   `processQueue()` con expiración y verificación de proximidad
+   (descarta si el usuario se alejó a más de radio×1.5).
+6. **Pieza 1 — Wikipedia GeoSearch como fuente primaria:** pipeline
+   restaurado Wikipedia → Overpass → IndexedDB, timeout 8s por idioma,
+   corte a ≥10 POIs, dedup por coordenadas, schema compatible verificado
+   (tags vacíos tolerados por QuickFacts; `cleanPOIName` de DT-36 es
+   ideal para títulos de Wikipedia). Incluye el guard **BUG-041**: si
+   Wikipedia ya cargó, Overpass no se dispara.
+
+### Decisiones de diseño de la sesión
+
+- **Care y la cola narrativa son independientes a propósito** — resuelto
+  con el manifiesto de Care, no con opinión técnica: "el Care nunca debe
+  romper un momento importante" (ya cumplido vía guard de diástole en
+  `care.js:145,476`) y "la hospitalidad tiene sentido del tiempo" — un
+  mensaje de lluvia encolado 4 minutos es lo contrario de hospitalidad.
+  Los capítulos son historias y las historias esperan; el Care son
+  momentos, y los momentos no se almacenan. Cero cambios en `care.js`.
+- **Idioma de Wikipedia vía DT-41, no tabla lat/lng duplicada** —
+  aplicación directa del principio de no segundo sistema. La tabla de
+  junio (8 rangos) ya había divergido una vez (parche `d392478` para
+  Portugal/Brasil, caso que DT-41 cubría). Degradación a `[es, en]` si
+  `countryCode` aún no llegó del reverse geocoding.
+- **Radio de la cola vía `GPS.getRadiusConfig().poiRadius`** (fallback
+  120) en vez del hardcode de junio — si `POI_RADIUS_METERS` cambia tras
+  campo, la cola se ajusta sola.
+- **`artwork` NO restaurado en `PRIORITY`** — respeta el fix editorial
+  de Sesión 18.
+- **Pieza 6 (`nwr`) diferida → DT-48** — ver arquitectura.
+
+### Pendiente de validación en campo
+
+- Hipótesis TTF: Wikipedia debería bajar el time-to-first-narration de
+  ~358s a <90s. Nunca se midió — el código desapareció antes.
+- Comportamiento del guard BUG-041 al cambiar de zona: tras moverse
+  fuera de cobertura Wikipedia, el guard conserva los POIs previos en
+  vez de consultar Overpass. Comportamiento fiel a junio — observar en
+  paseos reales.
+
+---
+
+*Follower — Bitácora v0.9 | Sesión 20 | 2 Julio 2026*

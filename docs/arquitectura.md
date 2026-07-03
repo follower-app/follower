@@ -1905,3 +1905,34 @@ capítulo) en vez de pegarse a ciegas. Plan de restauración documentado en
 ---
 
 *Follower — Arquitectura v0.9 | Sesión 19 (cierre) | 1 Julio 2026*
+
+### DA-68 — Cierre (Sesión 20, 2 Julio 2026)
+
+Restauración ejecutada en sesión dedicada según el plan de
+`docs/restauracion_poi_js.md`. Las 6 features se trasplantaron desde el
+commit `6de7186` del historial de git (no reescritas), con adaptaciones
+documentadas en bitácora Sesión 20. Piezas 1, 2, 3, 4, 5 y 7 restauradas
+y validadas por sintaxis; pieza 6 diferida como DT-48. `sw.js` → v12.
+Estado: **cerrado — pendiente solo validación de campo** (hipótesis TTF
+<90s y comportamiento del guard BUG-041 en cambio de zona).
+
+<!-- Agregar como nueva DT donde se registran las deudas técnicas -->
+
+## DT-48 — Query Overpass con sintaxis `nwr` (diferida de la restauración)
+
+**Qué es:** la versión de junio usaba `nwr` (node+way+relation en una
+pasada) en vez de las 9 cláusulas `node()`/`way()` actuales — ~3x más
+rápida según el comentario original, cifra nunca medida.
+
+**Por qué se difirió (Sesión 20):** reescribir la query recién
+estabilizada (fix BUG-045, con dos días de vida) en la misma sesión que
+restauró 6 features viola el principio de una variable a la vez para
+diagnóstico de campo. Además su beneficio bajó: los mirrors con timeout
+de 20s atacan la lentitud desde un ángulo más robusto, y con Wikipedia
+como fuente primaria, Overpass es fallback — optimizar la velocidad del
+fallback es última prioridad.
+
+**Cuándo reevaluar:** después de validar en campo la restauración
+completa, con mediciones reales de latencia Overpass vía mirrors. Si se
+implementa, reconstruir el filtro sin `artwork` en sintaxis `nwr` y
+validar contra overpass-turbo antes de deploy.

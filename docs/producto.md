@@ -264,7 +264,7 @@ El Prompt Maestro v2.7 (narrador único) tiene versiones en español e inglés. 
 
 ---
 
-## 19. Deuda Técnica Activa *(actualizada a Sesión 18 — 30 junio 2026)*
+## 19. Deuda Técnica Activa *(actualizada a Sesión 21 — 3 julio 2026)*
 
 | ID | Descripción | Prioridad |
 |----|-------------|-----------|
@@ -289,6 +289,10 @@ El Prompt Maestro v2.7 (narrador único) tiene versiones en español e inglés. 
 | DT-45 | Diseño de UI: pantalla de bienvenida animada (splash mínimo + texto letra por letra) | Alta |
 | DT-46 | Diseño de UI: confirmación por tap para cierre de caminata | Media |
 | DT-47 | Wizard de configuración tipo Organiza2 (reemplaza modal único actual) | Media |
+| DT-48 | Query Overpass en sintaxis `nwr` — diferida de Sesión 20, reevaluar con datos de campo | Baja |
+| DT-49 | Dedup de POIs por cuadrícula ~111m se come vecinos legítimos — diseño listo: título normalizado + distancia real <25m con `distanceMeters()` | Alta |
+| DT-50 | Cache de narraciones sin versión de prompt — capítulos pre-DA-66 servidos en campo (Sesión 21); mismo patrón que DA-71 | Alta |
+| DT-51 | Grounding de narración con `generator=geosearch&prop=extracts` — cierra alucinación tipo Pasto y basura sin tipo que DA-70 no atrapa | Alta |
 
 ### Resueltas recientemente
 

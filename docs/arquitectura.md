@@ -1936,3 +1936,71 @@ fallback es última prioridad.
 completa, con mediciones reales de latencia Overpass vía mirrors. Si se
 implementa, reconstruir el filtro sin `artwork` en sintaxis `nwr` y
 validar contra overpass-turbo antes de deploy.
+
+## DA-69 — Fusión acumulativa de idiomas Wikipedia; en.wikipedia como emergencia
+
+**Contexto.** El loop de idiomas de `fetchWikipediaPOIs()` reemplazaba los
+resultados en cada vuelta: en ciudades con <10 POIs en es.wikipedia, la app
+terminaba con los resultados de en.wikipedia — menos POIs, títulos en inglés,
+y el artículo de la propia ciudad como POI (caso Pasto, Sesión 21).
+
+**Decisión.** La cadena [local → es] acumula resultados; nada pisa lo ya
+encontrado. en.wikipedia queda degradada a *emergencia*: solo se consulta si
+el acumulado es < 3 (`EMERGENCY_MIN = 3`, umbral "la alternativa es el
+silencio"), y sus POIs se marcan `_lang: 'en'`. Excepción: si el idioma
+local es inglés, en.wikipedia es primaria. La dedup por coordenadas conserva
+el primero en llegar → ante duplicado cross-idioma sobrevive el título local.
+
+**Razón de mantener en.wikipedia en la cadena.** En Colombia casi no aporta,
+pero es la red de seguridad para ciudades fuera del mundo hispano (Bangkok,
+Marrakech), donde la cobertura geoetiquetada en español es pobre. Bajo
+acumulación no puede empeorar nada: solo aporta lugares sin artículo en
+español. El riesgo real de esos POIs no es el título — es que Haiku sabe
+menos de ellos (más alucinación); lo resuelve el grounding (DT-51).
+
+## DA-70 — Filtro editorial de POIs vía gsprop=type (blacklist, no whitelist)
+
+**Contexto.** GeoSearch devuelve cualquier artículo geoetiquetado: ciudades,
+provincias, eventos. En campo llegaron "Pasto, Colombia", "Provincia de
+Buenaventura" y "Solar Decathlon" como POIs, y el narrador alucinó sobre
+ellos con total confianza.
+
+**Decisión.** Se agrega `gsprop=type|name` al request (costo cero) y se
+filtra con blacklist: `city`, `adm1st`, `adm2nd`, `adm3rd`, `country`,
+`continent`, `event`, `satellite`. `type: null` PASA — la mayoría de
+iglesias, teatros y plazas no tienen tipo asignado en Wikipedia; una
+whitelist mataría justamente los POIs buenos. Cinturón adicional: descarte
+de títulos cuyo segmento base coincida con `AppState.city`.
+
+**Límite asumido.** Basura sin tipo (empresas, emisoras) todavía se cuela.
+Ese agujero no se cierra con GeoSearch: se cierra con el grounding de
+extracts (DT-51), donde el propio párrafo introductorio delata qué es la cosa.
+
+## DA-71 — Purga versionada del cache de POIs (POI_CACHE_VERSION)
+
+**Contexto.** El cache IndexedDB acumulaba 359 POIs capturados con criterios
+viejos (bancos incluidos), sin expiración. Un cambio de criterio de fuente
+dejaba datos del criterio anterior sirviéndose para siempre — regresión de
+datos silenciosa, misma familia que DA-68 pero en datos en vez de código.
+
+**Decisión.** Constante `POI_CACHE_VERSION` en CONFIG, comparada al arrancar
+contra `localStorage['follower_poi_cache_version']`. Si difiere → purga
+completa de `STORE_POIS` + escritura de la versión nueva. Estrena v1.
+
+**Regla derivada (→ REGLAS_IA).** Cualquier cambio en query, filtros o
+normalización de POIs incrementa `POI_CACHE_VERSION` en el mismo commit.
+
+**Trade-off aceptado.** La purga deja el cache frío una vez por cambio de
+criterio: si esa primera sesión arranca sin red, cero POIs. Se acepta porque
+el principio offline protege la sesión en curso, no datos viejos entre
+versiones — y un cache de bancos rompe la experiencia peor que un cache frío
+que Wikipedia rellena en <1s. Deliberadamente NO se agregó TTL por
+antigüedad: sería una segunda variable de invalidación imposible de
+distinguir en diagnóstico de campo.
+
+**Alcance.** El store de narraciones NO se toca aquí — mismo patrón, DT
+aparte (DT-50).
+
+---
+
+*Follower — Arquitectura v0.9 | Sesión 21 | 3 Julio 2026*

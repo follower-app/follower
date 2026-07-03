@@ -3119,4 +3119,105 @@ donde el archivo actual cambió después.
 
 ---
 
-*Follower — Bitácora v0.9 | Sesión 20 | 2 Julio 2026*
+## Sesión 21 — El narrador que inventó un taller: la fuente de POIs era el problema
+
+### La evidencia de campo
+
+Sesión de campo en Cali (real) + teletransporte a Pasto (simulador). Nueve
+capítulos de Cali y dos de Pasto, más export completo de debug. Tres clases
+de fallo, de gravedad creciente:
+
+1. **Capítulos pre-DA-66 servidos desde cache**: Palacio de San Francisco y
+   Catedral llegaron con título inventado, personificación acumulada y la
+   negación de la fe — exactamente los vicios que DA-66 corrigió. La clave
+   del cache de narraciones (`poiId_lang_topic`) no incluye versión del
+   prompt: los capítulos generados antes del fix se sirven para siempre.
+   → **DT-50**.
+
+2. **Alucinación factual en Pasto**: Haiku recibió como POI "Pasto, Colombia"
+   (el artículo de la propia ciudad) e inventó un taller de barniz, un origen
+   español para una técnica precolombina y una etimología invertida. En la
+   catedral: orden religiosa equivocada, fechas fabricadas. Datos con forma
+   de verdad, inventados con total confianza.
+
+3. **Solo 3-5 POIs en Pasto, con títulos en inglés** ("St. Ezequiel Moreno
+   Cathedral, Pasto") pese a que es.wikipedia tiene las iglesias de Pasto
+   documentadas en español.
+
+### Causa raíz: el loop de idiomas sobrescribía en vez de acumular
+
+En `fetchWikipediaPOIs()`, el loop [local → es → en] hacía
+`places = data.query.geosearch` en cada vuelta — *reemplazaba*, no sumaba —
+y solo cortaba si un idioma devolvía ≥10. En ciudades medianas: es.wikipedia
+devolvía <10 → el loop seguía → en.wikipedia devolvía aún menos → y esos (los
+peores) eran los que quedaban. Los resultados en español se descartaban
+enteros. La deduplicación por coordenadas que sigue al loop estaba pensada
+para *fusionar* idiomas — su comentario lo declara — pero nunca recibía más
+de un idioma: código que hacía lo contrario de lo que su comentario dice.
+
+Segundo agujero: GeoSearch devuelve *cualquier* artículo geoetiquetado. En
+esta sesión llegaron como POI la propia ciudad (type=city), la Provincia de
+Buenaventura (type=adm2nd) y el evento Solar Decathlon (type=event). El
+narrador no puede narrar dignamente lo que no es un lugar.
+
+Tercer agujero: el cache IndexedDB acumulaba 359 POIs sin fecha ni criterio
+de origen (queries viejas, bancos incluidos), sirviéndose como fallback para
+siempre. En esta sesión Overpass falló 16 de 16 veces y toda la experiencia
+dependió de ese cache heredado.
+
+### Lo corregido (commit `71462d9` en js/poi.js + `1fef001` sw.js → v13)
+
+Nota de arqueología: `71462d9` contiene los TRES cambios siguientes aunque
+su mensaje solo describe la purga versionada — se optó por commit único
+sobre `poi.js` y el mensaje quedó corto. Esta entrada es la corrección
+documental (lección DA-50: el commit debe decir todo lo que hace).
+
+- **Fusión acumulativa de idiomas** (DA-69): local y es acumulan con
+  `places.push(...)`, nada pisa lo anterior. en.wikipedia degradada a
+  emergencia: solo entra si el acumulado es < 3 (`EMERGENCY_MIN`), y sus
+  POIs se marcan `_lang: 'en'` como insumo para el grounding futuro. Si el
+  idioma local ES inglés, en.wikipedia es primaria por derecho propio.
+- **Filtro editorial `gsprop=type`** (DA-70): blacklist de tipos no-lugar
+  (`city`, `adm1st/2nd/3rd`, `country`, `continent`, `event`, `satellite`);
+  `type: null` pasa (la mayoría de iglesias/teatros/plazas no tienen tipo).
+  Cinturón adicional: descarte de títulos que coincidan con `AppState.city`.
+  Agujero residual asumido: basura *sin tipo* se cuela — lo cierra el
+  grounding con extracts (DT-51), no este filtro.
+- **Purga versionada del cache de POIs** (DA-71): constante
+  `POI_CACHE_VERSION` comparada contra localStorage al arrancar; si difiere,
+  se purga `STORE_POIS` completo. Estrena v1, purgando los 359 heredados.
+
+### Hallazgos registrados pero NO tratados (una variable a la vez)
+
+- **Overpass 16/16 fallos** (`httpStatus=400` y `Load failed`) durante toda
+  la sesión, más un 400 del Worker en health check de arranque. Posible
+  recaída de BUG-045 o regresión del trasplante — triaje pendiente, sesión
+  dedicada.
+- **BUG-046 — POIs re-disparan en bucle si la voz se cancela**: `markVisited`
+  solo se ejecuta al *completar* la narración. Palacio de San Francisco se
+  narró 3 veces en 4 minutos (23:00, 23:02, 23:03), las últimas dos con
+  `error=canceled`. Fix candidato de una línea: marcar visited al *iniciar*.
+- **BUG-047 — Truncamiento a media palabra**: el capítulo de La Merced
+  (1216 chars) cortó en "antes de que algu". El Prompt Maestro pide un rango
+  de palabras que `max_tokens: 380` no siempre cubre en español. El objetivo
+  del prompt y el techo duro se contradicen — decisión de producto pendiente.
+- **Dedup por cuadrícula de ~111m se come vecinos legítimos** → DT-49
+  (evidencia: smoke test donde una plaza a 50m del templo colisionó en la
+  misma celda y desapareció).
+- **Voz narrativa** (evidencia para futura sesión de prompt, sin DT): cierre
+  formulaico repetido ("Eso dice/cuenta/revela algo sobre Cali"), repetición
+  de idea central a distancia n-2 (la memoria DA-52 solo compara contra n-1),
+  dimensión humana genérica ("los caleños") y personificación residual pese
+  al EVITA.
+
+### Validación de campo pendiente para este deploy
+
+- Teletransporte a Pasto: esperar >5 POIs con títulos en español, sin
+  "Pasto, Colombia" ni "Provincia de Buenaventura" en la lista.
+- Log `POI: cache purgado — criterio v0 → v1` en el primer arranque.
+- Log `Wikipedia: N artículos no-lugar descartados (filtro editorial)`.
+- Sigue pendiente de Sesión 20: hipótesis TTF (<90s).
+
+---
+
+*Follower — Bitácora v0.9 | Sesión 21 | 3 Julio 2026*

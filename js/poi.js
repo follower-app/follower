@@ -416,6 +416,13 @@ const POI = (() => {
         })
         .filter(Boolean);
 
+      // Dedup fina DT-49 — antes del cap para que el limite cuente POIs unicos
+      const preDedup = normalized.length;
+      normalized = dedupOSMPOIs(normalized);
+      if (normalized.length < preDedup) {
+        console.log(`POI: dedup DT-49 — ${preDedup} → ${normalized.length} POIs unicos`);
+      }
+
       // BUG-025: limitar a 80 POIs en ciudades densas
       // Ordenar por relevancia: historic > tourism > amenity > leisure
       const MAX_POIS = 80;
@@ -505,6 +512,97 @@ const POI = (() => {
 
     // ── Tier 2: parks, gardens, fountains, worship supervivientes ──
     return 2;
+  }
+
+  /* ── DT-49: DEDUP FINA ──
+     Regla: clave normalizada igual + distancia < DEDUP_DISTANCE_M → duplicado.
+     La normalizacion elimina prefijos de TIPOLOGIA (estatua, monumento,
+     templo, parroquia...) pero JAMAS sustantivos con identidad
+     (Museo, Catedral, Teatro distinguen lugares reales distintos).
+     Evidencia Sesion 22: "Estatua Corazon de Jesus" (node) y "Monumento
+     al Corazon de Jesus" (way) a 20cm; "Parroquia de Nuestra Senora de
+     Fatima" y "Templo Nuestra Senora de Fatima" a ~10m (enmienda Fatima). */
+
+  const DEDUP_DISTANCE_M = 25;   // intra-OSM: nodes/ways del mismo objeto
+  const FUSE_DISTANCE_M  = 60;   // inter-fuente: geotag de Wikipedia es menos
+                                 // preciso que un center de OSM — umbral mas generoso
+
+  const TYPOLOGY_PREFIX_RE = new RegExp(
+    '^(estatua|monumento|busto(?: homenaje)?|memorial|' +
+    'parroquia|templo|capilla|iglesia|santuario(?: eucaristico)?)' +
+    '(?: (?:de la|de los|de las|de|del|a|al))? '
+  );
+
+  function _dedupKey(name) {
+    return _normText(name).replace(TYPOLOGY_PREFIX_RE, '').trim();
+  }
+
+  /* Puntaje de superviviente: wikidata pesa mas que cualquier
+     cantidad de tags; a igualdad, gana el mas informado */
+  function _dedupScore(poi) {
+    const t = poi.tags || {};
+    return (t.wikidata ? 1000 : 0) + Object.keys(t).length;
+  }
+
+  /* Transferencia de tags utiles del perdedor al superviviente —
+     informacion gratis, cero costo (decision Sesion 22: inscription
+     es texto grabado en piedra, el grounding mas duro posible) */
+  function _transferUsefulTags(from, to) {
+    const ft = from.tags || {};
+    if (!to.tags) to.tags = {};
+    if (ft.inscription && !to.tags.inscription) to.tags.inscription = ft.inscription;
+    if (ft.wikidata    && !to.tags.wikidata)    to.tags.wikidata    = ft.wikidata;
+  }
+
+  function dedupOSMPOIs(pois) {
+    const kept = [];
+    for (const poi of pois) {
+      const key = _dedupKey(poi.name);
+      const rivalIdx = kept.findIndex(k =>
+        k.__dk === key &&
+        GPS.distanceMeters(k.lat, k.lng, poi.lat, poi.lng) < DEDUP_DISTANCE_M
+      );
+      if (rivalIdx === -1) {
+        poi.__dk = key;
+        kept.push(poi);
+        continue;
+      }
+      const rival  = kept[rivalIdx];
+      const winner = _dedupScore(poi) > _dedupScore(rival) ? poi : rival;
+      const loser  = winner === poi ? rival : poi;
+      _transferUsefulTags(loser, winner);
+      winner._tier = Math.min(winner._tier || 2, loser._tier || 2);
+      winner.__dk  = key;
+      kept[rivalIdx] = winner;
+    }
+    kept.forEach(p => delete p.__dk);   // clave temporal — no persiste al cache
+    return kept;
+  }
+
+  /* ── DT-52: FUSION INTER-FUENTE — Wikipedia gana SIEMPRE ──
+     Un POI wiki tiene articulo → tiene extract → tiene grounding (DT-51).
+     El gemelo OSM muere, pero lega sus tags utiles antes.
+     (La cascada compuesta la conecta en el siguiente commit.) */
+  function fuseWithWikipedia(wikiPOIs, osmPOIs) {
+    const result = [...wikiPOIs];
+    let fusionados = 0;
+    for (const osm of osmPOIs) {
+      const key  = _dedupKey(osm.name);
+      const twin = wikiPOIs.find(w =>
+        _dedupKey(w.name) === key &&
+        GPS.distanceMeters(w.lat, w.lng, osm.lat, osm.lng) < FUSE_DISTANCE_M
+      );
+      if (twin) {
+        _transferUsefulTags(osm, twin);
+        fusionados++;
+      } else {
+        result.push(osm);
+      }
+    }
+    if (fusionados > 0) {
+      console.log(`POI: fusion DT-52 — ${fusionados} duplicados OSM cedieron a Wikipedia`);
+    }
+    return result;
   }
 
   /* ── NORMALIZAR ELEMENTO OSM → POI ── */

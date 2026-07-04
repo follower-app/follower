@@ -8,7 +8,7 @@
 
 // Incrementar CACHE_VERSION fuerza descarga de todos los archivos
 // en el proximo arranque — incluso si el navegador tiene version cacheada.
-const CACHE_VERSION = 'follower-v13';  // fusion idiomas Wikipedia + filtro editorial gsprop + purga versionada cache POIs
+const CACHE_VERSION = 'follower-v14';  // DT-52: fuente compuesta Wikipedia + Overpass curado, nwr, dedup DT-49, cascada Opcion A
 
 const STATIC_ASSETS = [
   './',

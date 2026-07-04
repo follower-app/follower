@@ -400,11 +400,20 @@ const POI = (() => {
       const elements = data.elements || [];
       console.log(`POI: Overpass devolvió ${elements.length} elementos crudos`);
 
-      const withName = elements.filter(el => el.tags?.name);
-      console.log(`POI: ${withName.length} elementos tienen nombre`);
+      // Curaduria editorial DT-52: compuerta 0 + blacklist + clasificacion en tiers
+      const curated = [];
+      for (const el of elements) {
+        const tier = classifyOSMElement(el);
+        if (tier !== null) curated.push({ el, tier });
+      }
+      console.log(`POI: curaduria DT-52 — ${elements.length} crudos → ${curated.length} curados`);
 
-      let normalized = withName
-        .map(el => normalizePOI(el))
+      let normalized = curated
+        .map(({ el, tier }) => {
+          const poi = normalizePOI(el);
+          if (poi) poi._tier = tier;
+          return poi;
+        })
         .filter(Boolean);
 
       // BUG-025: limitar a 80 POIs en ciudades densas
@@ -418,7 +427,7 @@ const POI = (() => {
           .sort((a, b) => (PRIORITY[b.type] || 0) - (PRIORITY[a.type] || 0))
           .slice(0, MAX_POIS);
         if (typeof Debug !== 'undefined') {
-          Debug.log('info', `POI: ${withName.length} → limitado a ${MAX_POIS} POIs más relevantes (BUG-025)`);
+          Debug.log('info', `POI: ${curated.length} → limitado a ${MAX_POIS} POIs más relevantes (BUG-025)`);
         }
       }
 
@@ -436,6 +445,66 @@ const POI = (() => {
     } finally {
       _isFetchingPOIs = false;   // liberar candado siempre, éxito o error (BUG-014)
     }
+  }
+
+  /* ── DT-52: CURADURIA EDITORIAL DEL RAMAL OSM ──
+     Compuerta 0: sin nombre no hay historia — descarte duro.
+     Blacklist: cadenas comerciales (brand) y locales de culto sin
+     valor narrativo (denominacion o palabra clave en nombre).
+     Tiers: 1 = entra siempre que Overpass sea consultado;
+            2 = relleno solo si el neto < COMPOSITE_THRESHOLD
+     (la admision de Tier 2 la decide la cascada, no este filtro).
+     Evidencia: export overpass-turbo Sesion 22, centro de Pasto. */
+
+  const OSM_WORSHIP_DENOM_BLACKLIST = ['jehovahs_witness', 'pentecostal', 'mormon'];
+  const OSM_NAME_KEYWORD_BLACKLIST  = ['salon del reino', 'pentecostal',
+                                       'ministerial', 'testigos', 'gnosis'];
+
+  /* Normalizacion de texto para comparaciones editoriales:
+     minusculas, sin tildes, espacios colapsados */
+  function _normText(s) {
+    return (s || '').toLowerCase()
+      .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+      .replace(/\s+/g, ' ').trim();
+  }
+
+  /* Devuelve 1 (Tier 1), 2 (Tier 2) o null (descarte) */
+  function classifyOSMElement(el) {
+    const tags = el.tags || {};
+    const name = tags.name || tags['name:es'] || tags['name:en'];
+
+    // Compuerta 0 — mata memoriales anonimos y parques sin nombre
+    if (!name) return null;
+
+    // Cadenas comerciales — un logo repetido no es un lugar con alma
+    if (tags.brand || tags['brand:wikidata']) return null;
+
+    const normName = _normText(name);
+    if (OSM_NAME_KEYWORD_BLACKLIST.some(k => normName.includes(k))) return null;
+
+    if (tags.amenity === 'place_of_worship' &&
+        OSM_WORSHIP_DENOM_BLACKLIST.includes(tags.denomination)) return null;
+
+    // ── Tier 1: entra siempre ──
+    if (tags.wikidata || tags.heritage) return 1;   // catalogado = notable
+    if (/^(museum|gallery|viewpoint|attraction)$/.test(tags.tourism || '')) return 1;
+    if (tags.amenity === 'theatre') return 1;
+    if (tags.historic === 'monument') return 1;
+    if (tags.historic === 'memorial') return 1;     // con nombre (decision Sesion 22:
+                                                    // la placa de Ahumada es oro narrativo)
+
+    // Catedrales y basilicas: protagonistas de cualquier centro historico.
+    // Sin esto quedarian en Tier 2 y nunca narrarian donde Tier 1 rebosa
+    // (evidencia: Catedral de Pasto — building=cathedral;
+    //  Concatedral San Juan Bautista — second_name)
+    if (tags.amenity === 'place_of_worship') {
+      if (/^(cathedral|basilica)$/.test(tags.building || '')) return 1;
+      const fullName = _normText(name + ' ' + (tags.second_name || ''));
+      if (/\b(catedral|concatedral|basilica)\b/.test(fullName)) return 1;
+    }
+
+    // ── Tier 2: parks, gardens, fountains, worship supervivientes ──
+    return 2;
   }
 
   /* ── NORMALIZAR ELEMENTO OSM → POI ── */

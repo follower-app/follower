@@ -16,6 +16,16 @@ const POI = (() => {
   let _visitedInSession = new Set(); // BUG-044: IDs narrados en esta sesión — sobrevive resetPOIs()
   let _isFetchingPOIs = false;    // candado — evita fetches paralelos a Overpass (BUG-014)
 
+  /* ── DT-52: UMBRALES DE LA CASCADA COMPUESTA ──
+     COMPOSITE_THRESHOLD: neto Wikipedia post-filtros por debajo del cual
+     se consulta Overpass como complemento (Sesion 22 — Pasto tenia 3 netos
+     y ~26 elementos OSM con nombre que la cascada vieja nunca veia).
+     EMERGENCY_MIN: minimo vital por debajo del cual dispara en.wikipedia
+     como ultimo paracaidas (antes vivia dentro de fetchWikipediaPOIs —
+     la Opcion A la reposiciona al final de la cascada). */
+  const COMPOSITE_THRESHOLD = 8;
+  const EMERGENCY_MIN       = 3;
+
   /* ── COLA NARRATIVA (S2-A2) ── */
   const QUEUE_MAX_SIZE = 3;          // máximo POIs en cola simultáneamente
   const QUEUE_TTL_MS   = 4 * 60000;  // 4 minutos — después el lugar quedó atrás
@@ -130,7 +140,10 @@ const POI = (() => {
      Si un lugar tiene artículo de Wikipedia, alguien lo consideró notable:
      ese es el filtro editorial que Follower necesita. 99.9% uptime, <500ms.
   ── */
-  async function fetchWikipediaPOIs(lat, lng, radiusKm) {
+  async function fetchWikipediaPOIs(lat, lng, radiusKm, opts = {}) {
+    // DT-52: emergencyOnly=true consulta SOLO en.wikipedia (la cascada
+    // compuesta la invoca como ultimo paracaidas — Opcion A Sesion 22)
+    const emergencyOnly = opts.emergencyOnly === true;
     const radius = radiusKm * 1000; // metros
     const limit  = 50;
 
@@ -146,12 +159,12 @@ const POI = (() => {
     // Cadena de idiomas (Sesión 21 — Punto 1): local y es se consultan
     // ACUMULANDO — nada pisa lo ya encontrado (el bug de Pasto era un
     // `places =` que reemplazaba resultados en cada vuelta del loop).
-    // en.wikipedia queda degradada a EMERGENCIA: solo entra si el
-    // acumulado es < EMERGENCY_MIN (la alternativa es el silencio) y sus
-    // POIs se marcan _lang:'en' para tratamiento futuro (grounding).
+    // en.wikipedia queda degradada a EMERGENCIA (Opcion A, Sesion 22): la
+    // cascada compuesta en loadPOIs la invoca con emergencyOnly=true solo
+    // si ni Wikipedia ni Overpass alcanzaron EMERGENCY_MIN. Sus POIs se
+    // marcan _lang:'en' para el grounding (DT-51).
     // Excepción: si el idioma local ES inglés (EEUU, UK...), en.wikipedia
     // es primaria por derecho propio.
-    const EMERGENCY_MIN = 3;
     const ENOUGH        = 10;  // con esto ya no vale la pena otra llamada
 
     const EN_URL = 'https://en.wikipedia.org/w/api.php';
@@ -207,16 +220,19 @@ const POI = (() => {
       }
     }
 
-    for (const baseUrl of primaryUrls) {
-      await fetchLang(baseUrl, false);
-      if (places.length >= ENOUGH) break;
-    }
-
-    if (emergencyUrl && places.length < EMERGENCY_MIN) {
+    if (emergencyOnly) {
+      // Modo emergencia: solo en.wikipedia. Si el idioma local ya ES
+      // ingles, la primaria ya la consulto — no hay nada nuevo que pedir.
+      if (!emergencyUrl) return [];
       if (typeof Debug !== 'undefined') {
-        Debug.log('info', `Wikipedia: solo ${places.length} POIs en idiomas primarios — activando emergencia en.wikipedia`);
+        Debug.log('info', 'Wikipedia: emergencia en.wikipedia activada (cascada DT-52)');
       }
       await fetchLang(emergencyUrl, true);
+    } else {
+      for (const baseUrl of primaryUrls) {
+        await fetchLang(baseUrl, false);
+        if (places.length >= ENOUGH) break;
+      }
     }
 
     const elapsed = Math.round(performance.now() - t0);
@@ -292,28 +308,27 @@ const POI = (() => {
       tags:        {},            // sin tags OSM — QuickFacts mostrará solo distancia y tipo
       visited:     false,
       cachedAt:    Date.now(),
-      _source:     'wikipedia',   // metadato de diagnóstico — no lo usa ningún consumidor
+      _source:     'wiki',        // contrato DT-52: 'wiki' garantiza articulo → grounding (DT-51)
       _lang:       p._lang || null, // 'en' si vino de la emergencia — insumo para grounding futuro
     }));
   }
 
-  /* ── FETCH POIs DESDE OVERPASS (OSM) — fallback ── */
+  /* ── FETCH POIs DESDE OVERPASS (OSM) — complemento de la cascada DT-52 ── */
   async function fetchPOIsFromOSM(lat, lng, radiusKm) {
-    // BUG-041: si Wikipedia ya cargó POIs en esta sesión, no disparar Overpass
-    // Evita el ciclo: Wikipedia OK → Overpass lento → candado bloqueado → sin detección
-    if (_pois.length > 0 && _lastFetchPos) {
-      if (typeof Debug !== 'undefined') {
-        Debug.log('info', `POI: Overpass omitido — ya hay ${_pois.length} POIs cargados`);
-      }
-      return _pois;
-    }
+    // El guard BUG-041 ("si ya hay POIs no disparar Overpass") se elimino
+    // en DT-52: su intencion la hereda la logica de umbral de la cascada
+    // (Overpass solo se consulta si neto < COMPOSITE_THRESHOLD), que ademas
+    // es correcta en refetch por movimiento — el guard devolvia el set del
+    // area anterior directo a la fusion.
 
     // Candado — evita fetches paralelos que causan 429 en cadena (BUG-014)
     if (_isFetchingPOIs) {
       if (typeof Debug !== 'undefined') {
         Debug.log('info', 'POI: fetch en curso — ignorando llamada paralela (BUG-014)');
       }
-      return _pois.length > 0 ? _pois : [];
+      // DT-52: devolver [] y no _pois — un llamador paralelo de la cascada
+      // no debe fusionar un set viejo (posible mezcla de areas)
+      return [];
     }
     _isFetchingPOIs = true;
 
@@ -411,7 +426,11 @@ const POI = (() => {
       let normalized = curated
         .map(({ el, tier }) => {
           const poi = normalizePOI(el);
-          if (poi) poi._tier = tier;
+          if (poi) {
+            poi._tier    = tier;
+            poi._source  = 'osm';     // contrato DT-52: 'osm' = sin articulo —
+            poi._osmType = poi.type;  // el grounding (DT-51) narrara lo observable
+          }
           return poi;
         })
         .filter(Boolean);
@@ -647,53 +666,82 @@ const POI = (() => {
     };
   }
 
-  /* ── CARGAR POIs — con fallback a cache ── */
+  /* ── CARGAR POIs — cascada compuesta DT-52 (Opcion A, Sesion 22) ──
+     wiki local+es → si neto < COMPOSITE_THRESHOLD → Overpass curado
+     (Tier 1 siempre, Tier 2 solo si sigue habiendo hambre, fusion wiki-gana)
+     → si neto < EMERGENCY_MIN → en.wikipedia → IndexedDB (ultimo recurso) */
   async function loadPOIs(lat, lng) {
     if (!AppState.offline) {
 
-      // ── 1. WIKIPEDIA GEOSEARCH (fuente primaria en v0.8) ──
+      let pois = [];
+
+      // ── 1. WIKIPEDIA GEOSEARCH (primaria — local + es acumulativa) ──
       try {
-        const wikiPOIs = await fetchWikipediaPOIs(lat, lng, CONFIG.FETCH_RADIUS_KM);
-        if (wikiPOIs.length > 0) {
-          // BUG-044: restaurar visited para POIs ya narrados en esta sesión
-          wikiPOIs.forEach(p => {
-            if (_visitedInSession.has(p.id)) p.visited = true;
-          });
-          _pois = wikiPOIs;
-          await savePOIsToDB(wikiPOIs);
-          _lastFetchPos = { lat, lng };
-          renderAllMarkers();
-          console.log(`POI: ${wikiPOIs.length} POIs de Wikipedia cargados y renderizados`);
-          _flushPendingDetect();  // DT-38: chequeo inmediato sin esperar el siguiente tick GPS
-          return;
-        }
-        // 0 resultados en Wikipedia — zona sin cobertura, intentar Overpass
-        console.log('POI: Wikipedia sin resultados en esta zona — intentando Overpass');
+        pois = await fetchWikipediaPOIs(lat, lng, CONFIG.FETCH_RADIUS_KM);
       } catch (wikiErr) {
-        console.warn(`POI: Wikipedia falló (${wikiErr.message}) — intentando Overpass`);
+        console.warn(`POI: Wikipedia falló (${wikiErr.message}) — continuando cascada`);
       }
 
-      // ── 2. OVERPASS / OSM (fallback) ──
-      try {
-        const fresh = await fetchPOIsFromOSM(lat, lng, CONFIG.FETCH_RADIUS_KM);
-        if (fresh.length > 0) {
-          // BUG-044: restaurar visited para POIs ya narrados en esta sesión
-          fresh.forEach(p => {
-            if (_visitedInSession.has(p.id)) p.visited = true;
-          });
-          _pois = fresh;
-          await savePOIsToDB(fresh);
-          _lastFetchPos = { lat, lng };
-          renderAllMarkers();
-          console.log(`POI: ${fresh.length} POIs cargados y renderizados`);
-          _flushPendingDetect();  // DT-38: chequeo inmediato sin esperar el siguiente tick GPS
-          return;
-        } else {
-          console.warn('POI: Overpass respondió OK pero 0 POIs normalizados — revisar query/zona');
+      // ── 2. OVERPASS COMPLEMENTARIO — solo donde hay hambre (DT-52) ──
+      if (pois.length < COMPOSITE_THRESHOLD) {
+        console.log(`POI: neto Wikipedia ${pois.length} < ${COMPOSITE_THRESHOLD} — consultando Overpass complementario (DT-52)`);
+        try {
+          const osmPOIs = await fetchPOIsFromOSM(lat, lng, CONFIG.FETCH_RADIUS_KM);
+          if (osmPOIs.length > 0) {
+            // Admision por tiers: Tier 1 entra siempre que Overpass fue
+            // consultado; Tier 2 solo si Tier 1 no sacio el umbral
+            const tier1 = osmPOIs.filter(p => p._tier === 1);
+            let admitted = tier1;
+            if (pois.length + tier1.length < COMPOSITE_THRESHOLD) {
+              admitted = admitted.concat(osmPOIs.filter(p => p._tier === 2));
+            }
+            const conTier2 = admitted.length > tier1.length;
+            pois = fuseWithWikipedia(pois, admitted);
+            console.log(`POI: fuente compuesta — ${pois.length} netos (Tier 1: ${tier1.length}${conTier2 ? ' + Tier 2' : ', Tier 2 no necesario'})`);
+          }
+        } catch (e) {
+          console.warn(`POI: Overpass falló (${e.message}) — continuando cascada`);
         }
-      } catch (e) {
-        console.warn('POI: error fetching desde OSM, usando cache —', e.message);
+      } else {
+        console.log(`POI: neto Wikipedia ${pois.length} ≥ ${COMPOSITE_THRESHOLD} — Overpass no necesario (DT-52)`);
       }
+
+      // ── 3. EMERGENCIA en.wikipedia — ultimo paracaidas (Opcion A) ──
+      // Solo si ni Wikipedia ni OSM alcanzaron el minimo vital. Dedup
+      // contra lo existente SOLO por coordenada (<FUSE_DISTANCE_M): los
+      // nombres cross-idioma no comparan ("Carnival Museum" ≠ "Museo del
+      // Carnaval") y el existente gana — nombre local sobre ingles.
+      if (pois.length < EMERGENCY_MIN) {
+        try {
+          const enPOIs = await fetchWikipediaPOIs(lat, lng, CONFIG.FETCH_RADIUS_KM, { emergencyOnly: true });
+          for (const en of enPOIs) {
+            const twin = pois.find(p =>
+              GPS.distanceMeters(p.lat, p.lng, en.lat, en.lng) < FUSE_DISTANCE_M);
+            if (!twin) pois.push(en);
+          }
+          if (enPOIs.length > 0) {
+            console.log(`POI: emergencia en.wikipedia — ${pois.length} netos tras fusion`);
+          }
+        } catch (e) {
+          console.warn(`POI: emergencia en.wikipedia falló (${e.message})`);
+        }
+      }
+
+      // ── Resultado de la cascada online ──
+      if (pois.length > 0) {
+        // BUG-044: restaurar visited para POIs ya narrados en esta sesión
+        pois.forEach(p => {
+          if (_visitedInSession.has(p.id)) p.visited = true;
+        });
+        _pois = pois;
+        await savePOIsToDB(pois);
+        _lastFetchPos = { lat, lng };
+        renderAllMarkers();
+        console.log(`POI: ${pois.length} POIs cargados y renderizados (cascada DT-52)`);
+        _flushPendingDetect();  // DT-38: chequeo inmediato sin esperar el siguiente tick GPS
+        return;
+      }
+      console.warn('POI: cascada online sin resultados — usando cache IndexedDB');
     } else {
       console.log('POI: AppState.offline=true, saltando fetch a OSM');
     }

@@ -25,7 +25,8 @@ const POI = (() => {
   const CONFIG = {
     FETCH_RADIUS_KM:    2,      // radio de fetch de POIs desde OSM
     REFETCH_KM:         2,      // refetch si nos movemos más de 2km
-    POI_CACHE_VERSION:  1,      // REGLA: incrementar en el MISMO commit que cambie
+    POI_CACHE_VERSION:  2,      // v2: query nwr + curaduria compuesta DT-52
+                                // REGLA: incrementar en el MISMO commit que cambie
                                 // query, filtros o normalización de POIs (Sesión 21)
     DB_NAME:            'follower_db',
     DB_VERSION:         1,
@@ -327,13 +328,11 @@ const POI = (() => {
     const query  = `
       [out:json][timeout:25];
       (
-        node(around:${radius},${lat},${lng})["historic"];
-        node(around:${radius},${lat},${lng})["tourism"~"museum|attraction|viewpoint|gallery"];
-        node(around:${radius},${lat},${lng})["amenity"~"place_of_worship|fountain|theatre|cinema"];
-        node(around:${radius},${lat},${lng})["leisure"~"park|garden"];
-        node(around:${radius},${lat},${lng})["man_made"~"monument|memorial|statue"];
-        way(around:${radius},${lat},${lng})["historic"];
-        way(around:${radius},${lat},${lng})["tourism"~"museum|attraction"];
+        nwr(around:${radius},${lat},${lng})["historic"];
+        nwr(around:${radius},${lat},${lng})["tourism"~"museum|attraction|viewpoint|gallery"];
+        nwr(around:${radius},${lat},${lng})["amenity"~"place_of_worship|fountain|theatre"];
+        nwr(around:${radius},${lat},${lng})["leisure"~"park|garden"];
+        nwr(around:${radius},${lat},${lng})["man_made"~"monument|memorial|statue"];
       );
       out center;
     `;

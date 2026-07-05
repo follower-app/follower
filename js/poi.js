@@ -35,7 +35,7 @@ const POI = (() => {
   const CONFIG = {
     FETCH_RADIUS_KM:    2,      // radio de fetch de POIs desde OSM
     REFETCH_KM:         2,      // refetch si nos movemos más de 2km
-    POI_CACHE_VERSION:  2,      // v2: query nwr + curaduria compuesta DT-52
+    POI_CACHE_VERSION:  3,      // v3: worship supervivientes a Tier 1 (evidencia campo iPhone)
                                 // REGLA: incrementar en el MISMO commit que cambie
                                 // query, filtros o normalización de POIs (Sesión 21)
     DB_NAME:            'follower_db',
@@ -477,8 +477,9 @@ const POI = (() => {
      Compuerta 0: sin nombre no hay historia — descarte duro.
      Blacklist: cadenas comerciales (brand) y locales de culto sin
      valor narrativo (denominacion o palabra clave en nombre).
-     Tiers: 1 = entra siempre que Overpass sea consultado;
-            2 = relleno solo si el neto < COMPOSITE_THRESHOLD
+     Tiers: 1 = entra siempre que Overpass sea consultado
+                (incluye worship supervivientes — Sesion 22);
+            2 = parks/gardens/fountains, solo si neto < COMPOSITE_THRESHOLD
      (la admision de Tier 2 la decide la cascada, no este filtro).
      Evidencia: export overpass-turbo Sesion 22, centro de Pasto. */
 
@@ -519,17 +520,15 @@ const POI = (() => {
     if (tags.historic === 'memorial') return 1;     // con nombre (decision Sesion 22:
                                                     // la placa de Ahumada es oro narrativo)
 
-    // Catedrales y basilicas: protagonistas de cualquier centro historico.
-    // Sin esto quedarian en Tier 2 y nunca narrarian donde Tier 1 rebosa
-    // (evidencia: Catedral de Pasto — building=cathedral;
-    //  Concatedral San Juan Bautista — second_name)
-    if (tags.amenity === 'place_of_worship') {
-      if (/^(cathedral|basilica)$/.test(tags.building || '')) return 1;
-      const fullName = _normText(name + ' ' + (tags.second_name || ''));
-      if (/\b(catedral|concatedral|basilica)\b/.test(fullName)) return 1;
-    }
+    // Worship supervivientes: Tier 1 (Sesion 22, evidencia de campo iPhone —
+    // Lourdes, San Felipe Neri y Santiago Apostol quedaban en Tier 2 y en
+    // Pasto Tier 2 nunca entra porque Tier 1 sacia el umbral. La blacklist
+    // YA es el filtro editorial: lo que la sobrevive es arquitectura con
+    // historia. Una caminata por Pasto que calla frente a Lourdes es una
+    // audioguia coja. Absorbe la promocion previa de catedrales/basilicas.)
+    if (tags.amenity === 'place_of_worship') return 1;
 
-    // ── Tier 2: parks, gardens, fountains, worship supervivientes ──
+    // ── Tier 2: parks, gardens, fountains — el relleno genuino ──
     return 2;
   }
 

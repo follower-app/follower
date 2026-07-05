@@ -8,7 +8,7 @@
 
 // Incrementar CACHE_VERSION fuerza descarga de todos los archivos
 // en el proximo arranque — incluso si el navegador tiene version cacheada.
-const CACHE_VERSION = 'follower-v15';  // DT-52: worship supervivientes a Tier 1 - evidencia campo iPhone Pasto
+const CACHE_VERSION = 'follower-v16';  // DA-74: Prompt Maestro v3.0 + DT-50 cache narraciones versionado
 
 const STATIC_ASSETS = [
   './',

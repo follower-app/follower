@@ -1920,6 +1920,10 @@ Estado: **cerrado — pendiente solo validación de campo** (hipótesis TTF
 
 ## DT-48 — Query Overpass con sintaxis `nwr` (diferida de la restauración)
 
+> **CERRADA en Sesión 22** — absorbida por DA-72. Reclasificada de
+> optimización a cobertura: la Catedral de Pasto y San Juan Bautista son
+> `ways` con `amenity=place_of_worship` que la query solo-`node` no veía.
+
 **Qué es:** la versión de junio usaba `nwr` (node+way+relation en una
 pasada) en vez de las 9 cláusulas `node()`/`way()` actuales — ~3x más
 rápida según el comentario original, cifra nunca medida.
@@ -2001,6 +2005,75 @@ distinguir en diagnóstico de campo.
 **Alcance.** El store de narraciones NO se toca aquí — mismo patrón, DT
 aparte (DT-50).
 
+## DA-72 — Fuente compuesta de POIs con curaduría por tiers (DT-52)
+
+**Contexto.** La cascada v13 (Wikipedia primaria → Overpass *solo si 0*)
+nunca consultaba OSM en ciudades con Wikipedia escasa pero no vacía.
+Evidencia Sesión 22: Pasto centro, 3 POIs netos wiki contra ~26 elementos
+OSM con nombre invisibles (Museo Taminango, Teatro Imperial, la placa de
+Hernando de Ahumada de 1565). Es.wikipedia solo tiene 4 artículos
+geoetiquetados en 2km — no es bug, es cobertura.
+
+**Decisión.** Cascada compuesta (Opción A):
+`wiki local+es → si neto < COMPOSITE_THRESHOLD (8) → Overpass nwr curado →
+si neto < EMERGENCY_MIN (3) → en.wikipedia → IndexedDB`.
+
+- **Umbral absoluto** (8, post-filtros DA-69/70), no relativo por densidad:
+  una comparación, cero dependencias, comportamiento predecible en campo.
+  Overpass condicional — no se consulta donde no hay hambre.
+- **Curaduría del ramal OSM** (`classifyOSMElement`): compuerta 0 (sin
+  nombre → fuera), blacklist (brand, cinema fuera de query, worship por
+  denominación/palabras clave). Tier 1 entra siempre: museum, gallery,
+  viewpoint, attraction, theatre, monument, memorial con nombre,
+  wikidata/heritage, worship supervivientes. Tier 2 (relleno si neto < 8
+  tras Tier 1): parks, gardens, fountains. La admisión de Tier 2 la decide
+  la cascada, no el clasificador.
+- **Dedup fina (cierra DT-49):** clave = título normalizado sin prefijos de
+  tipología (estatua, monumento, busto, memorial, parroquia, templo,
+  capilla, iglesia, santuario) + <25m intra-OSM. Superviviente por
+  wikidata, luego cantidad de tags; el perdedor lega `inscription` y
+  `wikidata`. Fusión inter-fuente: wiki gana SIEMPRE, umbral 60m (geotag
+  wiki menos preciso que center OSM).
+- **Contrato de marcado:** `_source: 'wiki'|'osm'` + `_osmType` en el ramal
+  OSM — insumo directo de DT-51 (grounding diferenciado).
+- **Guard BUG-041 retirado:** su intención la hereda el umbral, y en
+  refetch por movimiento devolvía el set del área anterior a la fusión.
+  El candado BUG-014 se conserva; su rama paralela devuelve `[]`.
+
+**Corrección por evidencia de campo (dos iteraciones).** Los worship
+supervivientes nacieron en Tier 2 y la validación iPhone mostró que en
+Pasto (Tier 1: 17 ≥ 8) Lourdes, San Felipe Neri y Santiago Apóstol nunca
+narrarían. El defecto: el hambre se medía globalmente, no por categoría —
+y Pasto es una ciudad de templos. La blacklist YA es el filtro editorial;
+lo que la sobrevive es arquitectura con historia → Tier 1
+(`POI_CACHE_VERSION` v3, sw.js v15).
+
+**Trade-off aceptado.** Capillas de barrio entran a Tier 1; solo narran si
+el caminante llega a 120m de ellas, y ahí narrar supera al silencio. Los
+POIs solo-OSM narran con el prompt actual — riesgo de alucinación
+documentado y aceptado hasta DT-51.
+
+## DA-73 — Curar antes de exponer (compuerta editorial única pre-store)
+
+**Contexto.** Care lee `POI.getPOIs()` para dos cosas: densidad de zona
+especial (≥3 POIs en 150m, DT-43) y candidatos del mini-prompt (DT-42).
+Con fuente compuesta, un ramal OSM sin curar habría contaminado ambos: el
+racimo de 6 memoriales anónimos del export de Pasto fabricaba una zona
+especial falsa él solo.
+
+**Decisión.** Curaduría y dedup se ejecutan ANTES de que los POIs entren
+al store que alimenta `getPOIs()`. Una sola compuerta protege narrador y
+Care simultáneamente — ningún consumidor necesita filtrar por su cuenta.
+Orden del pipeline: compuerta 0 → blacklist → tiers → dedup → fusión →
+store.
+
+**Vigilancia derivada.** `SPECIAL_ZONE_MIN: 3` quedó calibrada contra
+densidad Wikipedia; con densidad compuesta la zona especial podría
+disparar más en centros históricos. Probablemente correcto (Pasto ES
+especial), pero queda en observación de campo — si sobre-dispara, se
+recalibra en care.js, no en poi.js.
+
 ---
 
-*Follower — Arquitectura v0.9 | Sesión 21 | 3 Julio 2026*
+*Follower — Arquitectura v0.9 | Sesión 22 | 4 Julio 2026*
+

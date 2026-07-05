@@ -21,8 +21,8 @@ Antes de modificar cualquier archivo SIEMPRE preguntar: "¿El archivo [nombre] e
 - REGLAS_IA.md → reglas completas de trabajo
 - docs/contexto_maestro.md → alma del producto, principios fundamentales, pregunta rectora
 - docs/producto.md → producto, usuarios, principios, DTs activas
-- docs/arquitectura.md → decisiones DA-1 a DA-71
-- docs/bitacora.md → historial, bugs, deuda técnica (hasta Sesión 21)
+- docs/arquitectura.md → decisiones DA-1 a DA-73
+- docs/bitacora.md → historial, bugs, deuda técnica (hasta Sesión 22)
 - docs/manifiesto_narrativo.md → voz narrativa, capítulos, tesis de ciudad
 - docs/manifiesto_care_strip.md → hospitalidad urbana, voz del cuidado
 - docs/prompt_maestro_follower.md → Prompt Maestro v2.7 oficial
@@ -34,7 +34,7 @@ Antes de modificar cualquier archivo SIEMPRE preguntar: "¿El archivo [nombre] e
 ```
 follower/
 ├── index.html          → shell mínimo, sin selector de narrador
-├── sw.js               → service worker v13 (siempre último en commits)
+├── sw.js               → service worker v15 (siempre último en commits)
 ├── manifest.json       → PWA config
 ├── css/                → main, splash, explore, poi, modal, components
 ├── js/                 → app, config, gps, poi, narration, voice,
@@ -54,8 +54,11 @@ follower/
 - La ciudad sonora vive en el prompt narrativo, no en archivos de audio — `music.js` stubbed
 - Modo Libre es default — Modo Recorrido es siempre opt-in
 - Offline obligatorio — la experiencia nunca se rompe
-- POIs: pipeline **Wikipedia GeoSearch (primaria) → Overpass con 3 mirrors (fallback) → IndexedDB (último recurso)**
-- Wikipedia: cadena de idiomas [local → es] ACUMULA resultados; en.wikipedia es solo emergencia (<3 POIs acumulados) — DA-69. Filtro editorial `gsprop=type` descarta artículos no-lugar — DA-70
+- POIs: **cascada compuesta DA-72** — `wiki local+es → si neto < COMPOSITE_THRESHOLD (8) → Overpass nwr curado (Tier 1 siempre; Tier 2 = parks/gardens/fountains solo si sigue el hambre; fusión wiki-gana) → si neto < EMERGENCY_MIN (3) → en.wikipedia → IndexedDB`
+- Curaduría OSM: compuerta 0 (sin nombre → fuera) + blacklist (brand, worship por denominación/keywords). **Curar antes de exponer (DA-73):** todo corre antes del store — una sola compuerta protege narrador y Care
+- Dedup DT-49: título normalizado sin prefijos de tipología + <25m intra-OSM / 60m inter-fuente; wiki gana siempre; el perdedor lega `inscription`/`wikidata`
+- Contrato DT-51: `_source: 'wiki'|'osm'` + `_osmType` — wiki narra con hechos, osm narrará lo observable (pendiente DT-51)
+- Wikipedia: cadena de idiomas [local → es] ACUMULA resultados; en.wikipedia es emergencia al FINAL de la cascada (modo `emergencyOnly`) — DA-69 + DA-72. Filtro editorial `gsprop=type` descarta artículos no-lugar — DA-70
 - **Versionado del cache de POIs (DA-71):** cualquier cambio en query, filtros o normalización de POIs incrementa `POI_CACHE_VERSION` en el MISMO commit. Criterio nuevo con cache viejo es regresión de datos silenciosa — misma familia que DA-68, en datos en vez de código
 - Checklist al tocar poi.js: ¿cambió qué se pide, filtra o normaliza? → `POI_CACHE_VERSION++` · ¿cambió cualquier archivo servido? → sw.js bump, commit final aparte
 - Care y cola narrativa son sistemas independientes a propósito: la cola guarda historias (POIs), el Care es momento presente — nunca se encola
@@ -68,6 +71,7 @@ follower/
 
 - `detectNearby()` / `enqueuePOI()` / `processQueue()` → poi.js
 - `fetchWikipediaPOIs()` / `fetchPOIsFromOSM()` → poi.js
+- `classifyOSMElement()` / `dedupOSMPOIs()` / `fuseWithWikipedia()` → poi.js (DA-72)
 - `markVisited()` / `resetVisited()` → poi.js (API pública)
 - `trigger(poi, lang, topic)` → narration.js
 - `getFarewell()` → narration.js

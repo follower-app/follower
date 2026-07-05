@@ -264,7 +264,7 @@ El Prompt Maestro v2.7 (narrador único) tiene versiones en español e inglés. 
 
 ---
 
-## 19. Deuda Técnica Activa *(actualizada a Sesión 21 — 3 julio 2026)*
+## 19. Deuda Técnica Activa *(actualizada a Sesión 22 — 4 julio 2026)*
 
 | ID | Descripción | Prioridad |
 |----|-------------|-----------|
@@ -289,8 +289,6 @@ El Prompt Maestro v2.7 (narrador único) tiene versiones en español e inglés. 
 | DT-45 | Diseño de UI: pantalla de bienvenida animada (splash mínimo + texto letra por letra) | Alta |
 | DT-46 | Diseño de UI: confirmación por tap para cierre de caminata | Media |
 | DT-47 | Wizard de configuración tipo Organiza2 (reemplaza modal único actual) | Media |
-| DT-48 | Query Overpass en sintaxis `nwr` — diferida de Sesión 20, reevaluar con datos de campo | Baja |
-| DT-49 | Dedup de POIs por cuadrícula ~111m se come vecinos legítimos — diseño listo: título normalizado + distancia real <25m con `distanceMeters()` | Alta |
 | DT-50 | Cache de narraciones sin versión de prompt — capítulos pre-DA-66 servidos en campo (Sesión 21); mismo patrón que DA-71 | Alta |
 | DT-51 | Grounding de narración con `generator=geosearch&prop=extracts` — cierra alucinación tipo Pasto y basura sin tipo que DA-70 no atrapa | Alta |
 
@@ -301,6 +299,9 @@ El Prompt Maestro v2.7 (narrador único) tiene versiones en español e inglés. 
 | ~~DT-3~~ | sw.js — service worker, en v8 |
 | ~~DT-19 / DT-33~~ | MP3 de narradores — obsoletas, no hay narrador múltiple ni música (DA-50) |
 | ~~DT-22 a DT-27~~ | Cola narrativa, visited-on-complete, cache Overpass, backoff, invalidateCache — resueltas Sesiones 12-18 |
+| ~~DT-48~~ | Query Overpass `nwr` — absorbida por DA-72 (Sesión 22): las catedrales eran ways invisibles |
+| ~~DT-49~~ | Dedup fina — absorbida por DA-72 (Sesión 22): título normalizado sin prefijos de tipología + <25m intra-OSM / 60m inter-fuente |
+| ~~DT-52~~ | Fuente compuesta Wikipedia + Overpass curado por tiers — implementada y validada en campo (Sesión 22, DA-72/73) |
 | ~~DT-36~~ | `cleanPOIName()` — limpieza de sufijos Wikipedia antes del prompt |
 | ~~DT-38~~ | `_pendingDetect` / `_flushPendingDetect()` — detección inmediata post-carga de POIs |
 | ~~DT-39~~ | Memoria de capítulo anterior inyectada en cada narración (DA-58) |

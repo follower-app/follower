@@ -3218,6 +3218,143 @@ documental (lección DA-50: el commit debe decir todo lo que hace).
 - Log `Wikipedia: N artículos no-lugar descartados (filtro editorial)`.
 - Sigue pendiente de Sesión 20: hipótesis TTF (<90s).
 
+### Anexo — Validación de campo del deploy v13 (ejecutada en Sesión 22)
+
+**Resultados de los cuatro criterios:**
+
+- ✅ **Purga versionada** (DA-71): log `criterio v0 → v1` presente; cache 359 → 77 POIs.
+- ✅ **Filtro editorial** (DA-70): log `1 artículos no-lugar descartados` — el artículo "Pasto" murió antes de llegar al narrador. La alucinación tipo Pasto de Sesión 21 ya no puede reproducirse por esa vía.
+- ✅ **Fusión de idiomas** (DA-69): títulos en español en el centro de Pasto. Emergencia en.wikipedia probada en zona rural con 0 POIs primarios: dispara correctamente.
+- ✅ **Overpass respondió 200 en desktop.** Los 16/16 fallos de Sesión 21 quedan como anomalía específica del iPhone — el triaje sigue pendiente y ahora tiene una variable acotada: no es la query.
+
+**Hallazgo estructural (motiva DT-52):** solo 3 POIs netos en el centro de Pasto. No es bug — es.wikipedia solo tiene 4 artículos geoetiquetados en un radio de 2km. La cascada actual (Wikipedia primaria → Overpass *solo si 0*) nunca consulta Overpass porque 3 > 0.
+
+**Evidencia decisiva** (export overpass-turbo con la query del proyecto sobre el mismo centro): Overpass tiene ~26 elementos con nombre ahí — Museo Taminango, Pinacoteca Departamental, Teatro Imperial, Museo del Carnaval, la placa de Hernando de Ahumada (1565). Además, la Catedral y San Juan Bautista **no aparecen ni en Overpass**: son `ways` con `amenity=place_of_worship` y la query solo pide `node` para esa tag. DT-48 se reclasifica: de optimización de sintaxis a **problema de cobertura**.
+
+**Contra-evidencia de curaduría:** el mismo export trae Cinemark (cadena comercial), salones del Reino, iglesias de barrio sin relevancia narrativa y racimos de memoriales sin nombre (6 nodos anónimos en ~15m). Overpass como complemento exige filtro editorial propio y dedup fina (DT-49).
+
+**Consecuencia:** se abre **DT-52 — Fuente compuesta de POIs**: Wikipedia primaria + Overpass complementario cuando el neto sea insuficiente, con curaduría por tiers. Absorbe DT-48 y conecta con DT-51 (grounding diferenciado: POI con artículo narra con hechos; POI solo-OSM narra lo observable sin inventar fechas).
+
 ---
 
-*Follower — Bitácora v0.9 | Sesión 21 | 3 Julio 2026*
+# Sesión 22 — Fuente compuesta de POIs (DT-52) — 4 Julio 2026
+
+## Qué se hizo
+
+Definición punto por punto e implementación completa de **DT-52 — fuente
+compuesta de POIs**: Wikipedia primaria + Overpass complementario curado,
+con dedup fina (DT-49) y query `nwr` (DT-48) absorbidas. Siete commits,
+dos deploys, validación de campo en iPhone. **DT-48 y DT-49 quedan
+CERRADAS.**
+
+### Definición cerrada (5 puntos, protocolo punto por punto)
+
+1. **Umbral:** `COMPOSITE_THRESHOLD = 8`, absoluto, evaluado sobre el neto
+   post-filtros (DA-69/70). Overpass **condicional**: si Wikipedia ≥ 8, no
+   se consulta — cero latencia donde no hay hambre. Regla relativa por
+   densidad descartada: exigiría datos que no tenemos y rompería la
+   predictibilidad del diagnóstico de campo.
+2. **Curaduría del ramal OSM** (`classifyOSMElement`): compuerta 0 (sin
+   `name`, descarte — mata memoriales anónimos y ~40 parques sin nombre),
+   blacklist de `brand`/`brand:wikidata` (Cinemark), `cinema` fuera de la
+   query, worship por denominación {jehovahs_witness, pentecostal, mormon}
+   y palabras clave en nombre {salón del reino, pentecostal, ministerial,
+   testigos, gnosis}. Comparaciones case-insensitive y sin tildes.
+   **Tier 1** (entra siempre): museum/gallery/viewpoint/attraction, theatre,
+   monument, memorial con nombre (la placa de Hernando de Ahumada, 1565, es
+   oro narrativo), wikidata/heritage, y — tras dos correcciones de campo —
+   **worship supervivientes completos**. **Tier 2** (solo si neto < 8 tras
+   Tier 1): parks, gardens, fountains.
+3. **Dedup fina (DT-49):** clave = título normalizado sin prefijos de
+   *tipología* (estatua, monumento, busto, memorial + enmienda Fátima:
+   parroquia, templo, capilla, iglesia, santuario — jamás sustantivos con
+   identidad como Museo o Catedral) + distancia < 25m intra-OSM.
+   Superviviente por `wikidata`, luego por cantidad de tags; hereda el mejor
+   `_tier`; el perdedor lega `inscription` y `wikidata`
+   (`_transferUsefulTags`). Fusión inter-fuente: **wiki gana SIEMPRE**,
+   umbral 60m (geotag de Wikipedia menos preciso que un center de OSM).
+   Evidencia que forzó la enmienda: "Estatua/Monumento Corazón de Jesús" a
+   20cm; "Parroquia/Templo Nuestra Señora de Fátima" a 10m.
+4. **Contrato con DT-51:** todo POI lleva `_source: 'wiki'|'osm'`; los OSM
+   además `_osmType`. 'wiki' garantiza artículo → grounding con hechos;
+   'osm' garantiza que no hay artículo → narrar lo observable. `inscription`
+   viaja como hecho verificable (texto grabado en piedra). Los POIs OSM
+   **narran desde ya** con el prompt actual — riesgo de alucinación
+   documentado y aceptado hasta DT-51, como el agujero residual de DA-70.
+5. **Cascada Opción A:** wiki local+es → si neto < 8 → Overpass curado →
+   si neto < 3 → **en.wikipedia** (emergencia reposicionada al final; salió
+   de `fetchWikipediaPOIs` como modo `emergencyOnly`) → IndexedDB. Dedup de
+   emergencia solo por coordenada <60m (nombres cross-idioma no comparan);
+   el existente gana — nombre local sobre inglés.
+
+### Decisiones de implementación ratificadas
+
+- **Guard BUG-041 eliminado**: su intención ("no disparar Overpass si
+  Wikipedia ya cargó") la hereda el umbral con mejor criterio, y en refetch
+  por movimiento devolvía el set del área anterior directo a la fusión
+  (mezcla de áreas). El candado BUG-014 se conserva, pero su rama paralela
+  devuelve `[]` en vez de `_pois` — mismo motivo.
+- **Principio nuevo (→ DA-73): curar antes de exponer.** Curaduría y dedup
+  corren ANTES de que los POIs entren al store que alimenta `getPOIs()`:
+  una sola compuerta protege narrador y Care simultáneamente. Sin ella, el
+  racimo de 6 memoriales anónimos habría fabricado una zona especial falsa.
+- care.js NO se tocó. `SPECIAL_ZONE_MIN: 3` queda en observación: con
+  densidad compuesta, la zona especial podría sobre-disparar en centros
+  históricos (comportamiento probablemente correcto — Pasto ES especial).
+
+### Commits
+
+Serie 1 (deploy sw v14): `b90a270` DT-48 query nwr + cinema fuera +
+`POI_CACHE_VERSION` v1→v2 · `8f3e979` curaduría editorial · `9f7a93c`
+dedup + fusión · `a337739` cascada compuesta · `72b2747` sw.js v14.
+Serie 2 (deploy sw v15): promoción worship a Tier 1 + `POI_CACHE_VERSION`
+v2→v3 · sw.js v15 (+ commit vacío por fallo transitorio del paso deploy
+de GitHub Pages, run #133 — build verde, deploy rojo, patrón conocido).
+
+### Dos correcciones por evidencia de campo (el diseño cedió dos veces)
+
+1. **Catedrales en Tier 2**: la prueba unitaria contra el export reveló que
+   la Catedral de Pasto y la Concatedral nunca narrarían (worship = Tier 2,
+   y Tier 1 sacia el umbral). Promoción por `building=cathedral|basilica` o
+   nombre/second_name normalizado.
+2. **Worship completo en Tier 2**: la primera validación iPhone mostró
+   `20 netos (Tier 1: 17, Tier 2 no necesario)` — Lourdes, San Felipe Neri
+   y Santiago Apóstol fuera. El defecto: el hambre se medía globalmente,
+   no por categoría, y Pasto es una ciudad de templos. La blacklist YA es
+   el filtro editorial: lo que la sobrevive es arquitectura con historia.
+   Worship supervivientes → Tier 1 (absorbe la corrección 1). Tier 2 queda
+   como relleno genuino: parks/gardens/fountains.
+
+### Hallazgos registrados
+
+- **Misterio Overpass iPhone, hipótesis fuerte:** los 16/16 fallos
+  históricos son `httpStatus=400` y `Load failed` de sesiones PRE-deploy
+  (query vieja). Post-deploy: **2/2 OK en el mismo iPhone** (~32s vía
+  overpass-api.de tras abort de kumi). El triaje cambia de "misterio
+  iPhone" a "la query vieja devolvía 400 en Safari iOS" — pendiente
+  confirmación en caminata real antes de cerrar.
+- **Artefacto de simulador (conocido, no bug):** teletransportes en ráfaga
+  disparan cascadas paralelas; el candado devuelve `[]` a las paralelas y
+  alguna cae hasta la emergencia en.wikipedia en pleno centro de Pasto.
+  En caminata real no ocurre — los refetch los limita `REFETCH_KM`.
+
+### Validación de campo ejecutada (iPhone, deploy v15)
+
+Purga `v2 → v3` ✓ · Pasto centro con fuente compuesta incluyendo templos
+coloniales ✓ · curaduría viva (158 crudos → 85 curados → 81 únicos) ✓ ·
+Corazón de Jesús único ✓ · emergencia re-validada en el orden nuevo ✓ ·
+ciudad densa sin consulta a Overpass ✓.
+
+### Pendientes que salen de esta sesión
+
+- DT-51 es la siguiente sesión natural: el contrato `_source` ya está
+  servido. Junto con DT-50 (mismo patrón DA-71 en narraciones) y DT-44
+  (medir latencia antes de tocar narration.js).
+- Confirmación en caminata real de la hipótesis Overpass-iPhone.
+- Observación de `SPECIAL_ZONE_MIN` con densidad compuesta.
+- BUG-046, BUG-047, DT-9 siguen abiertos, sin cambios.
+
+---
+
+*Follower — Bitácora v0.9 | Sesión 22 | 4 Julio 2026*
+

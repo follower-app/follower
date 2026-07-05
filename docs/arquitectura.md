@@ -2073,7 +2073,95 @@ disparar más en centros históricos. Probablemente correcto (Pasto ES
 especial), pero queda en observación de campo — si sobre-dispara, se
 recalibra en care.js, no en poi.js.
 
+## DA-74 — Prompt Maestro v3.0: identificación, pregunta natural y puente narrativo
+
+**Sesión 23.** El Prompt Maestro v3.0 reemplaza al v2.7 como voz única de
+Follower, implementado en `narration.js` (SYSTEM_PROMPT es + en).
+
+**Nueva mecánica del capítulo:** identificación del lugar → rasgo imposible
+de ignorar → hecho verificable → pregunta natural → explicación → idea
+central → puente narrativo (pregunta implícita que el siguiente POI responde).
+
+**Decisiones tomadas punto por punto:**
+
+1. v3.0 como base (validado con ejemplos A/B sobre Templo de San Juan
+   Bautista, Pasto)
+2. Bloque de cinco correcciones de campo reincorporado: sin título, una
+   sola metáfora, no personificar la ciudad, fe legítima en lugares de
+   culto, no repetir recurso sensorial/sonoro del capítulo anterior
+   (validado con ejemplo contrastado sobre Iglesia de Cristo Rey, Pasto)
+3. Verificación final mínima de 5 preguntas (título, metáforas,
+   personificación, recurso repetido, fe) — reemplaza la autoevaluación
+   completa del v2.7. DT-44 reformulada en consecuencia
+4. Regla de fusión eliminada — el puente narrativo es el único mecanismo
+   de cierre; se reincorpora solo con evidencia de campo de capítulos
+   "que no cierran"
+5. Longitud: 90–130 palabras, excepcional 150, cuenta solo del cuerpo.
+   `MAX_TOKENS: 380` intacto → **BUG-047 cerrada por diseño** (causa raíz:
+   conflicto objetivo 130–160 vs techo 380; con 90–130 el conflicto
+   desaparece)
+6. **DT-50 implementada como co-requisito** (ver abajo)
+
+**Hallazgo previo (Regla de Oro).** `docs/prompt_maestro_follower.md` del
+panel estaba desactualizado (copia pre-S18b: 220–280 palabras, apertura
+sensorial). La base real de comparación fue el v2.7 embebido en
+`narration.js` — el documento se reescribió como v3.0 con nota de
+trazabilidad.
+
+**Racional de la excepción a "una variable a la vez":** desplegar prompt
+nuevo sin cache versionado ES el bug que DT-50 previene. Desde el
+diagnóstico de campo son la misma variable: "¿qué voz está narrando?"
+
+**Manifiesto v3.0 fusionado (Opción B).** El manifiesto adjunto v3.0
+perdía secciones de producto sin otro hogar documental. Se adoptó su
+estructura (pregunta rectora al frente, "Ver primero. Comprender
+después.", preguntas del caminante, puentes narrativos) conservando Los
+Silencios, Memoria Narrativa, El Lenguaje y Care (con remisión a
+`manifiesto_care_strip.md`).
+
+## DT-50 — CERRADA (Sesión 23): cache de narraciones versionado
+
+`PROMPT_VERSION: 'v3.0'` en CONFIG de `narration.js`. Clave de cache:
+`${PROMPT_VERSION}_${poiId}_${lang}_${topic}` en `loadFromCache` y
+`saveToCache`.
+
+**Regla espejo de DA-71:** cualquier cambio al Prompt Maestro incrementa
+`PROMPT_VERSION` en el mismo commit.
+
+**Decisión ratificada:** sin purga de entradas v2.7 — quedan huérfanas en
+IndexedDB (claves sin prefijo, nunca consultadas). Volumen despreciable.
+Si molesta, registrar micro-DT de limpieza.
+
+## DT-44 — REFORMULADA: medir latencia del checklist mínimo v3.0
+
+El objeto de medición ya no es la autoevaluación completa del v2.7 (10
+preguntas) sino la verificación final del v3.0 (5 preguntas, ~55 palabras
+de prompt). Prioridad baja: el costo de entrada es ~75 tokens por narración.
+
+## BUG-047 — CERRADA (Sesión 23): truncamiento por max_tokens
+
+Causa raíz: objetivo de 130–160 palabras del v2.7 rozaba el techo de 380
+tokens en español. Cerrada por diseño con la longitud del v3.0 (90–130,
+excepcional 150 ≈ 300 tokens máx, ~25% de margen). Sin cambio de config.
+
+## DT-53 — NUEVA: despedida de caminata (getFarewell inexistente)
+
+Las instrucciones listaban `getFarewell()` como función única de
+`narration.js`, pero la función no existe en el código actual y nadie la
+invoca. No hay bug activo (la app simplemente no se despide), pero la
+Memoria Narrativa del manifiesto ("la despedida debe reflejar el recorrido
+vivido") no tiene implementación.
+
+Pendiente al implementar:
+1. Verificar historial git para descartar regresión tipo DA-68 (¿existió
+   alguna vez?)
+2. Decidir si la despedida usa el SYSTEM_PROMPT común o un mini-prompt
+   propio como Care (el Prompt Maestro v3.0 no tiene sección DESPEDIDA)
+3. Definir trigger de fin de caminata (hoy no existe el concepto)
+
+Retirada de "Funciones únicas" en instrucciones hasta que exista.
+
 ---
 
-*Follower — Arquitectura v0.9 | Sesión 22 | 4 Julio 2026*
+*Follower — Arquitectura v0.9 | Sesión 23 | 5 Julio 2026*
 

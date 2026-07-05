@@ -3356,5 +3356,86 @@ ciudad densa sin consulta a Overpass ✓.
 
 ---
 
-*Follower — Bitácora v0.9 | Sesión 22 | 4 Julio 2026*
+# SESIÓN 23 — Prompt Maestro v3.0 + DT-50 (cache de narraciones versionado)
+
+**Fecha:** 5 Julio 2026
+
+**Objetivo:** corregir la narración — revisar manifiesto y prompt actuales
+vs las versiones v3.0 propuestas.
+
+### Hallazgo previo (Regla de Oro)
+
+`docs/prompt_maestro_follower.md` del panel estaba desactualizado (copia
+pre-S18b: 220–280 palabras, apertura sensorial). La base real de
+comparación fue el v2.7 embebido en `narration.js` (130–160 palabras,
+apertura con dato verificable).
+
+### Método
+
+Decisión punto por punto con ejemplos generados para cada alternativa
+(Templo de San Juan Bautista e Iglesia de Cristo Rey de Pasto como POIs
+de referencia — el terreno de pruebas real). Seis decisiones cerradas
+antes de tocar código:
+
+1. v3.0 como base (voz más ágil: identificación + pregunta natural + puente)
+2. Bloque de cinco correcciones de campo reincorporado — el ejemplo
+   contrastado de Cristo Rey mostró los cinco fallos documentados
+   reapareciendo juntos sin ellas
+3. Verificación final mínima de 5 preguntas (opción c) — incluye la
+   pregunta de fe por decisión explícita: el terreno de pruebas es Pasto,
+   ciudad de templos
+4. Regla de fusión fuera — el puente narrativo es el único cierre
+5. Longitud 90–130/150 · `MAX_TOKENS: 380` intacto · BUG-047 cerrada
+6. DT-50 como co-requisito (excepción legítima a "una variable a la vez":
+   desplegar prompt nuevo sin cache versionado ES el bug que DT-50 previene)
+
+Ver DA-74 para el detalle completo.
+
+### Implementado
+
+- `narration.js`: SYSTEM_PROMPT es+en → v3.0 · `PROMPT_VERSION: 'v3.0'`
+  en CONFIG · clave de cache versionada `${PROMPT_VERSION}_${poiId}_${lang}_${topic}`
+  (DT-50) · comentarios actualizados · sintaxis verificada con node --check
+- `sw.js` → v16 (commit final aparte)
+- `docs/prompt_maestro_follower.md` → v3.0 oficial con cabecera de
+  trazabilidad y regla espejo de DA-71
+- `docs/manifiesto_narrativo.md` → v3.0 fusionado (Opción B: estructura
+  nueva + Los Silencios, Memoria Narrativa, El Lenguaje y Care
+  conservados — esos principios de producto no tienen otro hogar documental)
+
+### Cerradas / reformuladas
+
+- **DT-50 CERRADA** — implementada, sin purga de entradas v2.7 (huérfanas
+  en IndexedDB, volumen despreciable)
+- **BUG-047 CERRADA por diseño** — causa raíz: objetivo 130–160 palabras
+  vs techo 380 tokens; con 90–130 el conflicto desaparece
+- **DT-44 reformulada** — medir latencia del checklist mínimo (5
+  preguntas), prioridad baja
+
+### Nueva
+
+- **DT-53** — `getFarewell()` documentada en "Funciones únicas" pero
+  inexistente en el código; nadie la invoca; la despedida de caminata no
+  tiene implementación. Verificar historial git para descartar regresión
+  tipo DA-68.
+
+### Pendiente de campo (dos variables — diagnósticos separados)
+
+1. Validar la voz v3.0 en caminata real: ¿los capítulos "cierran" sin la
+   regla de fusión? ¿la identificación suena a compañero o a guía?
+2. Hipótesis Overpass-iPhone (2/2 OK post-deploy) — aún sin confirmar
+
+PRECAUCIÓN: pueden observarse en la misma caminata, pero si algo falla,
+exportar logs y separar diagnósticos.
+
+### Commits de la sesión
+
+1. `narration.js` — Prompt Maestro v3.0 + DT-50 cache versionado
+2. `docs/` — prompt_maestro v3.0, manifiesto v3.0, arquitectura (DA-74,
+   DT-50, DT-44, BUG-047, DT-53), bitacora S23, instrucciones
+3. `sw.js` v16 — standalone, último
+
+---
+
+*Follower — Bitácora v0.9 | Sesión 23 | 5 Julio 2026*
 

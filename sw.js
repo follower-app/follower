@@ -8,7 +8,7 @@
 
 // Incrementar CACHE_VERSION fuerza descarga de todos los archivos
 // en el proximo arranque — incluso si el navegador tiene version cacheada.
-const CACHE_VERSION = 'follower-v16';  // DA-74: Prompt Maestro v3.0 + DT-50 cache narraciones versionado
+const CACHE_VERSION = 'follower-v17';  // S25: flujo de entrada - title card + wizard (DT-45/47/DA-75)
 
 const STATIC_ASSETS = [
   './',
@@ -28,7 +28,9 @@ const STATIC_ASSETS = [
   './css/main.css',
   './css/splash.css',
   './css/explore.css',
+  './css/poi.css',
   './css/modal.css',
+  './css/wizard.css',
   './css/components.css',
 ];
 

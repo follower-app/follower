@@ -233,30 +233,32 @@ Help first to see the place. Then to understand why it is the way it is. Finally
   };
 
   /* ── BIENVENIDA DE CIUDAD — voz única ── */
+  /* DA-75: nombre opcional — solo welcome/farewell, nunca capítulos ni Care.
+     Sin nombre, cada plantilla conserva su forma original intacta. */
   const CITY_WELCOME = {
-    es: (city) => `${city}. Un capítulo te espera en cada esquina.`,
-    en: (city) => `${city}. A chapter waits at every corner.`,
-    fr: (city) => `${city}. Un chapitre t'attend à chaque coin de rue.`,
-    de: (city) => `${city}. An jeder Ecke wartet ein neues Kapitel.`,
-    it: (city) => `${city}. Un capitolo ti aspetta ad ogni angolo.`,
-    pt: (city) => `${city}. Um capítulo te espera em cada esquina.`,
-    nl: (city) => `${city}. Op elke hoek wacht een nieuw hoofdstuk.`,
-    sv: (city) => `${city}. Ett kapitel väntar vid varje gathörn.`,
-    no: (city) => `${city}. Et kapittel venter rundt hvert hjørne.`,
-    da: (city) => `${city}. Et kapitel venter rundt hvert hjørne.`,
-    pl: (city) => `${city}. Za każdym rogiem czeka nowy rozdział.`,
-    ja: (city) => `${city}。すべての角に物語が待っています。`,
-    zh: (city) => `${city}。每个街角都有一个故事等待着你。`,
-    ko: (city) => `${city}. 모든 모퉁이에서 이야기가 기다리고 있습니다.`,
-    ar: (city) => `${city}. في كل زاوية فصل ينتظرك.`,
-    ru: (city) => `${city}. За каждым углом ждёт новая глава.`,
-    tr: (city) => `${city}. Her köşede seni bekleyen bir bölüm var.`,
-    el: (city) => `${city}. Σε κάθε γωνία σε περιμένει ένα κεφάλαιο.`,
+    es: (city, name) => name ? `${city}. Un capítulo te espera en cada esquina, ${name}.` : `${city}. Un capítulo te espera en cada esquina.`,
+    en: (city, name) => name ? `${city}. A chapter waits at every corner, ${name}.` : `${city}. A chapter waits at every corner.`,
+    fr: (city, name) => name ? `${city}. Un chapitre t'attend à chaque coin de rue, ${name}.` : `${city}. Un chapitre t'attend à chaque coin de rue.`,
+    de: (city, name) => name ? `${city}. An jeder Ecke wartet ein neues Kapitel, ${name}.` : `${city}. An jeder Ecke wartet ein neues Kapitel.`,
+    it: (city, name) => name ? `${city}. Un capitolo ti aspetta ad ogni angolo, ${name}.` : `${city}. Un capitolo ti aspetta ad ogni angolo.`,
+    pt: (city, name) => name ? `${city}. Um capítulo te espera em cada esquina, ${name}.` : `${city}. Um capítulo te espera em cada esquina.`,
+    nl: (city, name) => name ? `${city}. Op elke hoek wacht een nieuw hoofdstuk, ${name}.` : `${city}. Op elke hoek wacht een nieuw hoofdstuk.`,
+    sv: (city, name) => name ? `${city}. Ett kapitel väntar vid varje gathörn, ${name}.` : `${city}. Ett kapitel väntar vid varje gathörn.`,
+    no: (city, name) => name ? `${city}. Et kapittel venter rundt hvert hjørne, ${name}.` : `${city}. Et kapittel venter rundt hvert hjørne.`,
+    da: (city, name) => name ? `${city}. Et kapitel venter rundt hvert hjørne, ${name}.` : `${city}. Et kapitel venter rundt hvert hjørne.`,
+    pl: (city, name) => name ? `${city}. Za każdym rogiem czeka nowy rozdział, ${name}.` : `${city}. Za każdym rogiem czeka nowy rozdział.`,
+    ja: (city, name) => name ? `${name}さん。${city}。すべての角に物語が待っています。` : `${city}。すべての角に物語が待っています。`,
+    zh: (city, name) => name ? `${name}，${city}。每个街角都有一个故事等待着你。` : `${city}。每个街角都有一个故事等待着你。`,
+    ko: (city, name) => name ? `${name}님. ${city}. 모든 모퉁이에서 이야기가 기다리고 있습니다.` : `${city}. 모든 모퉁이에서 이야기가 기다리고 있습니다.`,
+    ar: (city, name) => name ? `${city}. في كل زاوية فصل ينتظرك يا ${name}.` : `${city}. في كل زاوية فصل ينتظرك.`,
+    ru: (city, name) => name ? `${city}. За каждым углом ждёт новая глава, ${name}.` : `${city}. За каждым углом ждёт новая глава.`,
+    tr: (city, name) => name ? `${city}. Her köşede seni bekleyen bir bölüm var, ${name}.` : `${city}. Her köşede seni bekleyen bir bölüm var.`,
+    el: (city, name) => name ? `${city}. Σε κάθε γωνία σε περιμένει ένα κεφάλαιο, ${name}.` : `${city}. Σε κάθε γωνία σε περιμένει ένα κεφάλαιο.`,
   };
 
-  function getCityWelcome(city, _unused, lang) {
+  function getCityWelcome(city, name, lang) {
     const fn = CITY_WELCOME[lang] || CITY_WELCOME.es;
-    return fn(city);
+    return fn(city, name || null);
   }
 
   /* ── SANITIZAR TEXTO — eliminar markdown antes de hablar ── */

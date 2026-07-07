@@ -11,7 +11,8 @@ const Config = (() => {
     lang:       'es',
     mode:       'free',
     volVoice:   1.0,
-    unitSystem: 'metric'
+    unitSystem: 'metric',
+    userName:   ''        // DA-75: solo welcome/farewell, nunca viaja al Worker
   };
 
   /* ── CLAVE EN LOCALSTORAGE ── */

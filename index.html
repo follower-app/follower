@@ -17,6 +17,7 @@
   <link rel="stylesheet" href="css/components.css">
   <link rel="stylesheet" href="css/splash.css">
   <link rel="stylesheet" href="css/modal.css">
+  <link rel="stylesheet" href="css/wizard.css">
   <link rel="stylesheet" href="css/explore.css">
   <link rel="stylesheet" href="css/poi.css">
 
@@ -79,28 +80,67 @@
   </div>
 
   <!-- ══════════════════════════════════════ -->
-  <!-- MODAL — CONFIG INICIAL                 -->
+  <!-- TITLE CARD — DT-45                     -->
+  <!-- La pantalla titula, la voz saluda      -->
   <!-- ══════════════════════════════════════ -->
-  <div id="modal-config" class="modal-overlay hidden">
-    <div class="modal">
-      <div class="modal-handle"></div>
-      <h2 class="modal-title">Bienvenido</h2>
-      <p class="modal-subtitle">configura tu experiencia · tarda 30 segundos</p>
-
-      <!-- Idioma -->
-      <div class="config-block">
-        <p class="config-label">Idioma de la guía</p>
-        <div class="pill-row" id="langPills">
-          <div class="pill active" data-value="es">Español</div>
-          <div class="pill" data-value="en">English</div>
-          <div class="pill" data-value="fr">Français</div>
-          <div class="pill" data-value="it">Italiano</div>
-          <div class="pill" data-value="more">+12</div>
-        </div>
-      </div>
-
-      <button class="btn-primary" id="btnStartExplore">Comenzar exploración →</button>
+  <div id="screen-titlecard" class="screen hidden">
+    <div class="titlecard-glow"></div>
+    <div class="titlecard-center">
+      <h1 class="titlecard-wordmark">FOLLOWER</h1>
+      <p class="titlecard-slogan">your city soundtrack</p>
     </div>
+  </div>
+
+  <!-- ══════════════════════════════════════ -->
+  <!-- WIZARD DE ENTRADA — DT-47              -->
+  <!-- Coreografia de permisos, solo 1a vez   -->
+  <!-- ══════════════════════════════════════ -->
+  <div id="screen-wizard" class="screen hidden">
+
+    <!-- Paso 1 — GPS (priming, patron Citymapper) -->
+    <section class="wizard-step active">
+      <div class="wizard-dots"><span class="wdot on"></span><span class="wdot"></span><span class="wdot"></span><span class="wdot"></span></div>
+      <div class="wizard-icon">📍</div>
+      <h3 class="wizard-title">Camino contigo</h3>
+      <p class="wizard-example">"Para susurrarte la historia de la iglesia que tienes enfrente, necesito saber dónde estás."</p>
+      <button class="wizard-btn wizard-btn-solid" id="wizGpsBtn">Activar ubicación</button>
+      <button class="wizard-link" id="wizGpsWhy">¿Cómo usamos tu ubicación?</button>
+      <p class="wizard-why hidden" id="wizGpsWhyText">Tu ubicación sirve para encontrar las historias que tienes cerca y saber cómo está el clima. No se guarda en ningún servidor de Follower.</p>
+    </section>
+
+    <!-- Paso 2 — Idioma (antes de la voz: la muestra suena en el idioma confirmado) -->
+    <section class="wizard-step">
+      <div class="wizard-dots"><span class="wdot on"></span><span class="wdot on"></span><span class="wdot"></span><span class="wdot"></span></div>
+      <div class="wizard-icon">🗣️</div>
+      <h3 class="wizard-title" id="wizLangTitle">Te hablaré en español</h3>
+      <div class="wizard-chip">Detectado de tu teléfono · <b id="wizLangCode">es</b></div>
+      <div class="wizard-pills hidden" id="wizLangPills">
+        <div class="wizard-pill" data-value="es">Español</div>
+        <div class="wizard-pill" data-value="en">English</div>
+        <div class="wizard-pill" data-value="fr">Français</div>
+        <div class="wizard-pill" data-value="it">Italiano</div>
+      </div>
+      <button class="wizard-btn wizard-btn-solid" id="wizLangOk">Perfecto</button>
+      <button class="wizard-btn wizard-btn-ghost" id="wizLangChange">Cambiar idioma</button>
+    </section>
+
+    <!-- Paso 3 — Nombre (DA-75: microcopy = contrato) -->
+    <section class="wizard-step">
+      <div class="wizard-dots"><span class="wdot on"></span><span class="wdot on"></span><span class="wdot on"></span><span class="wdot"></span></div>
+      <h3 class="wizard-title">¿Cómo quieres que te llame?</h3>
+      <p class="wizard-plain">Solo lo usaré para saludarte y despedirme.</p>
+      <input class="wizard-input" id="wizNameInput" type="text" placeholder="Tu nombre" maxlength="24" autocomplete="given-name">
+      <button class="wizard-btn wizard-btn-gold" id="wizNameOk">Continuar</button>
+      <button class="wizard-btn wizard-btn-ghost" id="wizNameSkip">Prefiero no decirlo</button>
+    </section>
+
+    <!-- Paso 4 — Voz (cierre: touchend desbloquea speechSynthesis — linaje BUG-036) -->
+    <section class="wizard-step">
+      <div class="wizard-dots"><span class="wdot on"></span><span class="wdot on"></span><span class="wdot on"></span><span class="wdot on"></span></div>
+      <div class="wizard-heart" id="wizHeartBtn">💗</div>
+      <h3 class="wizard-title">Toca para escucharme</h3>
+    </section>
+
   </div>
 
   <!-- ══════════════════════════════════════ -->
@@ -158,7 +198,6 @@
     <div id="map"></div>
 
     <!-- Bienvenida de ciudad — texto sobre el mapa, fade in/out, una vez por sesión -->
-    <div id="cityWelcome" class="city-welcome hidden"></div>
 
     <!-- Care card — alertas de cuidado con acción -->
     <div class="care-card hidden" id="careCard">

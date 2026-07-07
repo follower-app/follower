@@ -265,9 +265,11 @@ async function runSplash() {
 
   let pct = 0;
 
-  // Pedir permiso GPS en paralelo con la animación del splash
+  // DT-47: en primera vez el GPS se pide en el paso 1 del wizard (priming) —
+  // el splash nunca dispara el prompt nativo sin contexto
+  const isFirst     = Config.isFirstTime();
   const gpsStartTs  = performance.now();
-  const gpsPromise  = requestGPSPermission();
+  const gpsPromise  = isFirst ? Promise.resolve(null) : requestGPSPermission();
 
   const iv = setInterval(() => {
     // Avanzar más lento al llegar a 80% — esperar GPS
@@ -292,7 +294,7 @@ async function runSplash() {
 
   const gpsDurationMs = Math.round(performance.now() - gpsStartTs);
 
-  if (typeof Debug !== 'undefined') {
+  if (typeof Debug !== 'undefined' && !isFirst) {
     Debug.log(
       gpsOk ? 'info' : 'warn',
       `GPS arranque: ${gpsOk ? 'concedido' : 'denegado/timeout'} · ${gpsDurationMs}ms`
@@ -303,7 +305,7 @@ async function runSplash() {
 
   // Completar barra
   if (fill)  fill.style.width = '100%';
-  if (label) label.textContent = gpsOk ? 'listo ✓' : 'continuando sin GPS...';
+  if (label) label.textContent = (gpsOk || isFirst) ? 'listo ✓' : 'continuando sin GPS...';
 
   setTimeout(() => expandHeart(heart, splashId), 400);
 }
@@ -319,25 +321,27 @@ function expandHeart(heart, splashId) {
 
   setTimeout(() => {
     if (Config.isFirstTime()) {
-      // Primera vez — mostrar config completa
+      // DT-47: primera vez — wizard de entrada
       if (splashId) Debug.metricEnd(splashId, 'first-time');
-      showModal('config');
+      _startWizard();
     } else {
       // Sesión anterior — ir directo a exploración con config guardada
       AppState.lang  = Config.get('lang');
       AppState.mode  = Config.get('mode');
       if (splashId) Debug.metricEnd(splashId, 'returning-user');
-      navigateTo('explore');
-      initExplore();
+      _enterExploreViaTitleCard();
     }
   }, 720);
 }
 
-/* ── UNLOCK DE AUDIO EN PRIMER TAP — iOS Safari requiere gesto del usuario ──
-   En flujo returning-user, btnStartExplore nunca se toca.
-   Este listener captura el primer tap sobre cualquier punto de la app
-   después de llegar a exploración y desbloquea speechSynthesis y AudioContext. */
+/* ── UNLOCK DE AUDIO — iOS Safari requiere gesto del usuario (por carga de pagina) ──
+   Puerta UNICA de desbloqueo (DA-77): convergen aqui el corazon del wizard
+   (paso 4), el tap del title card y el primer tap en exploracion. Ademas
+   pronuncia el saludo de ciudad pendiente si el TTL sigue vigente. */
 let _audioUnlocked = false;
+let _pendingWelcome = null;          // { text, lang, ts } — DA-77
+const WELCOME_TTL_MS = 90000;        // se fija en mano (60-90s)
+
 function _unlockAudioOnFirstTap() {
   if (_audioUnlocked) return;
   _audioUnlocked = true;
@@ -346,8 +350,56 @@ function _unlockAudioOnFirstTap() {
     Voice.unlockFromGesture();
   }
   if (typeof Debug !== 'undefined') {
-    Debug.log('info', 'Audio: desbloqueado desde primer tap en exploracion');
+    Debug.log('info', 'Audio: desbloqueado desde gesto');
   }
+
+  // DA-77: saludo pendiente — se pronuncia en el primer gesto.
+  // Pasado el TTL se descarta en silencio: un "bienvenido" a los 5 minutos
+  // sonaria a bug, no a bienvenida.
+  if (_pendingWelcome) {
+    const p = _pendingWelcome;
+    _pendingWelcome = null;
+    if (Date.now() - p.ts <= WELCOME_TTL_MS) {
+      Voice.speak(p.text, p.lang);
+    } else if (typeof Debug !== 'undefined') {
+      Debug.log('info', 'Bienvenida descartada — TTL vencido');
+    }
+  }
+}
+
+/* ── DT-45: TITLE CARD — FOLLOWER + slogan, fade puro ──
+   La pantalla titula, la voz saluda (enmienda S24).
+   Timing provisional — se fija en mano. */
+const TITLECARD_MAX_MS = 4000; // techo
+
+function _showTitleCard(onDone) {
+  const card = document.getElementById('screen-titlecard');
+  if (!card) { onDone(); return; } // fallback: sin pantalla, flujo intacto
+
+  navigateTo('titlecard');
+
+  let done = false;
+  const finish = () => {
+    if (done) return;
+    done = true;
+    clearTimeout(ceiling);
+    onDone();
+  };
+
+  const ceiling = setTimeout(finish, TITLECARD_MAX_MS);
+
+  // Tap salta Y desbloquea la voz (el techo de 4s NO desbloquea — no es gesto)
+  const tapFinish = () => { _unlockAudioOnFirstTap(); finish(); };
+  card.addEventListener('touchend', tapFinish, { once: true });
+  card.addEventListener('click',    tapFinish, { once: true });
+}
+
+function _enterExploreViaTitleCard(afterExplore) {
+  _showTitleCard(() => {
+    navigateTo('explore');
+    initExplore();
+    if (typeof afterExplore === 'function') afterExplore();
+  });
 }
 
 /* ── INICIALIZAR EXPLORACIÓN ── */
@@ -377,7 +429,9 @@ function initExplore() {
   }
 
   AppState._cityWelcomeDone = false;
-  _audioUnlocked = false;
+  // _audioUnlocked NO se resetea aqui: el trust de speechSynthesis es por
+  // carga de pagina, no por caminata. El desbloqueo del wizard o del title
+  // card debe sobrevivir hasta explore (DA-77).
 
   // DA-58: memoria de capitulo — nunca se reseteaba, crecia sin limite
   // mientras la pestaña siguiera abierta entre caminatas distintas
@@ -410,7 +464,7 @@ function initExplore() {
   // Fallback: si Nominatim no responde en 10s, mostrar bienvenida genérica
   _scheduleWelcomeFallback();
 
-  // Unlock de audio en primer tap — cubre flujo returning-user (saltea btnStartExplore)
+  // Unlock de audio en primer tap — red de seguridad si nadie toco wizard ni title card
   if (!_audioUnlocked) {
     // iOS Safari: usar touchend en lugar de touchstart passive
     // touchstart con passive:true no garantiza trusted event para speechSynthesis
@@ -432,30 +486,25 @@ function welcomeCity(city) {
 
   // Si es el fallback generico, no pasar por getCityWelcome
   const isFallback = (city === 'Tu ciudad te espera.' || city === 'Your city awaits.');
+  const name = (typeof Config !== 'undefined') ? (Config.get('userName') || null) : null;  // DA-75
   let text = city;
   if (!isFallback && typeof Narration !== 'undefined' && typeof Narration.getCityWelcome === 'function') {
-    text = Narration.getCityWelcome(city, null, localLang);
+    text = Narration.getCityWelcome(city, name, localLang);
   }
-
-  const el = document.getElementById('cityWelcome');
-  if (!el) return;
-
-  el.textContent = text;
-  el.classList.remove('hidden');
-  // Un solo rAF es suficiente — visibility:hidden no bloquea transiciones CSS
-  requestAnimationFrame(() => {
-    el.classList.add('visible');
-  });
 
   if (typeof Debug !== 'undefined') {
-    Debug.log('info', `Bienvenida ciudad: "${text}"`);
+    Debug.log('info', `Bienvenida (voz): "${text}"`);
   }
 
-  const autoClose = setTimeout(() => dismissCityWelcome(el), 5000);
-  el.addEventListener('click', () => {
-    clearTimeout(autoClose);
-    dismissCityWelcome(el);
-  }, { once: true });
+  // DT-45: el saludo vive 100% en el canal de voz — la pantalla titula, la voz saluda
+  if (typeof Voice === 'undefined' || !Voice.isSupported || !Voice.isSupported()) return;
+
+  const speakLang = isFallback ? (AppState.lang || 'es') : localLang;
+  if (_audioUnlocked) {
+    Voice.speak(text, speakLang);
+  } else {
+    _pendingWelcome = { text, lang: speakLang, ts: Date.now() };  // DA-77
+  }
 }
 
 /* ── FALLBACK: mostrar bienvenida genérica si no hay ciudad en 10s ── */
@@ -467,12 +516,6 @@ function _scheduleWelcomeFallback() {
       welcomeCity(fallback);
     }
   }, 10000);
-}
-
-function dismissCityWelcome(el) {
-  if (!el) return;
-  el.classList.remove('visible');
-  setTimeout(() => el.classList.add('hidden'), 600);
 }
 
 /* ── DT-40: INACTIVIDAD DETECTADA — posible fin de caminata ──
@@ -490,35 +533,162 @@ function onWalkInactivity() {
   // Pendiente de implementación — por ahora solo se loguea
 }
 
-/* ── EVENT LISTENERS — CONFIG MODAL ── */
-function initConfigModal() {
-  // Preseleccionar valores guardados
-  const savedLang = Config.get('lang');
+/* ── DT-47: WIZARD DE ENTRADA — coreografía de permisos, solo primera vez ──
+   Orden por dependencias: idioma antes de voz (la muestra suena en el idioma
+   confirmado), nombre antes de voz (recompensa inmediata en el paso 4).
+   El corazón del paso 4 es el gesto confiable que desbloquea speechSynthesis
+   (linaje BUG-036 — touchend). */
 
-  // Pills de idioma
-  const langPills = document.querySelectorAll('#langPills .pill');
-  langPills.forEach(pill => {
-    if (pill.dataset.value === savedLang) pill.classList.add('active');
-    else pill.classList.remove('active');
+const WIZ_PHRASE = {
+  es: (n) => n ? `Hola, ${n}. Soy Follower. Tu ciudad tiene historias que contarte.`
+              : 'Hola. Soy Follower. Tu ciudad tiene historias que contarte.',
+  en: (n) => n ? `Hi, ${n}. I'm Follower. Your city has stories to tell you.`
+              : `Hi. I'm Follower. Your city has stories to tell you.`,
+  fr: (n) => n ? `Bonjour, ${n}. Je suis Follower. Ta ville a des histoires à te raconter.`
+              : `Bonjour. Je suis Follower. Ta ville a des histoires à te raconter.`,
+  it: (n) => n ? `Ciao, ${n}. Sono Follower. La tua città ha storie da raccontarti.`
+              : `Ciao. Sono Follower. La tua città ha storie da raccontarti.`
+};
+
+const WIZ_LANG_TITLE = {
+  es: 'Te hablaré en español',
+  en: "I'll speak to you in English",
+  fr: 'Je te parlerai en français',
+  it: 'Ti parlerò in italiano'
+};
+
+let _wizLang = 'es';
+let _wizName = '';
+let _wizDone = false;
+
+function _wizGoTo(n) {
+  document.querySelectorAll('#screen-wizard .wizard-step').forEach((s, i) => {
+    s.classList.toggle('active', i === n - 1);
+  });
+}
+
+function _wizUpdateLangUI() {
+  const title = document.getElementById('wizLangTitle');
+  const code  = document.getElementById('wizLangCode');
+  if (title) title.textContent = WIZ_LANG_TITLE[_wizLang];
+  if (code)  code.textContent  = _wizLang;
+  document.querySelectorAll('#wizLangPills .wizard-pill').forEach(p => {
+    p.classList.toggle('active', p.dataset.value === _wizLang);
+  });
+}
+
+function _startWizard() {
+  const detected = (navigator.language || 'es').slice(0, 2).toLowerCase();
+  _wizLang = WIZ_PHRASE[detected] ? detected : 'en';
+  _wizUpdateLangUI();
+  navigateTo('wizard');
+  _wizGoTo(1);
+}
+
+function initWizard() {
+  // Paso 1 — GPS: priming propio, luego el prompt nativo
+  const gpsBtn = document.getElementById('wizGpsBtn');
+  if (gpsBtn) {
+    gpsBtn.addEventListener('click', async () => {
+      gpsBtn.disabled = true;
+      const ok = await requestGPSPermission();
+      if (typeof Debug !== 'undefined') {
+        Debug.log(ok ? 'info' : 'warn', `Wizard: GPS ${ok ? 'concedido' : 'denegado/timeout'}`);
+      }
+      // Denegado tambien avanza — nunca mostrar errores, la app tiene fallbacks
+      _wizGoTo(2);
+    });
+  }
+
+  const whyBtn = document.getElementById('wizGpsWhy');
+  if (whyBtn) {
+    whyBtn.addEventListener('click', () => {
+      const t = document.getElementById('wizGpsWhyText');
+      if (t) t.classList.toggle('hidden');
+    });
+  }
+
+  // Paso 2 — idioma
+  const langOk = document.getElementById('wizLangOk');
+  if (langOk) langOk.addEventListener('click', () => _wizGoTo(3));
+
+  const langChange = document.getElementById('wizLangChange');
+  if (langChange) {
+    langChange.addEventListener('click', () => {
+      const pills = document.getElementById('wizLangPills');
+      if (pills) pills.classList.remove('hidden');
+    });
+  }
+
+  document.querySelectorAll('#wizLangPills .wizard-pill').forEach(pill => {
     pill.addEventListener('click', () => {
-      langPills.forEach(p => p.classList.remove('active'));
-      pill.classList.add('active');
-      AppState.lang = pill.dataset.value;
+      _wizLang = pill.dataset.value;
+      _wizUpdateLangUI();
     });
   });
 
-  // Botón comenzar
-  const btnStart = document.getElementById('btnStartExplore');
-  if (btnStart) {
-    btnStart.addEventListener('click', () => {
-      Config.setLang(AppState.lang);
-      // Desbloquear AudioContext y speechSynthesis desde gesto del usuario (iOS Safari)
-      if (typeof Voice !== 'undefined' && typeof Voice.unlockFromGesture === 'function') {
-        Voice.unlockFromGesture();
-      }
-      hideModal('config');
-      setTimeout(() => showModal('mode'), 300);
+  // Paso 3 — nombre (DA-75)
+  const nameOk = document.getElementById('wizNameOk');
+  if (nameOk) {
+    nameOk.addEventListener('click', () => {
+      const input = document.getElementById('wizNameInput');
+      _wizName = input ? input.value.trim().slice(0, 24) : '';
+      _wizGoTo(4);
     });
+  }
+
+  const nameSkip = document.getElementById('wizNameSkip');
+  if (nameSkip) {
+    nameSkip.addEventListener('click', () => {
+      _wizName = '';
+      _wizGoTo(4);
+    });
+  }
+
+  // Paso 4 — corazon: gesto confiable (touchend — BUG-036) + frase de muestra
+  const heart = document.getElementById('wizHeartBtn');
+  if (heart) {
+    heart.addEventListener('touchend', _wizFinish, { once: true });
+    heart.addEventListener('click',    _wizFinish, { once: true });
+  }
+}
+
+function _wizFinish() {
+  if (_wizDone) return;
+  _wizDone = true;
+
+  // Desbloqueo DENTRO del call stack del gesto — no mover de aqui.
+  // Via _unlockAudioOnFirstTap para que la bandera quede marcada y el
+  // saludo de ciudad pueda sonar de inmediato al llegar a explore.
+  _unlockAudioOnFirstTap();
+
+  // Persistir — esto hace que isFirstTime() sea false en adelante
+  Config.setLang(_wizLang);
+  Config.setMode('free');              // DA-76: Libre default, Recorrido opt-in (DT-56)
+  Config.set('userName', _wizName);    // DA-75
+  AppState.lang = _wizLang;
+  AppState.mode = 'free';
+
+  if (typeof Debug !== 'undefined') {
+    Debug.log('info', `Wizard: completado · lang=${_wizLang} · nombre=${_wizName ? 'si' : 'no'}`);
+  }
+
+  // Frase de muestra — y pase al title card cuando termine de sonar.
+  // Guardia de 6s: si la voz falla en silencio, el flujo sigue igual.
+  const phrase = WIZ_PHRASE[_wizLang](_wizName || null);
+  let advanced = false;
+  const advance = () => {
+    if (advanced) return;
+    advanced = true;
+    clearTimeout(guard);
+    _enterExploreViaTitleCard();
+  };
+  const guard = setTimeout(advance, 6000);
+
+  if (typeof Voice !== 'undefined' && Voice.isSupported && Voice.isSupported()) {
+    Voice.speak(phrase, _wizLang, advance);
+  } else {
+    advance();
   }
 }
 
@@ -530,10 +700,7 @@ function initModeModal() {
       Config.setMode('free');
       AppState.mode = 'free';
       hideModal('mode');
-      setTimeout(() => {
-        navigateTo('explore');
-        initExplore();
-      }, 300);
+      setTimeout(() => _enterExploreViaTitleCard(), 300);
     });
   }
 
@@ -543,11 +710,9 @@ function initModeModal() {
       Config.setMode('route');
       AppState.mode = 'route';
       hideModal('mode');
-      setTimeout(() => {
-        navigateTo('explore');
-        initExplore();
+      setTimeout(() => _enterExploreViaTitleCard(() => {
         if (typeof Routes !== 'undefined') Routes.showPicker();
-      }, 300);
+      }), 300);
     });
   }
 }
@@ -763,7 +928,7 @@ function init() {
   window.addEventListener('offline', handleOffline);
   AppState.offline = !navigator.onLine;
 
-  initConfigModal();
+  initWizard();
   initModeModal();
   initExploreListeners();
 

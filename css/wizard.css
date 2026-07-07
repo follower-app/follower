@@ -1,0 +1,151 @@
+/* ═══════════════════════════════════════════
+   FOLLOWER — wizard.css
+   DT-47: coreografia de permisos, solo primera vez
+   Portado del mockup ratificado S24
+   ═══════════════════════════════════════════ */
+
+#screen-wizard {
+  background: var(--color-night);
+}
+
+.wizard-step {
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  height: 100%;
+  padding: 24px 28px;
+}
+.wizard-step.active { display: flex; }
+
+/* ── Dots de progreso ── */
+.wizard-dots { display: flex; gap: 6px; margin-bottom: 28px; }
+.wdot {
+  width: 5px; height: 5px; border-radius: 50%;
+  background: var(--color-border);
+}
+.wdot.on { background: var(--color-gold); }
+
+/* ── Icono circular ── */
+.wizard-icon {
+  width: 68px; height: 68px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  border: 1px solid var(--color-border);
+  margin-bottom: 24px; font-size: 26px;
+}
+
+/* ── Tipografia ── */
+.wizard-title {
+  font-family: var(--font-display);
+  font-weight: var(--weight-regular);
+  font-size: 24px; line-height: 1.25;
+  color: var(--color-ice);
+  margin-bottom: 12px;
+}
+.wizard-example {
+  font-size: 13px; font-style: italic;
+  color: var(--color-smoke); line-height: 1.55;
+  max-width: 240px; margin-bottom: 30px;
+}
+.wizard-plain {
+  font-size: 13px; color: var(--color-smoke);
+  line-height: 1.55; max-width: 240px; margin-bottom: 30px;
+}
+.wizard-why {
+  font-size: 12px; color: var(--color-smoke-2);
+  line-height: 1.6; max-width: 240px; margin-top: 16px;
+}
+.wizard-why.hidden { display: none; }
+
+/* ── Botones ── */
+.wizard-btn {
+  font-family: var(--font-ui); font-size: 14px;
+  font-weight: var(--weight-medium);
+  border-radius: var(--radius-pill);
+  padding: 13px 0; width: 100%; max-width: 220px;
+  border: none; cursor: pointer;
+}
+.wizard-btn-solid { background: var(--color-systole); color: var(--color-ice); }
+.wizard-btn-gold  { background: var(--color-gold); color: var(--color-navy); }
+.wizard-btn-ghost {
+  background: transparent; color: var(--color-smoke);
+  border: 0.5px solid var(--color-border);
+  margin-top: 10px; font-weight: var(--weight-regular);
+}
+.wizard-link {
+  background: none; border: none; color: var(--color-smoke-2);
+  font-size: 12px; margin-top: 14px; cursor: pointer;
+  text-decoration: underline; text-underline-offset: 3px;
+}
+
+/* ── Paso 2: chip + pills de idioma ── */
+.wizard-chip {
+  font-size: 13px; color: var(--color-smoke);
+  border: 0.5px solid var(--color-border);
+  border-radius: var(--radius-pill);
+  padding: 8px 18px; margin-bottom: 26px;
+}
+.wizard-chip b { color: var(--color-ice); font-weight: var(--weight-medium); }
+
+.wizard-pills {
+  display: flex; flex-wrap: wrap; gap: 8px;
+  justify-content: center; max-width: 260px;
+  margin-bottom: 26px;
+}
+.wizard-pills.hidden { display: none; }
+.wizard-pill {
+  font-size: 13px; color: var(--color-smoke);
+  border: 0.5px solid var(--color-border);
+  border-radius: var(--radius-pill);
+  padding: 8px 16px; cursor: pointer;
+}
+.wizard-pill.active {
+  color: var(--color-ice);
+  border-color: var(--color-systole);
+  background: rgba(26, 82, 118, 0.25);
+}
+
+/* ── Paso 3: input de nombre ── */
+.wizard-input {
+  width: 100%; max-width: 220px;
+  background: var(--color-night-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  color: var(--color-ice);
+  font-family: var(--font-ui); font-size: 16px;
+  font-weight: var(--weight-light);
+  text-align: center; padding: 14px 12px;
+  margin-bottom: 22px;
+}
+.wizard-input::placeholder { color: var(--color-smoke-2); }
+
+/* ── Paso 4: corazon-boton (el gesto que desbloquea la voz) ── */
+.wizard-heart {
+  width: 108px; height: 108px; border-radius: 50%;
+  background: radial-gradient(circle at 50% 40%, #1c3550, var(--color-night-3));
+  border: 1px solid var(--color-border);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 40px; margin-bottom: 26px; cursor: pointer;
+  position: relative;
+  animation: wizard-heartbeat 1.4s ease-in-out infinite;
+}
+.wizard-heart::after {
+  content: ''; position: absolute; inset: -10px;
+  border-radius: 50%; border: 1px solid var(--color-systole);
+  opacity: 0; animation: wizard-ring 2.8s ease-out infinite;
+}
+@keyframes wizard-heartbeat {
+  0%, 100% { transform: scale(1); }
+  14% { transform: scale(1.07); }
+  28% { transform: scale(1); }
+  42% { transform: scale(1.05); }
+}
+@keyframes wizard-ring {
+  0%   { transform: scale(0.9);  opacity: 0.6; }
+  100% { transform: scale(1.35); opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wizard-heart, .wizard-heart::after { animation: none; }
+}

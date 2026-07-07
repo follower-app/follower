@@ -163,3 +163,66 @@
   color: var(--color-smoke-3);
   letter-spacing: 0.1em;
 }
+
+/* ═══════════════════════════════════════════
+   DT-45: TITLE CARD — fade puro, sin animacion de letras
+   Timing provisional (fade-in ~1.8s) — se fija en mano
+   ═══════════════════════════════════════════ */
+
+#screen-titlecard {
+  background: var(--color-night);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  overflow: hidden;
+}
+
+/* Resplandor sistole inferior */
+.titlecard-glow {
+  position: absolute;
+  left: 50%;
+  bottom: -30vh;
+  width: 140vw;
+  height: 60vh;
+  transform: translateX(-50%);
+  background: radial-gradient(ellipse at center,
+    rgba(26, 82, 118, 0.35) 0%,
+    rgba(26, 82, 118, 0.12) 45%,
+    transparent 70%);
+  pointer-events: none;
+}
+
+.titlecard-center {
+  position: relative;            /* sobre el glow */
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-md);
+  opacity: 0;
+  animation: titlecard-fade 1.8s ease forwards;
+}
+
+.titlecard-wordmark {
+  font-family: var(--font-ui);
+  font-weight: var(--weight-light);
+  font-size: 34px;
+  letter-spacing: 0.42em;
+  text-indent: 0.42em;           /* compensa el tracking en el ultimo caracter */
+  color: var(--color-ice);
+  margin: 0;
+}
+
+.titlecard-slogan {
+  font-family: var(--font-display);
+  font-style: italic;
+  font-size: 17px;
+  letter-spacing: 0.02em;
+  color: var(--color-gold);
+  margin: 0;
+}
+
+@keyframes titlecard-fade {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}

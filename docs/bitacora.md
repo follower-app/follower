@@ -3570,4 +3570,76 @@ desbloqueo voz, 3) nombre en getCityWelcome, 4) sw.js v17 aparte.
 
 ---
 
-*Follower — Bitácora v0.9 | Sesión 24 | 7 Julio 2026*
+## Sesión 25 — 7 Julio 2026 — Implementación del flujo de entrada
+
+**Objetivo:** implementar los diseños ratificados en S24 (DT-45 + DT-47 + DA-75).
+
+### Qué se hizo
+
+El flujo de entrada completo pasó de diseño a producción: title card estático
+(DT-45), wizard de 4 pasos (DT-47), nombre en localStorage inyectado en el
+saludo (DA-75). Trabajo entregado como archivos completos y aplicado como
+**commit integrado de código + sw.js v17 aparte + commit de docs** (los 4
+commits quirúrgicos planificados se colapsaron porque app.js e index.html
+cruzaban los cuatro; la granularidad queda documentada aquí).
+
+**Flujo resultante:** splash (sin prompt GPS en 1ª vez) → wizard (GPS priming →
+idioma autodetect → nombre opcional → corazón/voz `touchend`) → title card
+(fade puro ~1.8s, tap salta y desbloquea, techo 4s) → explore → saludo de
+ciudad hablado, con nombre e idioma local.
+
+### Ratificaciones de sesión
+
+- **DA-76 — Modo Libre por default, sin pantalla de modo.** El modal de modo
+  sale del flujo de entrada: cuatro pasos de wizard + un quinto modal
+  contradecía la pregunta rectora. Recorrido pasa a opt-in desde explore.
+  `modal-mode` e `initModeModal()` quedan intactos sin llamador — DT-56
+  registra el punto de entrada pendiente (sin ella Recorrido es inalcanzable).
+- **DA-77 — Saludo pendiente con TTL + semántica de `_audioUnlocked`.**
+  El saludo vive 100% en voz; si llega con la voz bloqueada queda pendiente
+  y suena en el primer gesto (tap del title card desbloquea de paso); pasado
+  el TTL (~90s, en mano) se descarta en silencio. Corrección asociada:
+  `_audioUnlocked` es por carga de página, no por caminata — `initExplore()`
+  ya no la resetea. `_unlockAudioOnFirstTap()` es la puerta única de
+  desbloqueo (wizard, title card y explore convergen ahí).
+
+### Cierres
+
+- **DT-9 CERRADA** — key OpenAI revocada en console.openai.com (verificado:
+  0 keys activas). Historial git inerte. Sin cambios de código. La única
+  deuda con riesgo de seguridad activo: eliminada.
+- **DT-45 CERRADA** (implementada) · **DT-47 CERRADA** (implementada) ·
+  **DA-75 implementada** en welcome (farewell espera DT-53).
+
+### Registradas
+
+- **DT-56:** punto de entrada a Modo Recorrido desde explore (reciclar
+  modal-mode como picker). Consecuencia asumida de DA-76.
+- **DT-57:** i18n de la copy del wizard (hoy español estático salvo el título
+  del paso 2, dinámico). Baja.
+- **BUG-046 → micro-sesión propia ANTES de la caminata (opción B ratificada).**
+  Razón: "marcar al iniciar" esconde una micro-decisión sin ratificar — si la
+  narración falla de inmediato (red, Worker), el POI quedaría visitado sin
+  narrarse nunca. Merece lectura de `trigger()` con cabeza fresca.
+
+### Hallazgos de sesión
+
+- `_audioUnlocked` se reseteaba en `initExplore()` — semántica latente rota
+  que el flujo viejo toleraba y el nuevo no.
+- El pill "+12" del modal viejo era un stub nunca implementado — muere con
+  el modal.
+- `poi.css` nunca estuvo en el precache de sw.js — corregido en v17.
+- producto.md tenía entrada huérfana "Cablear `Care.resetWalk()`" (cableado
+  en S19, verificado en `app.js`) — limpiada.
+
+### Timing en mano (fijar en caminata)
+
+Fade-in title card ~1.8s · techo 4s · TTL saludo 90s.
+
+**Próximo:** micro-sesión BUG-046 → caminata de campo (3 observables con
+diagnósticos separados: voz v3.0, Overpass-iPhone, flujo de entrada) →
+DT-51 grounding.
+
+---
+
+*Follower — Bitácora v0.9 | Sesión 25 | 7 Julio 2026*

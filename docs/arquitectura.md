@@ -2188,6 +2188,36 @@ inmediata del dato.
 
 ---
 
+## DA-76 — Modo Libre por default, sin pantalla de modo (Sesión 25)
+
+El modal de modo sale del flujo de entrada. Un acompañante no hace llenar
+formularios antes de caminar: cuatro pasos de wizard + un quinto modal
+contradecía la pregunta rectora. Modo Libre arranca por default
+(`Config.setMode('free')` al cerrar el wizard); Recorrido pasa a ser opt-in
+desde explore. `modal-mode` e `initModeModal()` quedan en el código sin
+llamador, con **DT-56** como rastro documental del punto de entrada pendiente
+— sin ella, Modo Recorrido es inalcanzable. Lección DA-68 aplicada: nada de
+código muerto sin ticket.
+
 ---
 
-*Follower — Arquitectura v0.9 | Sesión 24 | 7 Julio 2026*
+## DA-77 — Saludo pendiente con TTL y semántica de `_audioUnlocked` (Sesión 25)
+
+El saludo de ciudad vive 100% en el canal de voz (enmienda DT-45: la pantalla
+titula, la voz saluda). iOS bloquea `speechSynthesis` hasta el primer gesto
+confiable **por carga de página**. Solución: si el saludo llega con la voz
+bloqueada, queda pendiente (`{ text, lang, ts }`) y se pronuncia en el primer
+gesto — el tap del title card desbloquea de paso. Pasado el TTL (~90s,
+`WELCOME_TTL_MS`, se fija en mano) se descarta en silencio: un "bienvenido"
+tardío suena a bug, no a bienvenida.
+
+Corrección de semántica asociada: `_audioUnlocked` refleja el trust de la
+página, no de la caminata — `initExplore()` ya no la resetea. El flujo viejo
+toleraba ese reset; el nuevo no: el desbloqueo del corazón del wizard debe
+sobrevivir hasta explore para que el saludo suene sin tap adicional.
+`_unlockAudioOnFirstTap()` es la **puerta única** de desbloqueo: wizard
+(paso 4), title card y primer tap en explore convergen en ella.
+
+---
+
+*Follower — Arquitectura v0.9 | Sesión 25 | 7 Julio 2026*

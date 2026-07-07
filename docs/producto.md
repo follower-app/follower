@@ -109,7 +109,7 @@ La presencia sonora de la ciudad es responsabilidad **narrativa**, no técnica: 
 
 ---
 
-## 9. Bienvenida de Ciudad *(rediseñada Sesión 24 — title card, código pendiente)*
+## 9. Bienvenida de Ciudad *(implementada Sesión 25 — title card + saludo 100% voz, DA-77)*
 
 **Separación de canales de cine: la pantalla titula, la voz saluda.**
 
@@ -235,7 +235,7 @@ El Prompt Maestro v2.7 (narrador único) tiene versiones en español e inglés. 
 | Care card — descanso / lluvia / calor / zona especial | ✅ | Reemplaza care strip en top, height 32px |
 | POI expandido | ✅ | btnBookmark/btnShare eliminados (DT-17) |
 | Selección de recorrido | ✅ | |
-| Bienvenida animada (splash → pantalla de carga real) | 🔲 | Pendiente — DT-45 |
+| Title card + wizard de entrada (splash → wizard 1ª vez → title card → explore) | ✅ | Implementado S25 — DT-45/47 |
 | Cierre de caminata — pregunta hablada + confirmación tap | 🔲 | Pendiente — DT-46 |
 | Resumen del paseo | 🔲 | Pendiente — DT-4 |
 
@@ -274,7 +274,7 @@ El Prompt Maestro v2.7 (narrador único) tiene versiones en español e inglés. 
 
 ---
 
-## 19. Deuda Técnica Activa *(actualizada a Sesión 24 — 7 julio 2026)*
+## 19. Deuda Técnica Activa *(actualizada a Sesión 25 — 7 julio 2026)*
 
 | ID | Descripción | Prioridad |
 |----|-------------|-----------|
@@ -282,7 +282,6 @@ El Prompt Maestro v2.7 (narrador único) tiene versiones en español e inglés. 
 | DT-4 | Pantalla resumen del paseo | Media |
 | DT-5 | Más ciudades en routes.js | Baja |
 | DT-8 | debug.js + debug-sim.js deshabilitados antes de v1.0 | Media |
-| DT-9 | Revocar key OpenAI expuesta en commits históricos | Alta |
 | DT-10 | Error IndexedDB "connection is closing" — Safari backgrounding | Media |
 | DT-12 | Atribución CARTO/OSM no visible | Baja |
 | DT-16 | Pantalla POI expandida: rediseñar con nuevo sistema visual | Media |
@@ -294,11 +293,10 @@ El Prompt Maestro v2.7 (narrador único) tiene versiones en español e inglés. 
 | DT-30 | Confirmar TTF con Wikipedia desde sesión nueva — validar con arquitectura v0.9 | Alta |
 | DT-31 | Mejorar type/icon de POIs Wikipedia con categorías Wikidata | Baja |
 | DT-32 | Validar en campo real la arquitectura consolidada de narrador único | Alta |
-| Nueva | Cablear `Care.resetWalk()` en `app.js`, donde se resetea `_walkChapters` — bloqueante para que `thirst` funcione una vez por caminata y no una vez por sesión de navegador | Alta |
 | DT-44 | Medir latencia del checklist mínimo v3.0 — DT-55 puede volverla irrelevante | Baja |
-| DT-45 | Title card de bienvenida (rediseñada S24) — diseño cerrado, listo para implementar | Alta |
-| DT-46 | Diseño de UI: confirmación por tap para cierre de caminata | Media |
-| DT-47 | Wizard de entrada — coreografía de permisos iOS (diseño cerrado S24, mockup en docs/) | Alta |
+| DT-46 | Diseño de UI: confirmación por tap para cierre de caminata — pareja natural de DT-53 | Media |
+| DT-56 | Punto de entrada a Modo Recorrido desde explore — reciclar modal-mode como picker. Consecuencia de DA-76; hasta entonces Recorrido es inalcanzable | Media |
+| DT-57 | i18n de la copy del wizard — hoy español estático salvo título del paso 2 | Baja |
 | DT-53 | getFarewell() — despedida de caminata, nunca implementada; usa nombre DA-75 | Media |
 | DT-54 | Wake lock + modo caminata — resuelve suspensión por bloqueo de pantalla (spec S24) | Alta |
 | DT-55 | Prefetch de narraciones cercanas — conexión por ráfagas (spec S24) | Media |
@@ -308,6 +306,9 @@ El Prompt Maestro v2.7 (narrador único) tiene versiones en español e inglés. 
 
 | ID | Descripción |
 |----|-------------|
+| ~~DT-9~~ | *(Sesión 25)* Key OpenAI revocada en console.openai.com — verificado 0 keys activas; historial git inerte, sin cambios de código |
+| ~~DT-45~~ | *(Sesión 25)* Title card implementado — fade puro, tap salta y desbloquea voz, techo 4s |
+| ~~DT-47~~ | *(Sesión 25)* Wizard de entrada implementado — GPS priming, idioma, nombre (DA-75), desbloqueo de voz por gesto. modal-config eliminado |
 | ~~DT-3~~ | sw.js — service worker, en v8 |
 | ~~DT-19 / DT-33~~ | MP3 de narradores — obsoletas, no hay narrador múltiple ni música (DA-50) |
 | ~~DT-22 a DT-27~~ | Cola narrativa, visited-on-complete, cache Overpass, backoff, invalidateCache — resueltas Sesiones 12-18 |

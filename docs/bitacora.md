@@ -3435,7 +3435,139 @@ exportar logs y separar diagnósticos.
    DT-50, DT-44, BUG-047, DT-53), bitacora S23, instrucciones
 3. `sw.js` v16 — standalone, último
 
+## Sesión 24 — 7 Julio 2026 — Diseño del flujo de entrada: el wizard, el title card y el nombre
+
+**Tipo de sesión: diseño puro. Cero código tocado.**
+
+La sesión arrancó para revisar la deuda de interfaz y terminó cerrando el
+diseño completo del flujo de entrada, dos deudas técnicas de fondo
+resueltas en papel y un usuario nuevo descubierto.
+
+### DT-47 — Wizard de entrada: DISEÑO CERRADO
+
+Reencuadre clave: no es un wizard de preferencias (Follower casi no tiene
+qué configurar tras DA-50) — es una **coreografía de los desbloqueos de
+iOS** que hoy se disparan sin contexto. Solo primera vez.
+
+Flujo: splash → wizard (primera vez) → title card + bienvenida hablada → explore
+
+Orden resuelto por dependencias (cada paso alimenta al siguiente):
+
+1. **Priming GPS** (patrón Citymapper): pantalla propia antes del prompt
+   nativo. GPS obligatorio → sin botón "ahora no", solo enlace explicativo.
+2. **Idioma:** autodetectado de `navigator.language`, confirmación 1 tap.
+   Va ANTES de la voz — la frase de muestra debe sonar en idioma confirmado.
+3. **Nombre (DA-75):** opcional, "Prefiero no decirlo" sale limpio. Va
+   ANTES de la voz — recompensa inmediata del dato en el paso 4.
+4. **Desbloqueo de voz — cierre del wizard:** el corazón latiendo ES el
+   botón. Tap = gesto confiable que desbloquea `speechSynthesis` (linaje
+   BUG-036, listener `touchend`) + frase de muestra: "Hola, Jaime. Soy
+   Follower. Tu ciudad tiene historias que contarte." (fallback sin
+   nombre: "Hola. Soy Follower..."). Último paso a propósito: el
+   desbloqueo queda fresco justo antes de la bienvenida hablada. Doble
+   función: restricción técnica disfrazada de preview de la experiencia.
+
+Mockup ratificado: `docs/dt47_wizard_mockup_final.html` (tokens reales de
+main.css, animaciones de latido y fade incluidas).
+
+### DT-45 — REDISEÑADA: title card (supera la definición de Sesión 19)
+
+Evolución en la sesión: letra por letra → A/B/C tipográfico (DM Serif
+regular vs itálica vs script mano pegada; la script se descartó porque
+las ligaduras se cortan al revelarse y castiga baja visión) → itálica
+ratificada con wordmark + slogan → decisión final que supera todo lo
+anterior:
+
+**La pantalla es un title card estático:** FOLLOWER + *your city
+soundtrack* (DM Serif Display Itálica dorada) apareciendo de la nada —
+fade puro, sin movimiento. **El saludo se muda 100% al canal de voz:**
+`getCityWelcome()` dice "Bienvenido a Pasto, Jaime" en idioma local, con
+nombre. Separación de canales de cine: la pantalla titula, la voz saluda.
+
+Se retiran del diseño anterior: animación letra por letra, texto del
+saludo en pantalla y su fallback, dependencia del reverse geocoding en la
+pantalla (la carrera de 5s desaparece del UI). Simplificación resultante:
+la pantalla no espera a nadie — implementación = CSS + timer + tap.
+Timing propuesto (se fija en mano): fade-in ~1.8s → sostiene → sale al
+entrar a explore, techo 4s, tap salta.
+
+Enmienda registrada en `docs/dt45_bienvenida_animada.md`.
+
+### DT-54 — NUEVA: wake lock + modo caminata
+
+**Problema:** al bloquearse la pantalla, iOS suspende el JS de la PWA:
+`watchPosition` deja de entregar, timers congelados, `speechSynthesis`
+cortada. El apagado automático de pantalla rompe la experiencia completa.
+
+**Solución ratificada:**
+- `navigator.wakeLock.request('screen')` al iniciar caminata (Safari ≥ iOS 16.4)
+- Re-adquirir en `visibilitychange` (el lock se libera al ocultar la app)
+- **Modo caminata:** pantalla casi negra (negro OLED ≈ apagada en
+  consumo), solo corazón + fase sístole/diástole. El teléfono va al
+  bolsillo con la pantalla técnicamente encendida, visualmente dormida
+- Bloqueo manual del usuario: suspensión aceptada, reanudación limpia.
+  Nunca mostrar error
+
+El modo caminata es momento de marca, no pantalla de utilidad.
+Convergencia directa con la visión v2.0 de accesibilidad (audio-first).
+Largo plazo: GPS en background real solo existe en nativo (Capacitor) —
+decisión de v2.0, fuera de alcance.
+
+### DT-55 — NUEVA: prefetch de narraciones cercanas
+
+**Problema:** generar narraciones exige red en el momento del trigger;
+la latencia del Worker se percibe en el peor momento (usuario ya frente
+al POI) y una zona sin señal rompe la experiencia.
+
+**Solución ratificada:** tras cargar POIs cercanos, pre-generar en
+segundo plano las narraciones de los N más próximos. Reutiliza el cache
+existente (`${PROMPT_VERSION}_${poiId}_${lang}_${topic}`) — cero
+estructura nueva. Convierte "conexión permanente" en "conexión al inicio
++ ráfagas".
+
+Abiertas: valor de N y criterio (proximidad vs proximidad+rumbo) · no
+interferir con `trigger()` en curso · medir hit-rate vs costo Haiku.
+**Sinergia con DT-44:** el prefetch elimina la latencia percibida — puede
+volver innecesaria la medición en campo.
+
+### DA-75 — Nombre del acompañado (ratificada)
+
+Ver `docs/arquitectura.md`. Resumen: captura opcional en wizard,
+localStorage, solo welcome/farewell, nunca capítulos ni Care, fallback
+siempre funcional.
+
+### Visión v2.0 — Follower accesible (registrada en producto.md)
+
+Descubrimiento de la sesión: el linaje Soundscape (Microsoft Research,
+open source tras descontinuarse; sucesores VoiceVista, Soundscape
+Community, Soundscape STA — todos sobre OSM) validó la demanda de
+exploración urbana por audio para personas ciegas. El vacío que señala
+esa comunidad no es evitar obstáculos (bastón, perro) — es saber qué hay
+alrededor y qué es interesante. Ese vacío es el territorio exacto de
+Follower. Condiciones: nunca ayuda de movilidad · variante de prompt
+"narrar lo perceptible" (depende DT-51) · conversar con usuarios reales
+antes de codificar. Criterio vigente desde ya: no agregar dependencias
+de pantalla.
+
+### Pendiente que esta sesión NO tocó
+
+- Las dos variables de campo (voz v3.0, Overpass-iPhone) siguen sin validar
+- `Care.resetWalk()` sin cablear en `app.js` (anotado desde S19)
+- DT-46 (cierre de caminata) sigue acoplada a DT-53 (getFarewell)
+
+### Commits de la sesión
+
+1. `docs/` — registro_sesion24_interfaz.md + dt47_wizard_mockup_final.html
+   + arquitectura (DA-75) + bitacora S24 + producto (tabla DTs, sección 9
+   enmendada, visión v2.0) + dt45_bienvenida_animada (enmienda)
+2. Instrucciones del proyecto actualizadas (campo del panel)
+
+Sin código, sin sw.js bump — ningún archivo servido cambió.
+
+**Próxima sesión: implementación del flujo de entrada** (DT-45 + DT-47 +
+DA-75). Commits quirúrgicos: 1) title card, 2) wizard + localStorage +
+desbloqueo voz, 3) nombre en getCityWelcome, 4) sw.js v17 aparte.
+
 ---
 
-*Follower — Bitácora v0.9 | Sesión 23 | 5 Julio 2026*
-
+*Follower — Bitácora v0.9 | Sesión 24 | 7 Julio 2026*

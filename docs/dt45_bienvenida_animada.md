@@ -1,7 +1,12 @@
 # DT-45 — Bienvenida animada como pantalla de carga real
 
-Estado: **DEFINICIÓN CERRADA — código pendiente**
-Sesión 19 (continuación), 1 Julio 2026
+Estado: **SUPERADO POR ENMIENDA S24 (title card) — ver sección final. Código pendiente**
+Sesión 19 (continuación), 1 Julio 2026 · Enmendado Sesión 24, 7 Julio 2026
+
+> ⚠️ **La enmienda de Sesión 24 (al final de este documento) supera las
+> secciones de diseño visual y disparador de este documento.** Sigue
+> vigente de la definición original: qué reemplaza, el carácter
+> bloqueante-skippable y el impacto en archivos.
 
 ---
 
@@ -102,3 +107,42 @@ siente lento comparado con el tap-to-skip ya disponible como salida.
 ---
 
 *Follower — DT-45 Bienvenida Animada | Definición cerrada, código pendiente | Sesión 19 | 1 Julio 2026*
+
+---
+
+## ENMIENDA SESIÓN 24 — Title card (ratificada, supera el diseño anterior)
+
+**Decisión:** la pantalla de bienvenida es un **title card estático**:
+solo FOLLOWER + *your city soundtrack* apareciendo de la nada (fade puro,
+sin movimiento de letras). **El saludo se muda 100% al canal de voz:**
+`getCityWelcome()` dice "Bienvenido a Pasto, Jaime" en idioma local, con
+nombre (DA-75 — su contrato siempre fue la voz). Separación de canales de
+cine: la pantalla titula, la voz saluda.
+
+**Composición:** wordmark FOLLOWER (Inter, tracking amplio, grande) +
+slogan en DM Serif Display Itálica dorada (la itálica ratificada por A/B/C
+en la misma sesión vive aquí). Fondo noche con resplandor sístole inferior.
+Mockup: `docs/dt47_wizard_mockup_final.html`.
+
+**Se retira del diseño de Sesión 19:**
+- Animación letra por letra (y su rol de reloj de la pantalla)
+- Texto del saludo en pantalla + su fallback "Tu ciudad te espera"
+- Dependencia del reverse geocoding en la pantalla — la carrera de 5s
+  desaparece del UI; el idioma local vive solo en la voz
+- La decisión tipográfica intermedia de la sesión (saludo animado en
+  itálica) — la itálica sobrevive en el slogan
+
+**Historial de la decisión (misma sesión):** letra por letra → A/B/C
+tipográfico (script mano pegada descartada: corta ligaduras al revelarse,
+castiga baja visión) → itálica + identidad como marco → title card puro.
+
+**Simplificación resultante:** la pantalla no espera a nadie — cero
+estados de carga, cero fallback visual. Implementación: CSS fade + timer
++ tap.
+
+**Timing propuesto (se fija en mano, NO son valores finales):** fade-in
+~1.8s → sostiene → sale al entrar a explore, techo 4s, tap salta.
+
+---
+
+*Enmienda — Sesión 24 | 7 Julio 2026*

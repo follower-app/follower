@@ -2161,7 +2161,33 @@ Pendiente al implementar:
 
 Retirada de "Funciones únicas" en instrucciones hasta que exista.
 
+## DA-75 — Nombre del acompañado (Sesión 24)
+
+**Decisión:** Follower puede conocer el nombre del usuario para humanizar
+bienvenida y despedida. Pasa el filtro de la pregunta rectora: una
+audioguía no sabe tu nombre; un acompañante sí.
+
+1. **Captura:** paso opcional del wizard (DT-47), "¿Cómo quieres que te
+   llame?", skippable sin fricción ("Prefiero no decirlo").
+2. **Persistencia:** `localStorage`. Nunca viaja al Worker como dato
+   independiente — solo inyectado en el texto del prompt.
+3. **Contrato de uso:** exclusivamente `getCityWelcome()` y futuro
+   `getFarewell()` (DT-53). Prohibido en capítulos y en Care — el narrador
+   habla de la ciudad; el nombre abre y cierra el paseo.
+4. **Fallback:** sin nombre, todo funciona igual que hoy. Cero
+   condicionales nuevos en el flujo principal.
+5. **Sin cambios** en `trigger()` ni en el Prompt Maestro v3.0 — no
+   contamina la variable de campo pendiente (voz v3.0).
+
+**Microcopy como contrato declarado al usuario:** "Solo lo usaré para
+saludarte y despedirme."
+
+**Uso inmediato adicional:** la frase de muestra del desbloqueo de voz
+(paso 4 del wizard) saluda con el nombre recién dado — recompensa
+inmediata del dato.
+
 ---
 
-*Follower — Arquitectura v0.9 | Sesión 23 | 5 Julio 2026*
+---
 
+*Follower — Arquitectura v0.9 | Sesión 24 | 7 Julio 2026*

@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DT-47 · Mockup final — Wizard de entrada</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=Inter:wght@200;300;400;500&display=swap" rel="stylesheet">
+<style>
+/* ── Tokens reales de Follower (main.css) ── */
+:root {
+  --color-navy:     #0d1b2a;
+  --color-night:    #0d1420;
+  --color-night-2:  #0a1018;
+  --color-night-3:  #16212f;
+  --color-diastole: #c0392b;
+  --color-systole:  #1a5276;
+  --color-gold:     #f0c87a;
+  --color-smoke:    #c8d4e0;
+  --color-smoke-2:  #4a5568;
+  --color-border:   #1e2d3d;
+  --color-ice:      #e8eef4;
+  --font-display:   'DM Serif Display', serif;
+  --font-ui:        'Inter', sans-serif;
+  --radius-lg:      16px;
+  --radius-pill:    100px;
+}
+
+* { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+
+body {
+  background: var(--color-night-2);
+  color: var(--color-ice);
+  font-family: var(--font-ui);
+  font-weight: 300;
+  padding: 24px 16px 64px;
+}
+
+.doc-header { max-width: 960px; margin: 0 auto 8px; }
+.doc-header .eyebrow {
+  font-size: 11px; letter-spacing: 0.18em; text-transform: uppercase;
+  color: var(--color-gold); margin-bottom: 8px;
+}
+.doc-header h1 {
+  font-family: var(--font-display); font-weight: 400;
+  font-size: clamp(26px, 5vw, 38px); line-height: 1.15; margin-bottom: 10px;
+}
+.doc-header p { color: var(--color-smoke); font-size: 14px; max-width: 620px; line-height: 1.6; }
+
+.flow {
+  max-width: 960px; margin: 20px auto 40px;
+  font-size: 12px; color: var(--color-smoke-2);
+  letter-spacing: 0.04em; line-height: 1.8;
+}
+.flow b { color: var(--color-ice); font-weight: 500; }
+.flow .new { color: var(--color-gold); }
+
+.grid {
+  max-width: 960px; margin: 0 auto;
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 40px 28px;
+}
+
+.mock { display: flex; flex-direction: column; align-items: center; }
+.mock-label { align-self: flex-start; margin-bottom: 12px; }
+.mock-label .step {
+  font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase;
+  color: var(--color-gold);
+}
+.mock-label h2 { font-size: 15px; font-weight: 500; margin-top: 2px; }
+
+.phone {
+  width: 100%; max-width: 300px; aspect-ratio: 9 / 19;
+  background: var(--color-night);
+  border: 1px solid var(--color-border);
+  border-radius: 36px;
+  padding: 14px;
+  display: flex; flex-direction: column;
+  position: relative; overflow: hidden;
+  box-shadow: 0 18px 50px rgba(0,0,0,0.5);
+}
+.phone::before {
+  content: ''; position: absolute; top: 10px; left: 50%;
+  transform: translateX(-50%);
+  width: 72px; height: 5px; border-radius: 3px;
+  background: var(--color-night-3);
+}
+
+.screen {
+  flex: 1; display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  text-align: center; padding: 24px 18px;
+}
+
+.dots { display: flex; gap: 6px; margin-bottom: 28px; }
+.dot { width: 5px; height: 5px; border-radius: 50%; background: var(--color-border); }
+.dot.on { background: var(--color-gold); }
+
+.icon-wrap {
+  width: 68px; height: 68px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  border: 1px solid var(--color-border);
+  margin-bottom: 24px; font-size: 26px;
+  color: var(--color-gold);
+}
+
+.screen h3 {
+  font-family: var(--font-display); font-weight: 400;
+  font-size: 22px; line-height: 1.25; margin-bottom: 12px;
+}
+.screen .example {
+  font-size: 13px; color: var(--color-smoke); line-height: 1.55;
+  font-style: italic; max-width: 220px; margin-bottom: 30px;
+}
+.screen .plain {
+  font-size: 13px; color: var(--color-smoke); line-height: 1.55;
+  max-width: 220px; margin-bottom: 30px;
+}
+
+.btn {
+  font-family: var(--font-ui); font-size: 14px; font-weight: 500;
+  border-radius: var(--radius-pill); padding: 13px 0; width: 100%;
+  max-width: 220px; border: none; cursor: pointer;
+}
+.btn-solid { background: var(--color-systole); color: var(--color-ice); }
+.btn-gold  { background: var(--color-gold); color: var(--color-navy); }
+.btn-ghost {
+  background: transparent; color: var(--color-smoke);
+  border: 0.5px solid var(--color-border);
+  margin-top: 10px; font-weight: 400;
+}
+.btn-link {
+  background: none; border: none; color: var(--color-smoke-2);
+  font-size: 12px; margin-top: 14px; text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* Paso 4 — corazón que late */
+.heart-btn {
+  width: 108px; height: 108px; border-radius: 50%;
+  background: radial-gradient(circle at 50% 40%, #1c3550, var(--color-night-3));
+  border: 1px solid var(--color-border);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 40px; margin-bottom: 26px; cursor: pointer;
+  animation: heartbeat 1.4s ease-in-out infinite;
+  position: relative;
+}
+.heart-btn::after {
+  content: ''; position: absolute; inset: -10px;
+  border-radius: 50%; border: 1px solid var(--color-systole);
+  opacity: 0; animation: ring-pulse 2.8s ease-out infinite;
+}
+@keyframes heartbeat {
+  0%, 100% { transform: scale(1); }
+  14% { transform: scale(1.07); }
+  28% { transform: scale(1); }
+  42% { transform: scale(1.05); }
+}
+@keyframes ring-pulse {
+  0% { transform: scale(0.9); opacity: 0.6; }
+  100% { transform: scale(1.35); opacity: 0; }
+}
+
+.name-input {
+  width: 100%; max-width: 220px;
+  background: var(--color-night-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  color: var(--color-ice);
+  font-family: var(--font-ui); font-size: 16px; font-weight: 300;
+  text-align: center; padding: 14px 12px; margin-bottom: 22px;
+}
+.name-input::placeholder { color: var(--color-smoke-2); }
+
+.lang-chip {
+  font-size: 13px; color: var(--color-smoke);
+  border: 0.5px solid var(--color-border);
+  border-radius: var(--radius-pill);
+  padding: 8px 18px; margin-bottom: 26px;
+}
+.lang-chip b { color: var(--color-ice); font-weight: 500; }
+
+/* DT-45 — title card */
+.welcome-screen { justify-content: center; background:
+  radial-gradient(ellipse at 50% 100%, rgba(26,82,118,0.25), transparent 65%);
+}
+.title-card {
+  display: flex; flex-direction: column; align-items: center; gap: 10px;
+  animation: card-fade 7s ease-in-out infinite; /* loop solo para demo */
+}
+.wordmark-lg {
+  font-family: var(--font-ui); font-size: 21px; font-weight: 400;
+  letter-spacing: 0.42em; color: var(--color-ice);
+  padding-left: 0.42em;
+}
+.slogan {
+  font-family: var(--font-display); font-style: italic;
+  font-size: 14px; color: var(--color-gold); opacity: 0.9;
+}
+@keyframes card-fade {
+  0%   { opacity: 0; }
+  12%  { opacity: 0; }
+  38%  { opacity: 1; }
+  78%  { opacity: 1; }
+  96%  { opacity: 0; }
+  100% { opacity: 0; }
+}
+.skip-hint {
+  position: absolute; bottom: 26px; left: 0; right: 0;
+  font-size: 11px; color: var(--color-smoke-2); text-align: center;
+  letter-spacing: 0.06em;
+}
+
+.notes {
+  width: 100%; max-width: 300px; margin-top: 14px;
+  font-size: 12px; line-height: 1.6; color: var(--color-smoke);
+}
+.notes .ok, .notes .open {
+  display: block; padding-left: 16px; position: relative; margin-bottom: 5px;
+}
+.notes .ok::before   { content: '●'; position: absolute; left: 0; color: var(--color-systole); }
+.notes .open::before { content: '○'; position: absolute; left: 0; color: var(--color-gold); }
+
+@media (prefers-reduced-motion: reduce) {
+  .heart-btn, .heart-btn::after { animation: none; }
+  .title-card { animation: none; opacity: 1; }
+}
+</style>
+</head>
+<body>
+
+<header class="doc-header">
+  <div class="eyebrow">Follower · Mockup final · Sesión 24 · DT-47 + DA-75 + DT-45</div>
+  <h1>Wizard de entrada — versión para implementar</h1>
+  <p>Coreografía de permisos, solo primera vez. Orden resuelto por dependencias:
+  el idioma se confirma antes de que suene la primera voz, el nombre se pide antes
+  de que la voz lo use. El desbloqueo de voz cierra el wizard justo antes de la
+  bienvenida hablada — el gesto confiable de iOS queda fresco.</p>
+</header>
+
+<div class="flow">
+  splash (latido) → <b class="new">1·GPS → 2·Idioma → 3·Nombre → 4·Voz</b> → <b>title card + bienvenida hablada</b> → explore<br>
+  ● decidido &nbsp;·&nbsp; ○ abierto (solo timing del fade, se fija en mano)
+</div>
+
+<div class="grid">
+
+  <!-- PASO 1 — GPS -->
+  <div class="mock">
+    <div class="mock-label">
+      <div class="step">Paso 1 / 4</div>
+      <h2>Priming de GPS</h2>
+    </div>
+    <div class="phone">
+      <div class="screen">
+        <div class="dots"><span class="dot on"></span><span class="dot"></span><span class="dot"></span><span class="dot"></span></div>
+        <div class="icon-wrap">📍</div>
+        <h3>Camino contigo</h3>
+        <p class="example">"Para susurrarte la historia de la iglesia que tienes enfrente, necesito saber dónde estás."</p>
+        <button class="btn btn-solid">Activar ubicación</button>
+        <button class="btn-link">¿Cómo usamos tu ubicación?</button>
+      </div>
+    </div>
+    <div class="notes">
+      <span class="ok">Patrón Citymapper: pantalla propia antes del prompt nativo.</span>
+      <span class="ok">GPS obligatorio — sin "ahora no", solo enlace que explica.</span>
+    </div>
+  </div>
+
+  <!-- PASO 2 — IDIOMA -->
+  <div class="mock">
+    <div class="mock-label">
+      <div class="step">Paso 2 / 4</div>
+      <h2>Confirmación de idioma</h2>
+    </div>
+    <div class="phone">
+      <div class="screen">
+        <div class="dots"><span class="dot on"></span><span class="dot on"></span><span class="dot"></span><span class="dot"></span></div>
+        <div class="icon-wrap">🗣️</div>
+        <h3>Te hablaré en español</h3>
+        <div class="lang-chip">Detectado de tu teléfono · <b>es</b></div>
+        <button class="btn btn-solid">Perfecto</button>
+        <button class="btn btn-ghost">Cambiar idioma</button>
+      </div>
+    </div>
+    <div class="notes">
+      <span class="ok">Resuelto: idioma ANTES de voz — la frase de muestra del paso 4 ya suena en el idioma confirmado.</span>
+      <span class="ok">Autodetectado de <code>navigator.language</code>. "Cambiar" abre el selector existente.</span>
+    </div>
+  </div>
+
+  <!-- PASO 3 — NOMBRE -->
+  <div class="mock">
+    <div class="mock-label">
+      <div class="step">Paso 3 / 4</div>
+      <h2>Nombre · DA-75 ratificada</h2>
+    </div>
+    <div class="phone">
+      <div class="screen">
+        <div class="dots"><span class="dot on"></span><span class="dot on"></span><span class="dot on"></span><span class="dot"></span></div>
+        <h3>¿Cómo quieres que te llame?</h3>
+        <p class="plain">Solo lo usaré para saludarte y despedirme.</p>
+        <input class="name-input" placeholder="Tu nombre" value="">
+        <button class="btn btn-gold">Continuar</button>
+        <button class="btn btn-ghost">Prefiero no decirlo</button>
+      </div>
+    </div>
+    <div class="notes">
+      <span class="ok">Opcional, skippable. localStorage; solo se inyecta en welcome/farewell.</span>
+      <span class="ok">Va ANTES de la voz: el dato recién dado tiene recompensa inmediata en el paso 4.</span>
+      <span class="ok">Microcopy = contrato declarado al usuario.</span>
+    </div>
+  </div>
+
+  <!-- PASO 4 — VOZ -->
+  <div class="mock">
+    <div class="mock-label">
+      <div class="step">Paso 4 / 4 · cierre del wizard</div>
+      <h2>Desbloqueo de voz</h2>
+    </div>
+    <div class="phone">
+      <div class="screen">
+        <div class="dots"><span class="dot on"></span><span class="dot on"></span><span class="dot on"></span><span class="dot on"></span></div>
+        <div class="heart-btn">💗</div>
+        <h3>Toca para escucharme</h3>
+        <p class="example">Al tocar, suena en el idioma confirmado y con el nombre dado:<br><br>"Hola, Jaime. Soy Follower. Tu ciudad tiene historias que contarte."</p>
+      </div>
+    </div>
+    <div class="notes">
+      <span class="ok">El corazón latiendo ES el botón. Tap = gesto confiable que desbloquea <code>speechSynthesis</code> (linaje BUG-036, <code>touchend</code>).</span>
+      <span class="ok">Último paso a propósito: el desbloqueo queda fresco justo antes de la bienvenida hablada.</span>
+      <span class="ok">Sin nombre (fallback): "Hola. Soy Follower. Tu ciudad tiene historias que contarte."</span>
+      <span class="ok">Puerta de entrada accesible: la app se presenta hablando, no mostrando.</span>
+    </div>
+  </div>
+
+  <!-- DT-45 — TITLE CARD (ratificado) -->
+  <div class="mock">
+    <div class="mock-label">
+      <div class="step">Bienvenida DT-45 · ratificada</div>
+      <h2>Title card — solo la marca</h2>
+    </div>
+    <div class="phone">
+      <div class="screen welcome-screen">
+        <div class="title-card">
+          <div class="wordmark-lg">FOLLOWER</div>
+          <div class="slogan">your city soundtrack</div>
+        </div>
+        <div class="skip-hint">toca para saltar</div>
+      </div>
+    </div>
+    <div class="notes">
+      <span class="ok">Pantalla = title card estático que aparece de la nada (fade puro, sin movimiento). El loop de este mockup es demo — en producción es un solo fade-in.</span>
+      <span class="ok">El saludo se muda 100% al canal de voz: <code>getCityWelcome()</code> dice "Bienvenido a Pasto, Jaime" en idioma local, con nombre (DA-75 intacta).</span>
+      <span class="ok">Se retiran: letra por letra, A/B del slogan, dependencia del geocoding en pantalla, fallback de texto. La pantalla ya no espera a nadie.</span>
+      <span class="open">Timing propuesto (se fija en mano): fade-in ~1.8s → sostiene → sale al entrar a explore, techo 4s, tap salta.</span>
+    </div>
+  </div>
+
+</div>
+
+</body>
+</html>

@@ -109,15 +109,25 @@ La presencia sonora de la ciudad es responsabilidad **narrativa**, no técnica: 
 
 ---
 
-## 9. Bienvenida de Ciudad *(v0.9 — activo)*
+## 9. Bienvenida de Ciudad *(rediseñada Sesión 24 — title card, código pendiente)*
 
-Al entrar a una ciudad, aparece una frase única centrada sobre el mapa con fade in/out. La frase se pronuncia en el **idioma local de la ciudad** (no en el idioma del usuario) — detectado desde el `country_code` de Nominatim vía tabla ISO 3166-1 → BCP-47 (35+ países, `COUNTRY_LANG` en `narration.js`). Voz única.
+**Separación de canales de cine: la pantalla titula, la voz saluda.**
 
-- Texto en DM Serif Display, centrado, sobre el mapa
-- Se dispara una vez por sesión
-- Desaparece automáticamente a los 5 segundos o al tocar
-- Si Nominatim no responde en 10s, aparece un fallback genérico en el idioma del usuario (`Config.get('lang')`)
-- `_cityWelcomeDone` se resetea en cada `initExplore()` — nueva sesión, nueva bienvenida
+- **Pantalla — title card estático:** FOLLOWER + *your city soundtrack*
+  (DM Serif Display Itálica dorada) apareciendo de la nada — fade puro,
+  sin movimiento. No depende de red ni de geocoding: nunca espera a nadie.
+  Tap salta. Timing se fija en mano (fade-in ~1.8s, techo 4s).
+- **Voz — el saludo completo:** `getCityWelcome()` pronuncia "Bienvenido a
+  [ciudad], [nombre]" en el **idioma local de la ciudad** (detectado desde
+  `country_code` de Nominatim vía `COUNTRY_LANG` en `narration.js`), con el
+  nombre del usuario si existe (DA-75). Sin nombre: saludo igual que hoy.
+- Se dispara una vez por sesión — `_cityWelcomeDone` se resetea en cada
+  `initExplore()`.
+
+*Diseño anterior (frase en pantalla con letra por letra y fallback de
+texto) superado en Sesión 24 — ver enmienda en
+`docs/dt45_bienvenida_animada.md`. El flujo v0.9 actual (overlay no
+bloqueante) sigue activo en producción hasta implementar.*
 
 ---
 
@@ -264,7 +274,7 @@ El Prompt Maestro v2.7 (narrador único) tiene versiones en español e inglés. 
 
 ---
 
-## 19. Deuda Técnica Activa *(actualizada a Sesión 22 — 4 julio 2026)*
+## 19. Deuda Técnica Activa *(actualizada a Sesión 24 — 7 julio 2026)*
 
 | ID | Descripción | Prioridad |
 |----|-------------|-----------|
@@ -285,11 +295,13 @@ El Prompt Maestro v2.7 (narrador único) tiene versiones en español e inglés. 
 | DT-31 | Mejorar type/icon de POIs Wikipedia con categorías Wikidata | Baja |
 | DT-32 | Validar en campo real la arquitectura consolidada de narrador único | Alta |
 | Nueva | Cablear `Care.resetWalk()` en `app.js`, donde se resetea `_walkChapters` — bloqueante para que `thirst` funcione una vez por caminata y no una vez por sesión de navegador | Alta |
-| DT-44 | Medir en campo si la autoevaluación interna del Prompt Maestro v2.7 afecta latencia | Alta |
-| DT-45 | Diseño de UI: pantalla de bienvenida animada (splash mínimo + texto letra por letra) | Alta |
+| DT-44 | Medir latencia del checklist mínimo v3.0 — DT-55 puede volverla irrelevante | Baja |
+| DT-45 | Title card de bienvenida (rediseñada S24) — diseño cerrado, listo para implementar | Alta |
 | DT-46 | Diseño de UI: confirmación por tap para cierre de caminata | Media |
-| DT-47 | Wizard de configuración tipo Organiza2 (reemplaza modal único actual) | Media |
-| DT-50 | Cache de narraciones sin versión de prompt — capítulos pre-DA-66 servidos en campo (Sesión 21); mismo patrón que DA-71 | Alta |
+| DT-47 | Wizard de entrada — coreografía de permisos iOS (diseño cerrado S24, mockup en docs/) | Alta |
+| DT-53 | getFarewell() — despedida de caminata, nunca implementada; usa nombre DA-75 | Media |
+| DT-54 | Wake lock + modo caminata — resuelve suspensión por bloqueo de pantalla (spec S24) | Alta |
+| DT-55 | Prefetch de narraciones cercanas — conexión por ráfagas (spec S24) | Media |
 | DT-51 | Grounding de narración con `generator=geosearch&prop=extracts` — cierra alucinación tipo Pasto y basura sin tipo que DA-70 no atrapa | Alta |
 
 ### Resueltas recientemente
@@ -311,6 +323,33 @@ El Prompt Maestro v2.7 (narrador único) tiene versiones en español e inglés. 
 | ~~DA-55~~ | *(Sesión 19)* Pausa de detección en tránsito — `_updateTransitState()` en `gps.js` |
 | ~~DT-42~~ | *(Sesión 19)* Care generativo — 7 triggers, `getCareMessage()`, migración de `rain` desde `weather.js` |
 
+## 20. Visión v2.0 — Follower accesible *(registrada Sesión 24 — sin ticket de código)*
+
+**Modo de narración no-visual para personas ciegas o con baja visión.**
+
+Linaje validado: Microsoft Soundscape (open source tras descontinuarse) y
+sus sucesores (VoiceVista, Soundscape Community, Soundscape STA) probaron
+la demanda de exploración urbana por audio — todos sobre OSM, la misma
+fuente compuesta de Follower. El vacío que señala esa comunidad no es
+evitar obstáculos (bastón, perro, habilidades propias) — es **saber qué
+hay alrededor y qué es interesante**. Ese vacío es el territorio exacto
+de Follower: Soundscape anuncia "iglesia a tu derecha"; Follower cuenta
+por qué esa iglesia importa.
+
+**Condiciones:**
+1. Follower **nunca** es ayuda de movilidad — compañía cultural. Cero
+   ambigüedad, declarado explícitamente.
+2. Variante de prompt "narrar lo perceptible" (sonido, textura, historia)
+   en vez de "lo observable" visual. Depende de DT-51.
+3. Condicionada a conversar con usuarios reales antes de asumir
+   necesidades. Sin ticket de código hasta entonces.
+
+**Criterio de diseño vigente desde ya:** cada feature que tiente a
+depender de la pantalla tiene dos razones para resistir — la visión
+cinematográfica y este usuario. La arquitectura audio-first de Follower
+ya cubre ~80% del camino; el wizard paso 4 ("Toca para escucharme") es
+puerta de entrada accesible: la app se presenta hablando, no mostrando.
+
 ---
 
 ## Principios aprendidos en campo
@@ -325,4 +364,4 @@ El Prompt Maestro v2.7 (narrador único) tiene versiones en español e inglés. 
 
 ---
 
-*Follower — Documento de Producto v0.9 | Sesión 19 | 1 Julio 2026*
+*Follower — Documento de Producto v0.9 | Sesión 24 | 7 Julio 2026*

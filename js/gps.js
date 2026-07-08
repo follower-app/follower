@@ -172,12 +172,24 @@ const GPS = (() => {
 
   /* ── OBTENER NOMBRE DE CIUDAD (Nominatim) ── */
   async function fetchCityName(lat, lng) {
-    if (AppState.offline) return;
+    // Instrumentacion puente S25d — sin esta visibilidad no se puede
+    // diagnosticar por que Nominatim no resuelve (red, CORS, sin campo de
+    // ciudad). Diseño DT-60 (mover esta llamada al wizard) depende de saber
+    // cuanto tarda esto en la practica.
+    if (AppState.offline) {
+      if (typeof Debug !== 'undefined') {
+        Debug.log('warn', 'fetchCityName: abortado — AppState.offline=true');
+      }
+      return;
+    }
+
+    const _t0 = performance.now();
 
     try {
       const url  = `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json`;
       const res  = await fetch(url);
       const data = await res.json();
+      const _ms  = Math.round(performance.now() - _t0);
 
       const city = data.address?.city
                 || data.address?.town
@@ -193,13 +205,23 @@ const GPS = (() => {
         AppState.countryCode = country;  // DT-41: para getLocalLang en bienvenida
         updateTopPill();
 
+        if (typeof Debug !== 'undefined') {
+          Debug.log('info', `fetchCityName: OK "${city}, ${country}" · ${_ms}ms · status=${res.status}`);
+        }
+
         // Bienvenida de ciudad — solo la primera vez que se detecta
         if (isFirst && typeof welcomeCity === 'function') {
           welcomeCity(city, country);
         }
+      } else if (typeof Debug !== 'undefined') {
+        Debug.log('warn', `fetchCityName: sin campo de ciudad utilizable · ${_ms}ms · status=${res.status} · address=${JSON.stringify(data.address || {})}`);
       }
     } catch (e) {
-      // Sin conexión o error — mantener cityName anterior
+      const _ms = Math.round(performance.now() - _t0);
+      if (typeof Debug !== 'undefined') {
+        Debug.log('error', `fetchCityName: excepcion tras ${_ms}ms — ${e.message}`);
+      }
+      // Sin conexión o error — mantener cityName anterior (comportamiento sin cambios)
     }
   }
 

@@ -203,7 +203,7 @@ const GPS = (() => {
         const isFirst = !AppState.cityName;
         AppState.cityName   = country ? `${city}, ${country}` : city;
         AppState.countryCode = country;  // DT-41: para getLocalLang en bienvenida
-        updateTopPill();
+        updateCareStrip();  // BUG-048: updateTopPill no existe desde v0.6 (refactor v0.6 incompleto)
 
         if (typeof Debug !== 'undefined') {
           Debug.log('info', `fetchCityName: OK "${city}, ${country}" · ${_ms}ms · status=${res.status}`);
@@ -357,7 +357,7 @@ const GPS = (() => {
       const data = await res.json();
       if (data.city) {
         AppState.cityName = `${data.city}, ${data.country_code || ''}`;
-        updateTopPill();
+        updateCareStrip();  // BUG-048
 
         // Bienvenida de ciudad — fallback por IP
         if (typeof welcomeCity === 'function') {
@@ -371,7 +371,7 @@ const GPS = (() => {
       }
     } catch (e) {
       AppState.cityName = 'Tu ciudad';
-      updateTopPill();
+      updateCareStrip();  // BUG-048
     }
   }
 

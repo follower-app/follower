@@ -221,8 +221,8 @@ function updateStats() {
 }
 
 /* ── CONECTIVIDAD ── */
-function handleOnline()  { AppState.offline = false; updateTopPill(); }
-function handleOffline() { AppState.offline = true;  updateTopPill(); }
+function handleOnline()  { AppState.offline = false; updateCareStrip(); }  // BUG-048: updateTopPill no existe desde v0.6
+function handleOffline() { AppState.offline = true;  updateCareStrip(); }  // BUG-048: updateTopPill no existe desde v0.6
 
 /* ── PEDIR PERMISO GPS — necesario en iOS antes de cualquier interacción ── */
 function requestGPSPermission() {

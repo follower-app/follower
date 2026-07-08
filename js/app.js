@@ -920,9 +920,18 @@ function init() {
   // Herramienta de campo: ?reset=1 limpia localStorage y simula primera vez.
   // iPhone sin Web Inspector no tiene consola — esta es la unica via practica.
   // No toca IndexedDB (los POIs cacheados no afectan el flujo de entrada).
+  // BUG-049: config.js carga ANTES que app.js (index.html) y su load()
+  // ya leyo localStorage para cuando este hook corre — localStorage.clear()
+  // limpia el disco pero no el objeto Config ya poblado en memoria. Sin este
+  // reset explicito, banderas que el wizard nunca reescribe (como
+  // introHeard) sobreviven en memoria pese al "reset". Config.reset() ya
+  // reasigna el objeto en memoria, no solo el storage.
   // Destino: retirar o conservar junto con DT-8 antes de v1.0.
   if (new URLSearchParams(location.search).has('reset')) {
     try { localStorage.clear(); } catch (e) {}
+    if (typeof Config !== 'undefined' && typeof Config.reset === 'function') {
+      Config.reset();
+    }
     history.replaceState(null, '', location.pathname);
   }
 

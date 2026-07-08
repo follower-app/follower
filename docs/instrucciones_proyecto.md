@@ -82,7 +82,8 @@ Flujo actual (vigente hasta que DT-60 se implemente): splash decorativo (sin pro
 
 - **DT-60 (registrada, próxima sesión de código mayor):** mover GPS/ciudad/POIs al wizard paso 2 + title card; splash pasa a estático (sin latido, sin mensajes falsos). Piedra técnica: Leaflet necesita contenedor visible — separar adquisición de datos de construcción del mapa (`onPosition()` en gps.js). Flujo objetivo completo en bitácora S25d. Requiere ratificación punto por punto, mismo rigor que DT-45/47
 - **BUG-046 → micro-sesión propia ANTES de la caminata (B ratificada S25).** Fix candidato "marcar al iniciar" + micro-decisión pendiente: destino del POI si la narración falla de inmediato tras marcar (leer trigger() primero)
-- **Caminata de campo — próximo log confirma que el saludo real ya suena** (BUG-048 cerrado) y dirá cuánto tarda Nominatim en la práctica (dato clave para diseñar DT-60) · observar también voz v3.0, Overpass-iPhone, SPECIAL_ZONE_MIN: 3
+- **DT-60 diseño refinado (S25g, sin código):** splash queda 100% anónimo (corazón+brújula quietos, sin nombre); personalización se concentra en el corazón final del wizard. El saludo ahí es gratis vía DA-77 (pendiente+TTL ya existente) si fetchCityName() arranca en paso 2 — no requiere código nuevo, solo mover CUÁNDO se llama
+- **Caminata de campo — próximo log confirma que el saludo real ya suena** (BUG-048/049 cerrados) y dirá cuánto tarda Nominatim en la práctica (dato clave para DT-60) · observar también voz v3.0, Overpass-iPhone, SPECIAL_ZONE_MIN: 3
 - **DT-58 (propuesta, SIN ratificar):** acceso a configuración post-wizard desde explore — idioma, nombre, volVoice, posible casa de DT-56. Pendiente de tu sí/no explícito
 - **DT-59 (propuesta, SIN ratificar):** calidad de voz en iOS — asimetría local/online en voice.js. Pendiente de evidencia real antes de tocar código. Trade-off con "offline obligatorio"
 - DT-51: grounding con extracts — sesión de código mayor

@@ -3851,6 +3851,45 @@ el objeto `_config` en memoria (no solo el storage), así que corrige el
 
 **BUG-049 CERRADO.**
 
+### Addendum — refinamiento de diseño DT-60 (sin código, para la próxima sesión)
+
+Confirmado con Jaime: la primera pantalla (splash estático, corazón +
+brújula) queda completamente anónima — sin nombre, sin ciudad, sin nada
+personalizado. Toda la personalización (nombre, ciudad, "Soy Follower")
+se concentra en el gesto del corazón al final del wizard ("toca para
+escucharme").
+
+**Hallazgo clave: el mecanismo ya existe, no hay que construir nada
+nuevo.** El sistema DA-77 (saludo pendiente con TTL) ya resuelve esto sin
+código adicional:
+- `welcomeCity()` se dispara en cuanto `fetchCityName()` resuelve, sin
+  importar la pantalla activa
+- Si `_audioUnlocked` sigue en `false` (caso normal mientras el usuario
+  todavía está en los pasos de idioma/nombre), el saludo se encola en
+  `_pendingWelcome` en silencio
+- El tap del corazón ya es el gesto que llama a `_unlockAudioOnFirstTap()`,
+  que ya vacía ese pendiente en el mismo instante
+
+Si DT-60 adelanta `fetchCityName()` al paso 2 del wizard (idioma) y la
+ciudad resuelve antes de llegar al corazón, el saludo sonará automáticamente
+en ese tap — gratis, reutilizando código existente. Si Nominatim tarda más
+que el wizard, la misma red de seguridad (TTL 90s) cubre el caso raro en
+title card o el primer tap en explore. Flujo confirmado:
+
+```
+Splash estático (corazón + brújula quietos, sin nombre, sin nada)
+  → Wizard paso 1: GPS
+  → Wizard paso 2: idioma — arranca fetchCityName() en paralelo
+  → Wizard paso 3: nombre
+  → Corazón ("toca para escucharme") — desbloquea voz Y, si la ciudad
+    ya resolvió, el saludo completo suena AQUÍ MISMO
+  → Title card / explore — red de seguridad si aún no sonó
+```
+
+**Sesión cerrada aquí.** Próxima sesión: ratificación punto por punto de
+DT-60 con este flujo como base, o BUG-046 primero — decisión de Jaime al
+abrir el chat nuevo.
+
 ---
 
 *Follower — Bitácora v0.9 | Sesión 25 | 7 Julio 2026*

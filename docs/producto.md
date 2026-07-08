@@ -285,7 +285,7 @@ El Prompt Maestro v2.7 (narrador único) tiene versiones en español e inglés. 
 | ID | Descripción | Prioridad |
 |----|-------------|-----------|
 | DT-1 | Logo SVG final + iconos PWA (candidato a rediseño — feedback S25) | Alta |
-| DT-60 | Mover carga real de GPS/ciudad/POIs al wizard (paso 2 idioma) + title card; splash pasa a ser estático (sin latido, sin mensajes falsos). Piedra técnica: Leaflet necesita contenedor visible — separar adquisición de datos de construcción del mapa. Diseño co-creado con Jaime en S25d, sesión propia con ratificación punto por punto | Alta |
+| DT-60 | Mover carga real de GPS/ciudad/POIs al wizard (paso 2 idioma) + title card; splash pasa a ser estático (sin latido, sin mensajes, sin nombre — corazón+brújula quietos y anónimos). Personalización (nombre, ciudad, "Soy Follower") concentrada en el gesto del corazón al final del wizard. Refinamiento clave: el mecanismo ya existe (DA-77 pendiente+TTL) — si `fetchCityName()` arranca en paso 2 y resuelve antes del corazón, el saludo suena en ese tap sin código nuevo, vía `_unlockAudioOnFirstTap()` vaciando `_pendingWelcome`. Piedra técnica: Leaflet necesita contenedor visible — separar adquisición de datos de construcción del mapa. Diseño co-creado con Jaime en S25d/g, sesión propia con ratificación punto por punto | Alta |
 | DT-4 | Pantalla resumen del paseo | Media |
 | DT-5 | Más ciudades en routes.js | Baja |
 | DT-8 | debug.js + debug-sim.js deshabilitados antes de v1.0 | Media |

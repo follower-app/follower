@@ -280,7 +280,7 @@ El Prompt Maestro v2.7 (narrador único) tiene versiones en español e inglés. 
 
 ---
 
-## 19. Deuda Técnica Activa *(actualizada a Sesión 25d — 8 julio 2026)*
+## 19. Deuda Técnica Activa *(actualizada a Sesión 25e — 8 julio 2026)*
 
 | ID | Descripción | Prioridad |
 |----|-------------|-----------|
@@ -313,6 +313,7 @@ El Prompt Maestro v2.7 (narrador único) tiene versiones en español e inglés. 
 
 | ID | Descripción |
 |----|-------------|
+| ~~BUG-048~~ | *(Sesión 25e)* `updateTopPill()` huérfana desde el refactor de v0.6 (reemplazada por `updateCareStrip()`, pero 5 llamadas en app.js/gps.js nunca se actualizaron) — causaba que el saludo de ciudad real nunca sonara, cayendo siempre al fallback genérico. Diagnosticado por arqueología de git, corregido a `updateCareStrip()` en las 5 ubicaciones |
 | ~~DT-9~~ | *(Sesión 25)* Key OpenAI revocada en console.openai.com — verificado 0 keys activas; historial git inerte, sin cambios de código |
 | ~~DT-45~~ | *(Sesión 25)* Title card implementado — fade puro, tap salta y desbloquea voz, techo 4s |
 | ~~DT-47~~ | *(Sesión 25)* Wizard de entrada implementado — GPS priming, idioma, nombre (DA-75), desbloqueo de voz por gesto. modal-config eliminado |

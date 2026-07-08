@@ -20,7 +20,7 @@ README · REGLAS_IA · docs/: contexto_maestro (alma, pregunta rectora) · produ
 
 ## Arquitectura de archivos
 
-index.html (shell mínimo) · sw.js v20 (siempre último en commits) · manifest.json · css/ (main, splash, explore, poi, modal, components, wizard) · js/ (app, config, gps, poi, narration, voice, weather, care, routes, debug, debug-sim; music.js stubbed) · assets/ (logo pendiente DT-1) · docs/
+index.html (shell mínimo) · sw.js v21 (siempre último en commits) · manifest.json · css/ (main, splash, explore, poi, modal, components, wizard) · js/ (app, config, gps, poi, narration, voice, weather, care, routes, debug, debug-sim; music.js stubbed) · assets/ (logo pendiente DT-1) · docs/
 
 ## Reglas críticas
 
@@ -57,7 +57,7 @@ app.js: setPhase · navigateTo · welcomeCity (habla, no muestra) · _unlockAudi
 
 ## Estado actual
 
-v0.9 — Sesión 25 completada (con extensiones S25b/c/d): **flujo de entrada implementado y en producción**, saludo fusionado (DA-78), diagnóstico de campo con log real completado, próximo rediseño (DT-60) definido y listo para sesión propia. sw.js v20. POI_CACHE_VERSION v3. Prompt Maestro v3.0 (DA-74).
+v0.9 — Sesión 25 completada (con extensiones S25b/c/d/e): **flujo de entrada implementado y en producción**, saludo fusionado (DA-78), BUG-048 CERRADO (el saludo real de ciudad ya suena — causa raíz era una llamada huérfana desde v0.6, no Nominatim), próximo rediseño (DT-60) definido y listo para sesión propia. sw.js v21. POI_CACHE_VERSION v3. Prompt Maestro v3.0 (DA-74).
 
 Flujo actual (vigente hasta que DT-60 se implemente): splash decorativo (sin prompt GPS en 1ª vez) → wizard 4 pasos (GPS priming → idioma autodetect → nombre opcional → corazón desbloquea en silencio) → title card (fade puro, tap salta y desbloquea, techo 4s) → explore → saludo de ciudad hablado; primerísima vez incluye "Soy Follower" (DA-78).
 
@@ -75,12 +75,13 @@ Flujo actual (vigente hasta que DT-60 se implemente): splash decorativo (sin pro
 - S25b: hook de campo `?reset=1` (iPhone sin Web Inspector) · sw.js v18
 - S25c: fusión de saludos — DA-78, bandera `introHeard`, wizard sin frase de muestra, fix de bug propio (WIZ_PHRASE) · sw.js v19
 - S25d: diagnóstico de campo con log real (Worker 400 descartado, causa de fetchCityName aislada) · instrumentación puente en gps.js · **DT-60 registrada** (mover carga real al wizard, splash estático) · sw.js v20
+- S25e: **BUG-048 CERRADO** — `updateTopPill()` huérfana desde refactor de v0.6 (arqueología de git confirmó causa raíz), 5 llamadas corregidas a `updateCareStrip()` en app.js/gps.js. El saludo de ciudad real ya suena · sw.js v21
 
 ## Pendientes críticos
 
 - **DT-60 (registrada, próxima sesión de código mayor):** mover GPS/ciudad/POIs al wizard paso 2 + title card; splash pasa a estático (sin latido, sin mensajes falsos). Piedra técnica: Leaflet necesita contenedor visible — separar adquisición de datos de construcción del mapa (`onPosition()` en gps.js). Flujo objetivo completo en bitácora S25d. Requiere ratificación punto por punto, mismo rigor que DT-45/47
 - **BUG-046 → micro-sesión propia ANTES de la caminata (B ratificada S25).** Fix candidato "marcar al iniciar" + micro-decisión pendiente: destino del POI si la narración falla de inmediato tras marcar (leer trigger() primero)
-- **Caminata de campo — próximo log dirá cuánto tarda Nominatim** (dato clave para diseñar DT-60) · observar también voz v3.0, Overpass-iPhone, SPECIAL_ZONE_MIN: 3
+- **Caminata de campo — próximo log confirma que el saludo real ya suena** (BUG-048 cerrado) y dirá cuánto tarda Nominatim en la práctica (dato clave para diseñar DT-60) · observar también voz v3.0, Overpass-iPhone, SPECIAL_ZONE_MIN: 3
 - **DT-58 (propuesta, SIN ratificar):** acceso a configuración post-wizard desde explore — idioma, nombre, volVoice, posible casa de DT-56. Pendiente de tu sí/no explícito
 - **DT-59 (propuesta, SIN ratificar):** calidad de voz en iOS — asimetría local/online en voice.js. Pendiente de evidencia real antes de tocar código. Trade-off con "offline obligatorio"
 - DT-51: grounding con extracts — sesión de código mayor

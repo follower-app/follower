@@ -3772,4 +3772,43 @@ wizard son ventana suficiente.
 
 ---
 
+## Sesión 25e — 8 Julio 2026 — BUG-048 (instrumentación S25d rindió fruto inmediato)
+
+El segundo log de campo llegó con la instrumentación puente de S25d activa,
+y reveló algo distinto a lo esperado: **no era Nominatim lento — era un
+`ReferenceError`.**
+
+```
+fetchCityName: excepcion tras 1038ms — Can't find variable: updateTopPill
+```
+
+**Arqueología de commits** (`git log --all -S "updateTopPill"`) confirmó la
+causa raíz: en el commit `8db0c0d` ("v0.6 — rediseño UI exploración + debug
+overlay"), `updateTopPill()` se reemplazó deliberadamente por
+`updateCareStrip()`. El llamador en `initExplore()` se actualizó
+correctamente en ese momento — pero **`gps.js` nunca se revisó**, y siguió
+llamando a la función eliminada en 3 sitios; además, `handleOnline()` /
+`handleOffline()` en el propio `app.js` también quedaron huérfanas. Cinco
+llamadas rotas, invisibles durante sesiones porque caían en `try/catch`
+silenciosos o en event handlers sin manejo de errores — el patrón exacto de
+DA-68, esta vez con final feliz porque la instrumentación de la sesión
+anterior lo cazó al primer intento de campo.
+
+**Consecuencia real:** dentro de `fetchCityName()`, el crash ocurría
+*después* de que Nominatim resolviera correctamente y guardara
+`AppState.cityName`/`countryCode` — pero *antes* de llegar a
+`welcomeCity(city, country)`. La ciudad se detectaba bien todo este tiempo;
+el saludo con el nombre real nunca llegaba a sonar porque el código
+crasheaba una línea antes. Por eso siempre caíamos al fallback genérico de
+10s — no por red, sino por esta excepción silenciosa.
+
+**Fix aplicado (BUG-048, commit propio):** las 5 llamadas huérfanas
+(`app.js`: `handleOnline`, `handleOffline`; `gps.js`: `fetchCityName`,
+`fetchCityByIP` ×2) corregidas a `updateCareStrip()` — la función viva de
+hoy, ya defensiva, sin dependencia del concepto de "ciudad". sw.js **v21**.
+
+**BUG-048 CERRADO.**
+
+---
+
 *Follower — Bitácora v0.9 | Sesión 25 | 7 Julio 2026*

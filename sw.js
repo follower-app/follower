@@ -8,7 +8,7 @@
 
 // Incrementar CACHE_VERSION fuerza descarga de todos los archivos
 // en el proximo arranque — incluso si el navegador tiene version cacheada.
-const CACHE_VERSION = 'follower-v18';  // S25b: hook de campo ?reset=1 para pruebas de primera vez
+const CACHE_VERSION = 'follower-v19';  // S25c: fusion de saludos - introHeard, Soy Follower solo primera vez
 
 const STATIC_ASSETS = [
   './',

@@ -3811,4 +3811,46 @@ hoy, ya defensiva, sin dependencia del concepto de "ciudad". sw.js **v21**.
 
 ---
 
+## Sesión 25f — 8 Julio 2026 — BUG-049 (el hook de reset no limpiaba Config en memoria)
+
+Tercer log de campo, ya con BUG-048 corregido: la ciudad se detectó bien
+("Cali, CO" en 1825ms) pero el saludo sonó en su forma **breve**
+("Cali. Un capítulo te espera en cada esquina, Jaime.") en una sesión que
+el propio log marcaba como `first-time: 1` — donde debía sonar la versión
+con intro ("Soy Follower...") por ser, en teoría, la primera vez.
+
+**Causa raíz:** en `index.html`, `config.js` se carga antes que `app.js`
+(línea 408 vs 409). El IIFE de `Config` — incluyendo su `load()` desde
+`localStorage` — corre al analizar el script, antes de que `init()` exista
+para ejecutarse. El hook `?reset=1` vive dentro de `init()`. Secuencia real:
+
+1. `config.js` se parsea → `load()` lee `localStorage` **todavía sin
+   limpiar** → encuentra `introHeard: true` de una prueba anterior (donde
+   el saludo con intro sí sonó completo y marcó la bandera) → lo guarda en
+   memoria
+2. `app.js` se parsea, `DOMContentLoaded` dispara `init()` → ahora sí ve
+   `?reset=1` y limpia `localStorage`
+3. `Config.isFirstTime()` vuelve a leer `localStorage` directamente (no la
+   memoria) → correctamente dice "primera vez" → el wizard corre
+4. El wizard sobreescribe `lang`/`mode`/`userName` explícitamente — pero
+   nunca toca `introHeard` (solo se setea dentro de `welcomeCity()`). Queda
+   viva en memoria con el valor viejo el resto de la sesión
+
+`?reset=1` limpiaba el disco pero no el objeto `Config` ya poblado en
+memoria — la promesa de "simular primera vez" quedaba a medias, exactamente
+para el único campo que ningún flujo reescribe explícitamente. Bug propio
+de la herramienta de prueba — **nunca afectó a un usuario real** (un
+primer arranque genuino en producción nunca tiene esta carrera, porque
+`localStorage` está vacío desde el origen, sin "memoria vieja" que
+precargar).
+
+**Fix aplicado (BUG-049):** el hook ahora llama `Config.reset()`
+explícitamente tras `localStorage.clear()` — `Config.reset()` ya reasigna
+el objeto `_config` en memoria (no solo el storage), así que corrige el
+único hueco. sw.js **v22**.
+
+**BUG-049 CERRADO.**
+
+---
+
 *Follower — Bitácora v0.9 | Sesión 25 | 7 Julio 2026*

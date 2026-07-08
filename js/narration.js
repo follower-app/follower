@@ -256,9 +256,44 @@ Help first to see the place. Then to understand why it is the way it is. Finally
     el: (city, name) => name ? `${city}. Σε κάθε γωνία σε περιμένει ένα κεφάλαιο, ${name}.` : `${city}. Σε κάθε γωνία σε περιμένει ένα κεφάλαιο.`,
   };
 
-  function getCityWelcome(city, name, lang) {
-    const fn = CITY_WELCOME[lang] || CITY_WELCOME.es;
+  /* Ratificacion S25c: "Soy Follower" es presentacion, no bienvenida diaria.
+     Solo se dice la PRIMERA vez que el saludo de ciudad efectivamente suena
+     (ver introHeard en config.js + welcomeCity en app.js). Reutiliza el tono
+     personal que antes vivia en el wizard, ahora fusionado con la ciudad real. */
+  const CITY_INTRO = {
+    es: (city, name) => name ? `Hola, ${name}. Soy Follower. ${city} tiene historias que contarte.` : `Hola. Soy Follower. ${city} tiene historias que contarte.`,
+    en: (city, name) => name ? `Hi, ${name}. I'm Follower. ${city} has stories to tell you.` : `Hi. I'm Follower. ${city} has stories to tell you.`,
+    fr: (city, name) => name ? `Bonjour, ${name}. Je suis Follower. ${city} a des histoires à te raconter.` : `Bonjour. Je suis Follower. ${city} a des histoires à te raconter.`,
+    de: (city, name) => name ? `Hallo, ${name}. Ich bin Follower. ${city} hat Geschichten für dich.` : `Hallo. Ich bin Follower. ${city} hat Geschichten für dich.`,
+    it: (city, name) => name ? `Ciao, ${name}. Sono Follower. ${city} ha storie da raccontarti.` : `Ciao. Sono Follower. ${city} ha storie da raccontarti.`,
+    pt: (city, name) => name ? `Olá, ${name}. Eu sou o Follower. ${city} tem histórias para te contar.` : `Olá. Eu sou o Follower. ${city} tem histórias para te contar.`,
+    nl: (city, name) => name ? `Hallo, ${name}. Ik ben Follower. ${city} heeft verhalen voor je.` : `Hallo. Ik ben Follower. ${city} heeft verhalen voor je.`,
+    sv: (city, name) => name ? `Hej, ${name}. Jag är Follower. ${city} har historier att berätta för dig.` : `Hej. Jag är Follower. ${city} har historier att berätta för dig.`,
+    no: (city, name) => name ? `Hei, ${name}. Jeg er Follower. ${city} har historier å fortelle deg.` : `Hei. Jeg er Follower. ${city} har historier å fortelle deg.`,
+    da: (city, name) => name ? `Hej, ${name}. Jeg er Follower. ${city} har historier at fortælle dig.` : `Hej. Jeg er Follower. ${city} har historier at fortælle dig.`,
+    pl: (city, name) => name ? `Cześć, ${name}. Jestem Follower. ${city} ma dla ciebie historie do opowiedzenia.` : `Cześć. Jestem Follower. ${city} ma dla ciebie historie do opowiedzenia.`,
+    ja: (city, name) => name ? `${name}さん、こんにちは。Followerです。${city}にはあなたに話したい物語があります。` : `こんにちは。Followerです。${city}にはあなたに話したい物語があります。`,
+    zh: (city, name) => name ? `你好，${name}。我是Follower。${city}有故事想告诉你。` : `你好。我是Follower。${city}有故事想告诉你。`,
+    ko: (city, name) => name ? `안녕하세요, ${name}님. 저는 Follower입니다. ${city}에는 당신에게 들려줄 이야기가 있습니다.` : `안녕하세요. 저는 Follower입니다. ${city}에는 당신에게 들려줄 이야기가 있습니다.`,
+    ar: (city, name) => name ? `مرحبًا يا ${name}. أنا Follower. لدى ${city} قصص لأرويها لك.` : `مرحبًا. أنا Follower. لدى ${city} قصص لأرويها لك.`,
+    ru: (city, name) => name ? `Привет, ${name}. Я Follower. ${city} хочет рассказать тебе истории.` : `Привет. Я Follower. ${city} хочет рассказать тебе истории.`,
+    tr: (city, name) => name ? `Merhaba, ${name}. Ben Follower. ${city}'in sana anlatacak hikayeleri var.` : `Merhaba. Ben Follower. ${city}'in sana anlatacak hikayeleri var.`,
+    el: (city, name) => name ? `Γεια σου, ${name}. Είμαι ο Follower. Η ${city} έχει ιστορίες να σου πει.` : `Γεια σου. Είμαι ο Follower. Η ${city} έχει ιστορίες να σου πει.`,
+  };
+
+  function getCityWelcome(city, name, lang, includeIntro) {
+    const map = includeIntro ? CITY_INTRO : CITY_WELCOME;
+    const fn  = map[lang] || map.es;
     return fn(city, name || null);
+  }
+
+  /* Caso raro: Nominatim no resolvio la ciudad a tiempo Y es la primera vez
+     que el saludo suena. Sin nombre de ciudad real, se reutiliza la
+     presentacion generica (antes vivia en WIZ_PHRASE del wizard). */
+  function getCityIntroFallback(name, lang) {
+    return lang === 'es'
+      ? (name ? `Hola, ${name}. Soy Follower. Tu ciudad tiene historias que contarte.` : 'Hola. Soy Follower. Tu ciudad tiene historias que contarte.')
+      : (name ? `Hi, ${name}. I'm Follower. Your city has stories to tell you.` : `Hi. I'm Follower. Your city has stories to tell you.`);
   }
 
   /* ── SANITIZAR TEXTO — eliminar markdown antes de hablar ── */
@@ -796,6 +831,6 @@ Idioma: ${lang}`;
   function isNarrating()    { return _isNarrating; }
   function isPaused()       { return _isPaused; }
 
-  return { trigger, stop, pause, resume, getCurrentText, isNarrating, isPaused, getCityWelcome, getLocalLang, getCareMessage };
+  return { trigger, stop, pause, resume, getCurrentText, isNarrating, isPaused, getCityWelcome, getCityIntroFallback, getLocalLang, getCareMessage };
 
 })();

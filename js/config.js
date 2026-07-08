@@ -12,7 +12,8 @@ const Config = (() => {
     mode:       'free',
     volVoice:   1.0,
     unitSystem: 'metric',
-    userName:   ''        // DA-75: solo welcome/farewell, nunca viaja al Worker
+    userName:   '',       // DA-75: solo welcome/farewell, nunca viaja al Worker
+    introHeard: false     // ratificacion S25c: "Soy Follower" solo se dice una vez en la vida
   };
 
   /* ── CLAVE EN LOCALSTORAGE ── */

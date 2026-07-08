@@ -360,9 +360,12 @@ function _unlockAudioOnFirstTap() {
     const p = _pendingWelcome;
     _pendingWelcome = null;
     if (Date.now() - p.ts <= WELCOME_TTL_MS) {
-      Voice.speak(p.text, p.lang);
+      const onSpoken = p.isIntro
+        ? () => { if (typeof Config !== 'undefined') Config.set('introHeard', true); }
+        : null;
+      Voice.speak(p.text, p.lang, onSpoken);
     } else if (typeof Debug !== 'undefined') {
-      Debug.log('info', 'Bienvenida descartada — TTL vencido');
+      Debug.log('info', 'Bienvenida descartada — TTL vencido (intro conservada para proxima vez)');
     }
   }
 }
@@ -485,25 +488,41 @@ function welcomeCity(city) {
     : 'en';
 
   // Si es el fallback generico, no pasar por getCityWelcome
-  const isFallback = (city === 'Tu ciudad te espera.' || city === 'Your city awaits.');
-  const name = (typeof Config !== 'undefined') ? (Config.get('userName') || null) : null;  // DA-75
+  const isFallback  = (city === 'Tu ciudad te espera.' || city === 'Your city awaits.');
+  const name        = (typeof Config !== 'undefined') ? (Config.get('userName') || null) : null;  // DA-75
+
+  // Ratificacion S25c: "Soy Follower" solo la primera vez que el saludo
+  // efectivamente suena — no es bienvenida recurrente, es presentacion.
+  const includeIntro = (typeof Config !== 'undefined') ? !Config.get('introHeard') : false;
+
   let text = city;
-  if (!isFallback && typeof Narration !== 'undefined' && typeof Narration.getCityWelcome === 'function') {
-    text = Narration.getCityWelcome(city, name, localLang);
+  if (isFallback) {
+    text = (includeIntro && typeof Narration !== 'undefined' && typeof Narration.getCityIntroFallback === 'function')
+      ? Narration.getCityIntroFallback(name, AppState.lang || 'es')
+      : city;
+  } else if (typeof Narration !== 'undefined' && typeof Narration.getCityWelcome === 'function') {
+    text = Narration.getCityWelcome(city, name, localLang, includeIntro);
   }
 
   if (typeof Debug !== 'undefined') {
-    Debug.log('info', `Bienvenida (voz): "${text}"`);
+    Debug.log('info', `Bienvenida (voz${includeIntro ? ', con intro' : ''}): "${text}"`);
   }
 
   // DT-45: el saludo vive 100% en el canal de voz — la pantalla titula, la voz saluda
   if (typeof Voice === 'undefined' || !Voice.isSupported || !Voice.isSupported()) return;
 
+  // Marcar introHeard SOLO cuando la frase con intro efectivamente suena
+  // (onEnd de Voice.speak) — no al componerla. Si el TTL descarta el
+  // pendiente sin sonar, el usuario conserva su oportunidad de escucharla.
+  const onSpoken = includeIntro
+    ? () => { if (typeof Config !== 'undefined') Config.set('introHeard', true); }
+    : null;
+
   const speakLang = isFallback ? (AppState.lang || 'es') : localLang;
   if (_audioUnlocked) {
-    Voice.speak(text, speakLang);
+    Voice.speak(text, speakLang, onSpoken);
   } else {
-    _pendingWelcome = { text, lang: speakLang, ts: Date.now() };  // DA-77
+    _pendingWelcome = { text, lang: speakLang, isIntro: includeIntro, ts: Date.now() };  // DA-77
   }
 }
 
@@ -539,17 +558,6 @@ function onWalkInactivity() {
    El corazón del paso 4 es el gesto confiable que desbloquea speechSynthesis
    (linaje BUG-036 — touchend). */
 
-const WIZ_PHRASE = {
-  es: (n) => n ? `Hola, ${n}. Soy Follower. Tu ciudad tiene historias que contarte.`
-              : 'Hola. Soy Follower. Tu ciudad tiene historias que contarte.',
-  en: (n) => n ? `Hi, ${n}. I'm Follower. Your city has stories to tell you.`
-              : `Hi. I'm Follower. Your city has stories to tell you.`,
-  fr: (n) => n ? `Bonjour, ${n}. Je suis Follower. Ta ville a des histoires à te raconter.`
-              : `Bonjour. Je suis Follower. Ta ville a des histoires à te raconter.`,
-  it: (n) => n ? `Ciao, ${n}. Sono Follower. La tua città ha storie da raccontarti.`
-              : `Ciao. Sono Follower. La tua città ha storie da raccontarti.`
-};
-
 const WIZ_LANG_TITLE = {
   es: 'Te hablaré en español',
   en: "I'll speak to you in English",
@@ -579,7 +587,7 @@ function _wizUpdateLangUI() {
 
 function _startWizard() {
   const detected = (navigator.language || 'es').slice(0, 2).toLowerCase();
-  _wizLang = WIZ_PHRASE[detected] ? detected : 'en';
+  _wizLang = WIZ_LANG_TITLE[detected] ? detected : 'en';
   _wizUpdateLangUI();
   navigateTo('wizard');
   _wizGoTo(1);
@@ -673,23 +681,11 @@ function _wizFinish() {
     Debug.log('info', `Wizard: completado · lang=${_wizLang} · nombre=${_wizName ? 'si' : 'no'}`);
   }
 
-  // Frase de muestra — y pase al title card cuando termine de sonar.
-  // Guardia de 6s: si la voz falla en silencio, el flujo sigue igual.
-  const phrase = WIZ_PHRASE[_wizLang](_wizName || null);
-  let advanced = false;
-  const advance = () => {
-    if (advanced) return;
-    advanced = true;
-    clearTimeout(guard);
-    _enterExploreViaTitleCard();
-  };
-  const guard = setTimeout(advance, 6000);
-
-  if (typeof Voice !== 'undefined' && Voice.isSupported && Voice.isSupported()) {
-    Voice.speak(phrase, _wizLang, advance);
-  } else {
-    advance();
-  }
+  // Ratificacion S25c: sin frase de muestra audible — "Soy Follower" se
+  // fusiono con el saludo de ciudad real (CITY_INTRO, primera vez que suena).
+  // El corazon solo necesita el gesto para desbloquear (ya ocurrido arriba).
+  // Pequena pausa de cortesia para que el pulso del corazon no corte en seco.
+  setTimeout(() => _enterExploreViaTitleCard(), 400);
 }
 
 /* ── EVENT LISTENERS — MODE MODAL ── */

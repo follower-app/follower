@@ -921,6 +921,15 @@ function initExploreListeners() {
 
 /* ── INIT PRINCIPAL ── */
 function init() {
+  // Herramienta de campo: ?reset=1 limpia localStorage y simula primera vez.
+  // iPhone sin Web Inspector no tiene consola — esta es la unica via practica.
+  // No toca IndexedDB (los POIs cacheados no afectan el flujo de entrada).
+  // Destino: retirar o conservar junto con DT-8 antes de v1.0.
+  if (new URLSearchParams(location.search).has('reset')) {
+    try { localStorage.clear(); } catch (e) {}
+    history.replaceState(null, '', location.pathname);
+  }
+
   AppState.lang  = Config.get('lang');
   AppState.mode  = Config.get('mode');
 

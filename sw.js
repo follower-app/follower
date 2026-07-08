@@ -8,7 +8,7 @@
 
 // Incrementar CACHE_VERSION fuerza descarga de todos los archivos
 // en el proximo arranque — incluso si el navegador tiene version cacheada.
-const CACHE_VERSION = 'follower-v21';  // BUG-048: updateTopPill huerfana desde v0.6 - 5 llamadas corregidas a updateCareStrip
+const CACHE_VERSION = 'follower-v22';  // BUG-049: ?reset=1 no limpiaba Config en memoria (config.js carga antes que app.js)
 
 const STATIC_ASSETS = [
   './',

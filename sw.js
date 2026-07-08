@@ -8,7 +8,7 @@
 
 // Incrementar CACHE_VERSION fuerza descarga de todos los archivos
 // en el proximo arranque — incluso si el navegador tiene version cacheada.
-const CACHE_VERSION = 'follower-v19';  // S25c: fusion de saludos - introHeard, Soy Follower solo primera vez
+const CACHE_VERSION = 'follower-v20';  // S25d: instrumentacion puente fetchCityName (gps.js) - puente a DT-60
 
 const STATIC_ASSETS = [
   './',

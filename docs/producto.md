@@ -109,7 +109,7 @@ La presencia sonora de la ciudad es responsabilidad **narrativa**, no técnica: 
 
 ---
 
-## 9. Bienvenida de Ciudad *(implementada Sesión 25 — title card + saludo 100% voz, DA-77)*
+## 9. Bienvenida de Ciudad *(implementada Sesión 25 — title card + saludo 100% voz, DA-77/DA-78)*
 
 **Separación de canales de cine: la pantalla titula, la voz saluda.**
 
@@ -117,10 +117,16 @@ La presencia sonora de la ciudad es responsabilidad **narrativa**, no técnica: 
   (DM Serif Display Itálica dorada) apareciendo de la nada — fade puro,
   sin movimiento. No depende de red ni de geocoding: nunca espera a nadie.
   Tap salta. Timing se fija en mano (fade-in ~1.8s, techo 4s).
-- **Voz — el saludo completo:** `getCityWelcome()` pronuncia "Bienvenido a
-  [ciudad], [nombre]" en el **idioma local de la ciudad** (detectado desde
-  `country_code` de Nominatim vía `COUNTRY_LANG` en `narration.js`), con el
-  nombre del usuario si existe (DA-75). Sin nombre: saludo igual que hoy.
+- **Voz — el saludo completo:** `getCityWelcome()` pronuncia el saludo en el
+  **idioma local de la ciudad** (detectado desde `country_code` de Nominatim
+  vía `COUNTRY_LANG` en `narration.js`), con el nombre del usuario si existe
+  (DA-75). Sin nombre: saludo igual que hoy.
+- **Presentación una sola vez en la vida (DA-78):** la primerísima vez que
+  el saludo efectivamente suena, incluye "Soy Follower" —
+  "Hola, [nombre]. Soy Follower. [Ciudad] tiene historias que contarte."
+  Todas las llegadas posteriores usan la versión breve, sin reintroducción.
+  Bandera `introHeard` (config.js), marcada solo al sonar de verdad
+  (`onEnd` de `Voice.speak`) — un intento fallido no gasta la oportunidad.
 - Se dispara una vez por sesión — `_cityWelcomeDone` se resetea en cada
   `initExplore()`.
 
@@ -274,11 +280,12 @@ El Prompt Maestro v2.7 (narrador único) tiene versiones en español e inglés. 
 
 ---
 
-## 19. Deuda Técnica Activa *(actualizada a Sesión 25 — 7 julio 2026)*
+## 19. Deuda Técnica Activa *(actualizada a Sesión 25d — 8 julio 2026)*
 
 | ID | Descripción | Prioridad |
 |----|-------------|-----------|
-| DT-1 | Logo SVG final + iconos PWA | Alta |
+| DT-1 | Logo SVG final + iconos PWA (candidato a rediseño — feedback S25) | Alta |
+| DT-60 | Mover carga real de GPS/ciudad/POIs al wizard (paso 2 idioma) + title card; splash pasa a ser estático (sin latido, sin mensajes falsos). Piedra técnica: Leaflet necesita contenedor visible — separar adquisición de datos de construcción del mapa. Diseño co-creado con Jaime en S25d, sesión propia con ratificación punto por punto | Alta |
 | DT-4 | Pantalla resumen del paseo | Media |
 | DT-5 | Más ciudades en routes.js | Baja |
 | DT-8 | debug.js + debug-sim.js deshabilitados antes de v1.0 | Media |

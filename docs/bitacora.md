@@ -3653,6 +3653,123 @@ DT-51 grounding.
   **DT-58 propuesta**, pendiente de ratificación: hoja de ajustes en explore
   (idioma · nombre · volVoice huérfano de UI) como casa natural de DT-56.
 
+### Addendum S25c — fusión de saludos + hallazgo de calidad de voz
+
+**Fusión de saludos (ratificada — opción A):** la frase de muestra del
+wizard ("Hola, [nombre]. Soy Follower...") y el saludo de ciudad
+("[Ciudad]. Un capítulo te espera...") sonaban ambas en los primeros ~15s,
+sentido redundante. Se fusionaron en un solo mensaje que suena **solo la
+primera vez que efectivamente se pronuncia**: "Hola, [nombre]. Soy Follower.
+[Ciudad] tiene historias que contarte." Llegadas posteriores — otra ciudad,
+otro día, caminata 50 — vuelven al saludo breve de siempre, sin
+reintroducción. Un compañero no se presenta cada vez que sales a caminar.
+
+- **Mecánica:** `introHeard` (nueva bandera en `DEFAULTS`, config.js) se
+  marca `true` únicamente en el callback `onEnd` de `Voice.speak()` — es
+  decir, cuando la frase *efectivamente sonó*, no al componerla. Si el
+  saludo queda pendiente por voz bloqueada (DA-77) y el TTL lo descarta sin
+  sonar, la bandera no se toca: el usuario conserva su única oportunidad de
+  escuchar la presentación la próxima vez.
+- **`_wizFinish()` simplificado:** el corazón del paso 4 ya no habla frase
+  de muestra — desbloquea en silencio (el propio `Voice.unlockFromGesture()`
+  ya usa un utterance silencioso internamente; nunca dependió de hablar algo
+  audible) y avanza al title card tras una pausa de cortesía de 400ms.
+- **`CITY_INTRO`** (19 idiomas, narration.js) + `getCityIntroFallback()`
+  para el caso raro (Nominatim no resuelve a tiempo + primera vez) —
+  recicla textualmente la frase que antes vivía en `WIZ_PHRASE`.
+- **Bug propio detectado y corregido en la misma sesión:** al eliminar
+  `WIZ_PHRASE`, `_startWizard()` seguía dependiendo de ella para el
+  autodetect de idioma — habría roto el wizard al abrir. Corregido usando
+  `WIZ_LANG_TITLE` (mismas 4 claves), verificado con `node --check` antes
+  de entregar.
+- sw.js **v19**.
+
+**Caso de borde sin probar:** un dispositivo con config *anterior* a v19
+(sin `?reset=1`) tendrá `Config.get('introHeard')` como `undefined` en vez
+de `false` hasta que el objeto de config se reescriba con los defaults
+nuevos — comportamiento no verificado en campo, anotado para la caminata.
+
+**Hallazgo de calidad de voz (sin ratificar — DT-59 propuesta):** en
+`voice.js`, la selección de voz para español prioriza voces **locales**
+primero y cae a online solo si no hay ninguna; para el resto de idiomas es
+al revés (online primero). En iOS, las voces locales de español suelen ser
+las "compact" del sistema (más robóticas); las online enrutan por síntesis
+de mejor calidad. Posible causa de la voz percibida como robótica. Pendiente
+de evidencia real: revisar el log de debug (`Voice: voz seleccionada → ...`)
+para confirmar qué voz se usó antes de tocar código. Trade-off real a
+resolver en esa sesión: preferir online rompe con "offline obligatorio"
+(principio central del proyecto) si falla la señal a mitad de caminata.
+
+**Configuración post-wizard (sin ratificar — DT-58 propuesta):** sigue
+pendiente de tu confirmación explícita antes de entrar al registro oficial
+de deuda técnica.
+
+### Addendum S25d — diagnóstico de campo con log real + DT-60 registrada
+
+**Diagnóstico del primer log de campo (iPhone, sesión real):**
+
+- **Worker Cloudflare status=400 al arranque:** falsa alarma. Es
+  `checkWorker()` en debug.js — un healthcheck que pega a `/weather` sin
+  parámetros solo para confirmar que el Worker responde. Un 400 ahí es el
+  resultado correcto y esperado (confirma que el Worker está vivo). Sin
+  relación con nada de esta sesión.
+- **Ciudad no detectada — causa real:** `fetchCityName()` en gps.js nunca
+  tuvo instrumentación (`catch` silencioso sin log). El log confirmó que
+  el saludo sonó a los 10s exactos tras cargar los POIs — el timer de
+  `_scheduleWelcomeFallback()` corriendo porque Nominatim no resolvió a
+  tiempo. Los POIs sí cargaron (9 en 665ms, Wikipedia), confirmando que el
+  GPS en sí funcionó — el fallo es puntual a la llamada de Nominatim, causa
+  aún desconocida (red, CORS, o respuesta sin campo de ciudad utilizable).
+- **Comportamiento confirmado, no bugs:** Safari normal requiere `?reset=1`
+  para volver a ver el wizard (localStorage persiste, correcto); Safari
+  privado siempre muestra el wizard (storage efímero, correcto); el saludo
+  sonó ya en el mapa porque el title card nunca espera a la ciudad (DT-45
+  por diseño) — el saludo vive en un canal desacoplado.
+
+**Instrumentación puente aplicada (gps.js → `fetchCityName()`):** tres
+`Debug.log` nuevos — offline abortado, éxito con ciudad+tiempo+status, sin
+campo de ciudad util (con el `address` crudo de Nominatim), y excepción con
+mensaje real. Cero cambio de comportamiento — solo visibilidad para la
+próxima prueba de campo. sw.js **v20** (gps.js cambió, ya estaba en
+precache).
+
+**DT-60 REGISTRADA — mover carga real de GPS/ciudad/POIs al wizard +
+title card, splash decorativo eliminado.**
+
+Origen: Jaime notó que el splash (corazón latiendo) ya no hace ningún
+trabajo real para primera vez tras el cambio de GPS de esta misma sesión —
+sus propios mensajes ("cargando puntos históricos...") son falsos en ese
+caso. Flujo objetivo, co-diseñado en esta conversación:
+
+```
+Abrir app → Splash estático (logo + corazón quieto, sin latir, sin mensajes)
+  → Wizard paso 1: autorización GPS (fix único → AppState.gps)
+  → Wizard paso 2: idioma — AQUÍ arranca en paralelo fetchCityName()
+    + prefetch de datos POI (mientras el usuario interactúa, tiempo muerto
+    productivo — más ventana que solo el title card)
+  → Wizard paso 3: nombre
+  → Wizard paso 4: corazón — si la ciudad ya resolvió, suena YA el saludo
+    fusionado completo (DA-78). El mecanismo de saludo pendiente con TTL
+    (DA-77) queda como red de seguridad, no como camino principal
+  → Title card — termina de cachear POIs si aún no cerró; el mapa se
+    construye ya poblado
+  → Explore — cero espera visible
+```
+
+**Piedra técnica identificada, a resolver en esa sesión:** Leaflet necesita
+contenedor VISIBLE para inicializarse bien (mapa en 0×0 queda roto). Hoy
+`initMap()` y `fetchCityName()` nacen juntos en el primer `onPosition()`
+(gps.js) — hay que separar "conseguir posición + pedir ciudad + pedir datos
+de POI" (puede correr con la pantalla oculta) de "construir el objeto
+Leaflet visual" (debe esperar a que `#screen-explore` sea visible).
+Requiere refactor real de `onPosition()`, no un simple mover de código.
+
+**Decisión de cierre:** cerrar esta sesión aquí; DT-60 espera sesión propia
+con ratificación punto por punto (mismo rigor que DT-45/47). La
+instrumentación de `fetchCityName()` es el puente — su próximo log dirá
+cuánto tarda Nominatim en la práctica, dato que define si dos pasos de
+wizard son ventana suficiente.
+
 ---
 
 *Follower — Bitácora v0.9 | Sesión 25 | 7 Julio 2026*

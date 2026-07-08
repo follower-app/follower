@@ -8,7 +8,7 @@
 
 // Incrementar CACHE_VERSION fuerza descarga de todos los archivos
 // en el proximo arranque — incluso si el navegador tiene version cacheada.
-const CACHE_VERSION = 'follower-v17';  // S25: flujo de entrada - title card + wizard (DT-45/47/DA-75)
+const CACHE_VERSION = 'follower-v18';  // S25b: hook de campo ?reset=1 para pruebas de primera vez
 
 const STATIC_ASSETS = [
   './',

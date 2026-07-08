@@ -20,7 +20,7 @@ README · REGLAS_IA · docs/: contexto_maestro (alma, pregunta rectora) · produ
 
 ## Arquitectura de archivos
 
-index.html (shell mínimo) · sw.js v17 (siempre último en commits) · manifest.json · css/ (main, splash, explore, poi, modal, components, wizard) · js/ (app, config, gps, poi, narration, voice, weather, care, routes, debug, debug-sim; music.js stubbed) · assets/ (logo pendiente DT-1) · docs/
+index.html (shell mínimo) · sw.js v18 (siempre último en commits) · manifest.json · css/ (main, splash, explore, poi, modal, components, wizard) · js/ (app, config, gps, poi, narration, voice, weather, care, routes, debug, debug-sim; music.js stubbed) · assets/ (logo pendiente DT-1) · docs/
 
 ## Reglas críticas
 
@@ -55,7 +55,7 @@ app.js: setPhase · navigateTo · welcomeCity (habla, no muestra) · _unlockAudi
 
 ## Estado actual
 
-v0.9 — Sesión 25 completada: **flujo de entrada implementado y en producción**. sw.js v17. POI_CACHE_VERSION v3. Prompt Maestro v3.0 (DA-74).
+v0.9 — Sesión 25 completada: **flujo de entrada implementado y en producción**. sw.js v18 (S25b: hook de campo `?reset=1` simula primera vez — sin consola en iPhone es la única vía). POI_CACHE_VERSION v3. Prompt Maestro v3.0 (DA-74).
 
 Flujo actual: splash (sin prompt GPS en 1ª vez) → wizard 4 pasos (GPS priming → idioma autodetect → nombre opcional → corazón/voz `touchend`, solo 1ª vez) → title card (fade puro, tap salta y desbloquea, techo 4s) → explore → saludo de ciudad hablado con nombre e idioma local (pendiente con TTL si la voz sigue bloqueada — DA-77).
 

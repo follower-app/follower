@@ -3640,6 +3640,19 @@ Fade-in title card ~1.8s · techo 4s · TTL saludo 90s.
 diagnósticos separados: voz v3.0, Overpass-iPhone, flujo de entrada) →
 DT-51 grounding.
 
+### Addendum S25b — verificación en dispositivos
+
+- Nivel A (Chrome escritorio): wizard OK tras `localStorage.clear()`.
+- iPhone: el borrado de datos vía Ajustes → Safari no resucitó la primera
+  vez. Se implementó **hook de campo `?reset=1`** (limpia localStorage al
+  cargar y simula primera vez; no toca IndexedDB). Windows + iPhone sin Web
+  Inspector = sin consola en el teléfono: esta es la vía práctica. Destino
+  del hook: decidir junto con DT-8 antes de v1.0. sw.js **v18**.
+- Detectado durante verificación: no existe acceso a configuración
+  post-wizard (hueco preexistente, hoy significativo por DA-75) —
+  **DT-58 propuesta**, pendiente de ratificación: hoja de ajustes en explore
+  (idioma · nombre · volVoice huérfano de UI) como casa natural de DT-56.
+
 ---
 
 *Follower — Bitácora v0.9 | Sesión 25 | 7 Julio 2026*

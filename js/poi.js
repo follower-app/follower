@@ -15,6 +15,7 @@ const POI = (() => {
   let _pendingDetect  = null;     // DT-38: posición pendiente de detectPOI tras carga inicial
   let _visitedInSession = new Set(); // BUG-044: IDs narrados en esta sesión — sobrevive resetPOIs()
   let _isFetchingPOIs = false;    // candado — evita fetches paralelos a Overpass (BUG-014)
+  let _outOfRadiusStreak = 0;     // BUG-046: chequeos consecutivos sin closestPOI antes de desactivar
 
   /* ── DT-52: UMBRALES DE LA CASCADA COMPUESTA ──
      COMPOSITE_THRESHOLD: neto Wikipedia post-filtros por debajo del cual
@@ -41,7 +42,12 @@ const POI = (() => {
     DB_NAME:            'follower_db',
     DB_VERSION:         1,
     STORE_POIS:         'pois',
-    STORE_NARRATIONS:   'narrations'
+    STORE_NARRATIONS:   'narrations',
+    // BUG-046: chequeos consecutivos fuera de radio antes de desactivar (histéresis).
+    // detectNearby() ya está espaciado ~5s (POI_CHECK_INTERVAL en gps.js), así que
+    // 3 = ~15s sostenidos fuera de radio antes de cortar una narración en curso.
+    // Provisional — a calibrar con evidencia de campo, mismo patrón que fade/TTL.
+    DEACTIVATE_CONFIRM_COUNT: 3
   };
 
   /* ── CATEGORÍAS OSM → icono + tipo ── */
@@ -826,6 +832,8 @@ const POI = (() => {
     if (closestPOI && closestPOI.id !== AppState.activePOI?.id) {
       if (typeof Debug !== 'undefined') Debug.trackExp('poi_eligible');
 
+      _outOfRadiusStreak = 0; // BUG-046: seguimos dentro de algún radio — resetear contador
+
       // S2-A2: si hay narración activa, encolar en lugar de ignorar
       const narrando = typeof Narration !== 'undefined' && Narration.isNarrating();
       if (narrando) {
@@ -833,9 +841,21 @@ const POI = (() => {
       } else {
         activatePOI(closestPOI);
       }
+    } else if (closestPOI) {
+      // Mismo POI activo — seguimos dentro de su radio, resetear contador
+      _outOfRadiusStreak = 0;
     } else if (!closestPOI && AppState.activePOI) {
-      // Nos alejamos del POI activo
-      deactivatePOI();
+      // BUG-046: histéresis — GPS urbano parpadea cerca del borde del radio y
+      // cortaba narraciones a la mitad, reactivando el mismo POI desde cero
+      // en el siguiente chequeo (bucle de re-narración). Exigir N chequeos
+      // consecutivos sin closestPOI antes de desactivar de verdad.
+      _outOfRadiusStreak++;
+      if (_outOfRadiusStreak >= CONFIG.DEACTIVATE_CONFIRM_COUNT) {
+        _outOfRadiusStreak = 0;
+        deactivatePOI();
+      } else if (typeof Debug !== 'undefined') {
+        Debug.log('info', `POI: fuera de radio (${_outOfRadiusStreak}/${CONFIG.DEACTIVATE_CONFIRM_COUNT}) — esperando confirmación antes de desactivar`);
+      }
     }
   }
 
@@ -945,12 +965,11 @@ const POI = (() => {
       Narration.trigger(poi, Config.get('narrator'), Config.get('lang'));
     }
 
-    // Marcar como visitado
-    if (!poi.visited) {
-      poi.visited = true;
-      AppState.poisVisited++;
-      updateStats();
-    }
+    // BUG-046 (hallazgo): visited ya NO se marca aquí al activar.
+    // narration.js es la única fuente de verdad (S2-A1) — marca al completar
+    // la narración y ahí mismo llama POI.markVisited() para _visitedInSession
+    // (BUG-044). Marcarlo aquí de inmediato dejaba ese guard siempre en falso,
+    // así que markVisited() nunca corría — BUG-044 quedaba muerto en la práctica.
   }
 
   /* ── DESACTIVAR POI — usuario se alejó ── */
@@ -1162,6 +1181,7 @@ const POI = (() => {
     // Resetear estado
     _pois         = [];
     _lastFetchPos = null;
+    _outOfRadiusStreak = 0; // BUG-046
     AppState.nearbyPOIs  = [];
     AppState.activePOI   = null;
     AppState.poisVisited = 0;

@@ -8,7 +8,7 @@
 
 // Incrementar CACHE_VERSION fuerza descarga de todos los archivos
 // en el proximo arranque — incluso si el navegador tiene version cacheada.
-const CACHE_VERSION = 'follower-v22';  // BUG-049: ?reset=1 no limpiaba Config en memoria (config.js carga antes que app.js)
+const CACHE_VERSION = 'follower-v23';  // BUG-046: histeresis de desactivacion (GPS flicker) + fix visited marcado en activatePOI revivia BUG-044
 
 const STATIC_ASSETS = [
   './',

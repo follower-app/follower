@@ -3892,4 +3892,105 @@ abrir el chat nuevo.
 
 ---
 
-*Follower — Bitácora v0.9 | Sesión 25 | 7 Julio 2026*
+## Sesión 26 — 8 Julio 2026 — BUG-046 CERRADO (micro-sesión)
+
+Jaime abrió con BUG-046 primero, como quedó ratificado en S25.
+
+### Diagnóstico — causa raíz real, distinta a la asumida
+
+La bitácora original (S21) proponía como fix candidato "marcar visited al
+iniciar en vez de al completar". Arqueología de código en `poi.js` reveló
+que el problema real era otro: `activatePOI()` marcaba `poi.visited = true`
+**de inmediato al activar** (líneas huérfanas de antes de S2-A1),
+contradiciendo el propio comentario "marcar al completar" que sí vive
+correctamente en `narration.js`. Dos consecuencias:
+
+1. **Sin guard de re-entrada.** `activatePOI()` no revisaba `poi.visited`
+   antes de llamar `Narration.trigger()` (a diferencia de `enqueuePOI()`,
+   que sí lo hace). Cuando el GPS urbano parpadeaba cerca del borde del
+   radio de 120m, `detectPOI()` disparaba `deactivatePOI()` →
+   `Narration.stop()` (corta la voz a mitad, `error=canceled`) y, al volver
+   a detectar el mismo POI un instante después, `activatePOI()` lo
+   reactivaba desde cero — cache o llamada nueva a Claude, sin memoria del
+   intento anterior. De ahí las 3 narraciones en 4 minutos del hallazgo
+   original de Sesión 21.
+2. **BUG-044 revivido en la práctica.** `POI.markVisited(id)` (el que llena
+   `_visitedInSession`, fix de BUG-044) solo se llama desde el callback de
+   finalización en `narration.js`, protegido por `if (poi && !poi.visited)`.
+   Como `activatePOI()` ya había puesto `poi.visited = true` de inmediato,
+   ese guard siempre era falso — `markVisited()` nunca se ejecutaba en
+   operación normal. El fix de BUG-044 estaba muerto: un POI narrado podía
+   volver a narrarse tras un refetch (>2km) o una recarga desde IndexedDB.
+
+### Fix — dos partes, un solo archivo (`poi.js`)
+
+1. **Histéresis de desactivación** (opción B, ratificada sobre un guard de
+   re-entrada en `activatePOI` — opción A descartada por ahora, sin
+   evidencia de que haga falta encima de B): `CONFIG.DEACTIVATE_CONFIRM_COUNT
+   = 3`. Nuevo contador `_outOfRadiusStreak`, incrementado solo cuando no
+   hay `closestPOI` pero sí `AppState.activePOI`; se resetea a 0 en
+   cualquier chequeo donde sí hay `closestPOI` (mismo o distinto).
+   `deactivatePOI()` solo se llama al llegar a 3 chequeos consecutivos sin
+   nadie cerca — con `POI_CHECK_INTERVAL=5000ms` en `gps.js`, son ~15s
+   sostenidos fuera de radio, no un parpadeo momentáneo. Reset del contador
+   también en `resetPOIs()`.
+2. **Marcado de `visited` eliminado de `activatePOI()`** — `narration.js`
+   vuelve a ser la única fuente de verdad (S2-A1), y con ella
+   `POI.markVisited()` finalmente se ejecuta como se diseñó.
+
+sw.js **v23**.
+
+### Validación de campo (log real iPhone, sesión sin `?reset=1`)
+
+```
+18:14:51  POI: fuera de radio (1/3) — esperando confirmación antes de desactivar
+18:14:57  POI: fuera de radio (2/3) — esperando confirmación antes de desactivar
+```
+
+La histéresis cuenta correctamente en producción; la sesión terminó antes
+de llegar a 3/3, sin señales de re-narración del mismo POI. No sustituye la
+prueba dedicada en modo "🛤️ Dibujar ruta" del simulador (pendiente,
+`_mode='teleport'` fue descartado como método de prueba — ver hallazgo
+abajo), pero es evidencia real consistente con el fix funcionando.
+
+**BUG-046 CERRADO.**
+
+### Hallazgo — modo teletransportar no sirve para probar histéresis de GPS
+
+Al intentar reproducir el parpadeo con clics repetidos en modo
+"📍 Teletransportar", cada clic disparaba `POI.resetPOIs()` (por diseño,
+`debug-sim.js` línea ~156 — pensado para simular salto de ciudad, no
+parpadeo de GPS). Eso reseteaba `_outOfRadiusStreak` a 0 en cada clic,
+neutralizando la prueba antes de que la histéresis pudiera acumular nada.
+Efecto secundario observado en el mismo log: los clics, muy juntos en
+distancia/tiempo, calcularon una velocidad sostenida de 51km/h → disparó
+DA-55 (pausa de detección por tránsito) de forma independiente. Corrección
+de método, no de código: usar modo "🛤️ Dibujar ruta" para este tipo de
+prueba — no llama `resetPOIs()` ni invalida clima, simula movimiento
+continuo sin destruir estado entre puntos.
+
+### Falso positivo descartado — saludo de ciudad
+
+Jaime reportó que, al reabrir la app ya configurada (sin `?reset=1`), sonó
+"Hola, soy Follower..." de nuevo — parecía revivir BUG-049/introHeard. El
+log real lo descartó: `Bienvenida (voz): "Cali. Un capítulo te espera en
+cada esquina, Jaime."` — sin el sufijo `, con intro`, exactamente la
+plantilla `CITY_WELCOME` (breve, sin presentación). `introHeard` sí
+persistió correctamente desde la sesión con reset; el recuerdo de Jaime del
+audio se mezcló con la conversación reciente sobre DA-78. Sin acción
+necesaria — DA-78 funcionando como se diseñó. Vale como recordatorio: sin
+el log real, esto se habría diagnosticado mal.
+
+### Hallazgo nuevo — narración inventando hechos (para otra sesión)
+
+Jaime detectó una narración que "se inventó todo" sobre un POI — violación
+directa de la regla "HECHO VERIFICABLE — nunca inventes" del Prompt
+Maestro. Evidencia de campo real y probablemente aplicable directo a
+**DT-51 (grounding con extracts)**, que ya estaba en la mira como siguiente
+sesión de código mayor. Detalle (POI exacto, texto generado, fuente
+wiki/osm) pendiente de traer a sesión dedicada — no se investigó en esta
+sesión por decisión de Jaime.
+
+---
+
+*Follower — Bitácora v0.9 | Sesión 26 | 8 Julio 2026*

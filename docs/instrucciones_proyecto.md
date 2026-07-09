@@ -16,11 +16,11 @@ Antes de modificar cualquier archivo SIEMPRE preguntar: "¿El archivo [nombre] e
 
 ## Documentos del proyecto
 
-README · REGLAS_IA · docs/: contexto_maestro (alma, pregunta rectora) · producto (DTs activas, visión v2.0 accesibilidad) · arquitectura (DA-1 a DA-78) · bitacora (hasta S25d) · manifiesto_narrativo (voz v3.0) · manifiesto_care_strip · prompt_maestro_follower (oficial) · dt42_care_miniprompt · dt45_bienvenida_animada (enmendada S24) · dt47_wizard_mockup_final.html (mockup ratificado) · registro_sesion24_interfaz · restauracion_poi_js (histórico)
+README · REGLAS_IA · docs/: contexto_maestro (alma, pregunta rectora) · producto (DTs activas, visión v2.0 accesibilidad) · arquitectura (DA-1 a DA-78) · bitacora (hasta S26) · manifiesto_narrativo (voz v3.0) · manifiesto_care_strip · prompt_maestro_follower (oficial) · dt42_care_miniprompt · dt45_bienvenida_animada (enmendada S24) · dt47_wizard_mockup_final.html (mockup ratificado) · registro_sesion24_interfaz · restauracion_poi_js (histórico)
 
 ## Arquitectura de archivos
 
-index.html (shell mínimo) · sw.js v22 (siempre último en commits) · manifest.json · css/ (main, splash, explore, poi, modal, components, wizard) · js/ (app, config, gps, poi, narration, voice, weather, care, routes, debug, debug-sim; music.js stubbed) · assets/ (logo pendiente DT-1) · docs/
+index.html (shell mínimo) · sw.js v23 (siempre último en commits) · manifest.json · css/ (main, splash, explore, poi, modal, components, wizard) · js/ (app, config, gps, poi, narration, voice, weather, care, routes, debug, debug-sim; music.js stubbed) · assets/ (logo pendiente DT-1) · docs/
 
 ## Reglas críticas
 
@@ -57,15 +57,15 @@ app.js: setPhase · navigateTo · welcomeCity (habla, no muestra) · _unlockAudi
 
 ## Estado actual
 
-v0.9 — Sesión 25 completada (con extensiones S25b/c/d/e/f): **flujo de entrada implementado y en producción**, saludo fusionado (DA-78), BUG-048 y BUG-049 CERRADOS (el saludo real de ciudad ya suena, y `?reset=1` ahora resetea Config en memoria de verdad), próximo rediseño (DT-60) definido y listo para sesión propia. sw.js v22. POI_CACHE_VERSION v3. Prompt Maestro v3.0 (DA-74).
+v0.9 — Sesión 26 completada: **BUG-046 CERRADO** (histéresis de desactivación + fix de visited devuelto 100% a narration.js, revive BUG-044) validado con log real de campo. Flujo de entrada sigue en producción sin cambios (S25/DA-78). sw.js v23. POI_CACHE_VERSION v3. Prompt Maestro v3.0 (DA-74).
 
 Flujo actual (vigente hasta que DT-60 se implemente): splash decorativo (sin prompt GPS en 1ª vez) → wizard 4 pasos (GPS priming → idioma autodetect → nombre opcional → corazón desbloquea en silencio) → title card (fade puro, tap salta y desbloquea, techo 4s) → explore → saludo de ciudad hablado; primerísima vez incluye "Soy Follower" (DA-78).
 
-**Diagnóstico de campo (S25d, log real de iPhone):** GPS y POIs funcionan bien (9 POIs en 665ms); `fetchCityName()` (Nominatim) falló silenciosamente sin dejar rastro — instrumentada esta sesión, próximo log dirá la causa real. Worker 400 al arranque es un healthcheck, no un error.
+**Hallazgo nuevo (S26, pendiente de sesión propia):** narración detectada inventando hechos sobre un POI — evidencia de campo directa para DT-51 (grounding). Detalle (POI, texto, fuente) por traer a esa sesión.
 
 **Timing en mano (fijar en caminata):** fade-in ~1.8s · techo 4s · TTL saludo 90s.
 
-## Completado en Sesiones 21-25
+## Completado en Sesiones 21-26
 
 - S21: causa raíz POIs Pasto · gsprop · DA-69/70/71 · sw.js v13
 - S22: fuente compuesta DT-52 (DA-72/73) · dedup+fusión · contrato _source · sw.js v15
@@ -77,16 +77,17 @@ Flujo actual (vigente hasta que DT-60 se implemente): splash decorativo (sin pro
 - S25d: diagnóstico de campo con log real (Worker 400 descartado, causa de fetchCityName aislada) · instrumentación puente en gps.js · **DT-60 registrada** (mover carga real al wizard, splash estático) · sw.js v20
 - S25e: **BUG-048 CERRADO** — `updateTopPill()` huérfana desde refactor de v0.6 (arqueología de git confirmó causa raíz), 5 llamadas corregidas a `updateCareStrip()` en app.js/gps.js. El saludo de ciudad real ya suena · sw.js v21
 - S25f: **BUG-049 CERRADO** — `?reset=1` no reseteaba `Config` en memoria (orden de carga de scripts: config.js antes que app.js); `introHeard` sobrevivía stale. Fix: `Config.reset()` explícito en el hook. Nunca afectó producción, solo la herramienta de prueba · sw.js v22
+- S25g: refinamiento de diseño DT-60 (sin código) — splash 100% anónimo, personalización concentrada en el corazón del wizard, mecanismo DA-77 reutilizado sin código nuevo
+- S26: **BUG-046 CERRADO** — causa raíz real distinta a la asumida (`activatePOI()` marcaba visited de inmediato, sin guard de re-entrada; dejaba BUG-044 muerto en la práctica). Fix: histéresis `DEACTIVATE_CONFIRM_COUNT=3` (~15s) + visited devuelto a narration.js. Validado con log real de campo. Hallazgo de método: modo teletransportar no sirve para probar histéresis de GPS (resetea POIs en cada clic) — usar modo ruta. Falso positivo descartado en saludo de ciudad (DA-78 funcionando bien). Nuevo hallazgo registrado para DT-51: narración con hechos inventados · sw.js v23
 
 ## Pendientes críticos
 
-- **DT-60 (registrada, próxima sesión de código mayor):** mover GPS/ciudad/POIs al wizard paso 2 + title card; splash pasa a estático (sin latido, sin mensajes falsos). Piedra técnica: Leaflet necesita contenedor visible — separar adquisición de datos de construcción del mapa (`onPosition()` en gps.js). Flujo objetivo completo en bitácora S25d. Requiere ratificación punto por punto, mismo rigor que DT-45/47
-- **BUG-046 → micro-sesión propia ANTES de la caminata (B ratificada S25).** Fix candidato "marcar al iniciar" + micro-decisión pendiente: destino del POI si la narración falla de inmediato tras marcar (leer trigger() primero)
-- **DT-60 diseño refinado (S25g, sin código):** splash queda 100% anónimo (corazón+brújula quietos, sin nombre); personalización se concentra en el corazón final del wizard. El saludo ahí es gratis vía DA-77 (pendiente+TTL ya existente) si fetchCityName() arranca en paso 2 — no requiere código nuevo, solo mover CUÁNDO se llama
-- **Caminata de campo — próximo log confirma que el saludo real ya suena** (BUG-048/049 cerrados) y dirá cuánto tarda Nominatim en la práctica (dato clave para DT-60) · observar también voz v3.0, Overpass-iPhone, SPECIAL_ZONE_MIN: 3
+- **DT-51 (grounding con extracts) — sube de prioridad implícita:** ahora con evidencia de campo directa (S26 — narración inventando hechos sobre un POI). Sigue siendo sesión de código mayor; detalle del caso (POI, texto, fuente wiki/osm) pendiente de traer
+- **DT-60 (registrada, próxima sesión de código mayor):** mover GPS/ciudad/POIs al wizard paso 2 + title card; splash pasa a estático (sin latido, sin mensajes falsos). Piedra técnica: Leaflet necesita contenedor visible — separar adquisición de datos de construcción del mapa (`onPosition()` en gps.js). Diseño refinado en S25g (splash 100% anónimo, DA-77 reutilizado sin código nuevo). Requiere ratificación punto por punto, mismo rigor que DT-45/47
+- **Validación pendiente en modo ruta del simulador:** BUG-046 se cerró con evidencia parcial de campo (histéresis contando bien, sin llegar a desactivar en esa sesión); la prueba dedicada de parpadeo cerca del borde del radio, en modo "🛤️ Dibujar ruta" (no teletransportar — resetea POIs en cada clic), sigue pendiente como confirmación adicional no bloqueante
+- **Caminata de campo** — observar voz v3.0, Overpass-iPhone, SPECIAL_ZONE_MIN: 3, y ahora también histéresis BUG-046 en movimiento real
 - **DT-58 (propuesta, SIN ratificar):** acceso a configuración post-wizard desde explore — idioma, nombre, volVoice, posible casa de DT-56. Pendiente de tu sí/no explícito
 - **DT-59 (propuesta, SIN ratificar):** calidad de voz en iOS — asimetría local/online en voice.js. Pendiente de evidencia real antes de tocar código. Trade-off con "offline obligatorio"
-- DT-51: grounding con extracts — sesión de código mayor
 - DT-53: getFarewell() — usa nombre DA-75 · pareja natural: DT-46
 - DT-56: entrada a Recorrido desde explore · DT-57: i18n wizard (baja)
 - DT-54 wake lock · DT-55 prefetch — después; DT-44 puede volverse irrelevante

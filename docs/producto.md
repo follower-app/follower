@@ -280,7 +280,7 @@ El Prompt Maestro v2.7 (narrador único) tiene versiones en español e inglés. 
 
 ---
 
-## 19. Deuda Técnica Activa *(actualizada a Sesión 25f — 8 julio 2026)*
+## 19. Deuda Técnica Activa *(actualizada a Sesión 26 — 8 julio 2026)*
 
 | ID | Descripción | Prioridad |
 |----|-------------|-----------|
@@ -307,12 +307,13 @@ El Prompt Maestro v2.7 (narrador único) tiene versiones en español e inglés. 
 | DT-53 | getFarewell() — despedida de caminata, nunca implementada; usa nombre DA-75 | Media |
 | DT-54 | Wake lock + modo caminata — resuelve suspensión por bloqueo de pantalla (spec S24) | Alta |
 | DT-55 | Prefetch de narraciones cercanas — conexión por ráfagas (spec S24) | Media |
-| DT-51 | Grounding de narración con `generator=geosearch&prop=extracts` — cierra alucinación tipo Pasto y basura sin tipo que DA-70 no atrapa | Alta |
+| DT-51 | Grounding de narración con `generator=geosearch&prop=extracts` — cierra alucinación tipo Pasto y basura sin tipo que DA-70 no atrapa. **Nueva evidencia de campo S26:** Jaime reportó una narración que "se inventó todo" sobre un POI — detalle (POI, texto, fuente) pendiente de traer a sesión dedicada | Alta |
 
 ### Resueltas recientemente
 
 | ID | Descripción |
 |----|-------------|
+| ~~BUG-046~~ | *(Sesión 26)* Re-narración en bucle por parpadeo de GPS. Causa raíz real: `activatePOI()` marcaba `visited=true` de inmediato al activar (huérfano de antes de S2-A1), sin guard de re-entrada — el GPS urbano parpadeando cerca del borde del radio cortaba narraciones y las reiniciaba desde cero. Efecto colateral: dejaba `POI.markVisited()` (fix de BUG-044) muerto en la práctica. Fix: histéresis de 3 chequeos (~15s) antes de `deactivatePOI()` + marcado de `visited` devuelto 100% a `narration.js`. Validado en campo (log real, histéresis contando correctamente) |
 | ~~BUG-048~~ | *(Sesión 25e)* `updateTopPill()` huérfana desde el refactor de v0.6 (reemplazada por `updateCareStrip()`, pero 5 llamadas en app.js/gps.js nunca se actualizaron) — causaba que el saludo de ciudad real nunca sonara, cayendo siempre al fallback genérico. Diagnosticado por arqueología de git, corregido a `updateCareStrip()` en las 5 ubicaciones |
 | ~~BUG-049~~ | *(Sesión 25f)* Herramienta `?reset=1` no reseteaba `Config` en memoria — `config.js` carga antes que `app.js` en index.html, así que `load()` ya leía localStorage stale antes de que el hook limpiara el disco. `introHeard` (nunca reescrita por el wizard) sobrevivía con su valor viejo. Nunca afectó producción, solo la herramienta de prueba. Corregido con `Config.reset()` explícito tras el clear |
 | ~~DT-9~~ | *(Sesión 25)* Key OpenAI revocada en console.openai.com — verificado 0 keys activas; historial git inerte, sin cambios de código |

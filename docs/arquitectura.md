@@ -2220,4 +2220,28 @@ sobrevivir hasta explore para que el saludo suene sin tap adicional.
 
 ---
 
-*Follower — Arquitectura v0.9 | Sesión 25 | 7 Julio 2026*
+## DT-46 (nota técnica) — Única fuente de verdad para `poi.visited` (Sesión 26)
+
+`activatePOI()` (`poi.js`) marcaba `poi.visited = true` de inmediato al
+activar — código huérfano de antes de S2-A1, que ya movió el marcado al
+callback de finalización en `narration.js`. La duplicación no solo
+contradecía S2-A1: dejaba `POI.markVisited()` (fix de BUG-044, puebla
+`_visitedInSession`) sin ejecutarse nunca en operación normal, porque su
+guard (`if (poi && !poi.visited)`) siempre encontraba `visited` ya en
+`true`. Fix (BUG-046): eliminado el marcado en `activatePOI()`.
+`narration.js` es ahora, de verdad, la única fuente de escritura de
+`poi.visited`. Cualquier código futuro que necesite saber "¿ya se narró
+esto?" debe asumir que la respuesta solo es fiable **después** de que la
+narración termine — nunca al activar.
+
+**Histéresis de desactivación (BUG-046):** `POI.detectPOI()` ya no llama
+`deactivatePOI()` en el primer chequeo sin `closestPOI`. Nuevo
+`CONFIG.DEACTIVATE_CONFIRM_COUNT = 3` (~15s con `POI_CHECK_INTERVAL=5000ms`
+de `gps.js`) exige chequeos consecutivos sin nadie cerca antes de cortar
+una narración activa — el ruido de GPS urbano cerca del borde del radio no
+debe interrumpir una historia a mitad de camino. Valor provisional, mismo
+patrón que fade/TTL: se calibra con evidencia de campo.
+
+---
+
+*Follower — Arquitectura v0.9 | Sesión 26 | 8 Julio 2026*

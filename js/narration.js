@@ -596,9 +596,31 @@ Idioma: ${lang}`;
     }
   }
 
+  /* ── DT-51 (fix): HUELLA CORTA DEL EXTRACTO ──
+     Problema real de campo (09-Jul-2026, caso Maceta): subir EXTRACT_MAX_CHARS
+     no toca el Prompt Maestro, así que no ameritaba subir PROMPT_VERSION —
+     pero SÍ cambia lo que Claude recibe. La clave de cache (solo
+     promptVersion+poiId+lang+topic) no tenía forma de notar ese cambio: el
+     capítulo viejo, generado con el extracto corto, quedaba servido para
+     siempre sin que ningún cambio de versión lo invalidara. Esto no es
+     hipotético para cerrar solo en escritorio — en campo (iPhone sin Mac ni
+     Web Inspector) no hay forma de purgar IndexedDB a mano.
+     Solución: la clave de cache incluye una huella del propio extracto.
+     Cualquier cambio al extracto (tope de caracteres, mejora de exintro,
+     edición del artículo en Wikipedia) cambia la huella → cache miss
+     automático, en cualquier dispositivo, sin intervención manual. */
+  function _fingerprint(str) {
+    if (!str) return '0';
+    let h = 0;
+    for (let i = 0; i < str.length; i++) {
+      h = (h * 31 + str.charCodeAt(i)) | 0;
+    }
+    return (h >>> 0).toString(36);
+  }
+
   /* ── CARGAR NARRACIÓN DESDE INDEXEDDB ── */
-  // DT-50: clave versionada → promptVersion_poiId_lang_topic (espejo DA-71)
-  async function loadFromCache(poiId, lang, topic) {
+  // DT-50: clave versionada → promptVersion_poiId_lang_topic_extractHash (DT-51 fix)
+  async function loadFromCache(poiId, lang, topic, extract) {
     // Timeout de 2s: si IndexedDB está bloqueada por otra transacción,
     // no esperar indefinidamente — continuar sin cache y llamar a Claude
     return new Promise((resolve) => {
@@ -613,7 +635,7 @@ Idioma: ${lang}`;
         const req = indexedDB.open('follower_db', 1);
         req.onsuccess = (e) => {
           const db    = e.target.result;
-          const key   = `${CONFIG.PROMPT_VERSION}_${poiId}_${lang}_${topic}`;
+          const key   = `${CONFIG.PROMPT_VERSION}_${poiId}_${lang}_${topic}_${_fingerprint(extract)}`;
           const tx    = db.transaction('narrations', 'readonly');
           const store = tx.objectStore('narrations');
           const get   = store.get(key);
@@ -629,13 +651,13 @@ Idioma: ${lang}`;
   }
 
   /* ── GUARDAR NARRACIÓN EN INDEXEDDB ── */
-  // DT-50: clave versionada → promptVersion_poiId_lang_topic (espejo DA-71)
-  async function saveToCache(poiId, lang, topic, text) {
+  // DT-50: clave versionada → promptVersion_poiId_lang_topic_extractHash (DT-51 fix)
+  async function saveToCache(poiId, lang, topic, text, extract) {
     try {
       const req = indexedDB.open('follower_db', 1);
       req.onsuccess = (e) => {
         const db    = e.target.result;
-        const key   = `${CONFIG.PROMPT_VERSION}_${poiId}_${lang}_${topic}`;
+        const key   = `${CONFIG.PROMPT_VERSION}_${poiId}_${lang}_${topic}_${_fingerprint(extract)}`;
         const tx    = db.transaction('narrations', 'readwrite');
         const store = tx.objectStore('narrations');
         store.put({ id: key, text, cachedAt: Date.now() });
@@ -749,7 +771,7 @@ Idioma: ${lang}`;
     const cacheId = (typeof Debug !== 'undefined')
       ? Debug.metricStart('narration', 'cache lookup')
       : null;
-    let text = await loadFromCache(poi.id, lang, topic);
+    let text = await loadFromCache(poi.id, lang, topic, poi._extract);
     if (cacheId) Debug.metricEnd(cacheId, text ? 'hit' : 'miss');
 
     // 2. Claude API (vía Cloudflare Worker) si no hay cache
@@ -762,7 +784,7 @@ Idioma: ${lang}`;
       text = await callClaude(system, user);
       if (apiId) Debug.metricEnd(apiId, text ? 'ok' : 'error');
       if (text) {
-        await saveToCache(poi.id, lang, topic, text);
+        await saveToCache(poi.id, lang, topic, text, poi._extract);
         source = 'api';
       }
     }

@@ -27,6 +27,14 @@ const POI = (() => {
   const COMPOSITE_THRESHOLD = 8;
   const EMERGENCY_MIN       = 3;
 
+  /* ── DT-51: GROUNDING — extract de Wikipedia ──
+     exintro=true ya recorta al resumen editorial del artículo (lo que los
+     propios editores de Wikipedia consideraron la introducción). Este tope
+     de caracteres es solo un salvavidas para intros anormalmente largas —
+     NO es la estrategia principal de recorte (Sesión de definición DT-51,
+     punto 3a: truncar por conteo fijo arriesga cortar justo el dato clave). */
+  const EXTRACT_MAX_CHARS = 1000;
+
   /* ── COLA NARRATIVA (S2-A2) ── */
   const QUEUE_MAX_SIZE = 3;          // máximo POIs en cola simultáneamente
   const QUEUE_TTL_MS   = 4 * 60000;  // 4 minutos — después el lugar quedó atrás
@@ -36,7 +44,7 @@ const POI = (() => {
   const CONFIG = {
     FETCH_RADIUS_KM:    2,      // radio de fetch de POIs desde OSM
     REFETCH_KM:         2,      // refetch si nos movemos más de 2km
-    POI_CACHE_VERSION:  3,      // v3: worship supervivientes a Tier 1 (evidencia campo iPhone)
+    POI_CACHE_VERSION:  4,      // v4: extract de Wikipedia (DT-51 — grounding) agregado a POIs wiki
                                 // REGLA: incrementar en el MISMO commit que cambie
                                 // query, filtros o normalización de POIs (Sesión 21)
     DB_NAME:            'follower_db',
@@ -216,6 +224,10 @@ const POI = (() => {
         const data    = await res.json();
         const results = data?.query?.geosearch || [];
         if (isEmergency) results.forEach(r => { r._lang = 'en'; });
+        // DT-51: qué wiki respondió — necesario para pedir extracts al
+        // dominio correcto después del filtro/dedup (cada pageid solo
+        // existe en el wiki que lo devolvió)
+        results.forEach(r => { r._baseUrl = baseUrl; });
 
         places.push(...results);  // ACUMULA — nunca reemplaza
 
@@ -301,6 +313,16 @@ const POI = (() => {
       Debug.log('info', `Wikipedia: ${places.length} POIs únicos tras deduplicación`);
     }
 
+    // ── DT-51: FETCH DE EXTRACTS (segunda llamada, batch por wiki de origen) ──
+    // Deliberadamente DESPUÉS del filtro editorial y el dedup: solo se pide
+    // el extract de los POIs que van a sobrevivir, no de los ~50 crudos que
+    // gsprop ya iba a descartar. Se mantiene separada de la llamada de
+    // geosearch (no se fusiona en un solo generator=geosearch+prop=extracts)
+    // porque eso cambia la forma de la respuesta (query.pages en vez de
+    // query.geosearch) y hubiera arriesgado el filtro gsprop=type de DA-70
+    // — una variable a la vez.
+    await _attachExtracts(places);
+
     // Normalizar al mismo schema que normalizePOI() produce
     // para que detectNearby(), activatePOI() y el cache no noten la diferencia
     return places.map(p => ({
@@ -316,7 +338,77 @@ const POI = (() => {
       cachedAt:    Date.now(),
       _source:     'wiki',        // contrato DT-52: 'wiki' garantiza articulo → grounding (DT-51)
       _lang:       p._lang || null, // 'en' si vino de la emergencia — insumo para grounding futuro
+      _extract:    p.extract || '', // DT-51: resumen editorial (exintro) — insumo del prompt, NUNCA la UI
     }));
+  }
+
+  /* ── DT-51: PEDIR EXTRACTS (exintro) EN BATCH, POR WIKI DE ORIGEN ──
+     Agrupa por _baseUrl (cada pageid solo es válido en el wiki que lo
+     devolvió), pide hasta 20 pageids por llamada (límite práctico de la
+     API para usuarios anónimos vía exlimit=max) y escribe p.extract
+     directamente sobre los objetos de `places` — mutación in-place,
+     misma disciplina que el resto de la cascada (fusión, dedup). */
+  async function _attachExtracts(places) {
+    const byBase = new Map();
+    for (const p of places) {
+      if (!p._baseUrl || !p.pageid) continue;
+      if (!byBase.has(p._baseUrl)) byBase.set(p._baseUrl, []);
+      byBase.get(p._baseUrl).push(p);
+    }
+    if (byBase.size === 0) return;
+
+    const CHUNK = 20; // límite práctico de exlimit para usuarios anónimos
+
+    for (const [baseUrl, group] of byBase) {
+      for (let i = 0; i < group.length; i += CHUNK) {
+        const chunk    = group.slice(i, i + CHUNK);
+        const pageids  = chunk.map(p => p.pageid).join('|');
+        const params   = new URLSearchParams({
+          action:      'query',
+          prop:        'extracts',
+          exintro:     'true',
+          explaintext: 'true',
+          exchars:     String(EXTRACT_MAX_CHARS),
+          exlimit:     'max',
+          pageids,
+          format:      'json',
+          origin:      '*',
+        });
+
+        try {
+          const controller = new AbortController();
+          const tid = setTimeout(() => controller.abort(), 8000);
+          const res = await fetch(`${baseUrl}?${params}`, { method: 'GET', signal: controller.signal });
+          clearTimeout(tid);
+
+          if (!res.ok) {
+            if (typeof Debug !== 'undefined') {
+              Debug.log('warn', `Wikipedia: extracts ${baseUrl.split('/')[2]} → status=${res.status}`);
+            }
+            continue;
+          }
+
+          const data  = await res.json();
+          const pages = data?.query?.pages || {};
+          for (const p of chunk) {
+            const page = pages[p.pageid];
+            if (page && typeof page.extract === 'string') p.extract = page.extract;
+          }
+        } catch (err) {
+          if (typeof Debug !== 'undefined') {
+            Debug.log('warn', `Wikipedia: extracts falló (${err.message}) — POIs de este lote narrarán sin grounding extra`);
+          }
+          // Sin extract, el POI sigue siendo _source:'wiki' (tiene articulo)
+          // pero narration.js no encontrará _extract y no inyectará el
+          // bloque de hechos — narra con nombre+ciudad, como hoy.
+        }
+      }
+    }
+
+    if (typeof Debug !== 'undefined') {
+      const conExtract = places.filter(p => p.extract).length;
+      Debug.log('info', `Wikipedia: ${conExtract}/${places.length} POIs con extract (DT-51)`);
+    }
   }
 
   /* ── FETCH POIs DESDE OVERPASS (OSM) — complemento de la cascada DT-52 ── */

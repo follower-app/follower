@@ -8,7 +8,7 @@
 
 // Incrementar CACHE_VERSION fuerza descarga de todos los archivos
 // en el proximo arranque — incluso si el navegador tiene version cacheada.
-const CACHE_VERSION = 'follower-v28';  // DT-51 (refuerzo 2): PROMPT_VERSION v3.4 — ejemplo de integracion autor/fecha + resuelve conflicto con regla HISTORIA
+const CACHE_VERSION = 'follower-v29';  // DT-51 (nueva categoria): PROMPT_VERSION v3.5 — prohibicion de inventar biografia de figuras homonimas (caso Parroquia San Alfonso Maria de Ligorio)
 
 const STATIC_ASSETS = [
   './',

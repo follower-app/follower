@@ -21,7 +21,7 @@ const Narration = (() => {
     API_MODEL:   'claude-haiku-4-5-20251001',
     API_TIMEOUT: 15000,
     MAX_TOKENS:  380,   // S23: 150 palabras max ≈ 300 tokens, 380 es techo seguro (BUG-047 cerrada por diseño)
-    PROMPT_VERSION: 'v3.1',  // DT-51: bloque de grounding (wiki extract / osm restricción) — DT-50: cambia SIEMPRE que cambie el Prompt Maestro — mismo commit (espejo DA-71)
+    PROMPT_VERSION: 'v3.2',  // DT-51 (afinamiento): forzar autor/fecha si el extracto los trae, no generalizar de conjunto a individuo, IDEA CENTRAL anclada a identidad local real — mismo commit (espejo DA-71)
     CARE_MAX_TOKENS: 120  // DT-42: mensaje de Care, mucho mas corto que un capitulo
   };
 
@@ -113,7 +113,7 @@ REGLAS OBLIGATORIAS
 
 5. EXPLICACIÓN — Utiliza historia, arquitectura, urbanismo, cultura o personajes para responder la pregunta.
 
-6. IDEA CENTRAL — Extrae una única verdad sobre la ciudad. Una sola. Si el lugar es de naturaleza religiosa, la fe o la espiritualidad son una idea central legítima — no la evites ni la niegues artificialmente para forzar otro ángulo.
+6. IDEA CENTRAL — Extrae una única verdad, anclada en algo concreto y reconocible de la cultura, naturaleza o identidad de ESTA ciudad — nunca una reflexión filosófica genérica que podría aplicar a cualquier ciudad del mundo. Una sola idea. Si el lugar es de naturaleza religiosa, la fe o la espiritualidad son una idea central legítima — no la evites ni la niegues artificialmente para forzar otro ángulo.
 
 7. CONTINUIDAD — Construye sobre el capítulo anterior si se te entrega. No repitas su idea central. No repitas su recurso sensorial o sonoro. Si no existe capítulo anterior, escribe con libertad total.
 
@@ -185,7 +185,7 @@ MANDATORY RULES
 
 5. EXPLANATION — Use history, architecture, urbanism, culture, or people to answer the question.
 
-6. CENTRAL IDEA — Extract a single truth about the city. Only one. If the place is religious in nature, faith or spirituality is a legitimate central idea — do not avoid or artificially deny it to force another angle.
+6. CENTRAL IDEA — Extract a single truth, anchored in something concrete and recognizable about THIS city's culture, nature, or identity — never a generic philosophical reflection that could apply to any city in the world. Only one idea. If the place is religious in nature, faith or spirituality is a legitimate central idea — do not avoid or artificially deny it to force another angle.
 
 7. CONTINUITY — Build on the previous chapter if provided. Do not repeat its central idea. Do not repeat its sensory or sound resource. If there is no previous chapter, write with total freedom.
 
@@ -512,8 +512,8 @@ Idioma: ${lang}`;
   function buildGroundingBlock(poi, lang) {
     if (poi._source === 'wiki' && poi._extract) {
       return (lang === 'en')
-        ? `\nVerified facts about this place (Wikipedia extract) — the ONLY facts you may use for author, date, figures, materials, reason for creation, attributed meaning, architectural style or period, and religious details (patron saint, order, denomination, year of consecration):\n"${poi._extract}"\n\nStrict rule: if the extract does not mention a fact — who made it, when, why, what it means, what style it is, which saint or cult it is dedicated to — do NOT fill that gap yourself. Describe the observable instead — apparent size, location, surroundings, what the walker can see right now — without inventing anything above that the extract doesn't support.\n\n`
-        : `\nHechos verificados sobre este lugar (extracto de Wikipedia) — son los ÚNICOS hechos que puedes usar para autor, fecha, cifras, materiales, motivo de creación, significado atribuido, estilo o período arquitectónico, y detalles religiosos (advocación, orden, denominación, año de consagración):\n"${poi._extract}"\n\nRegla estricta: si el extracto no menciona un dato — quién lo hizo, cuándo, por qué, qué significa, de qué estilo es, a qué santo o culto está dedicado — NO llenes ese vacío por tu cuenta. Describe en su lugar lo observable — tamaño aparente, ubicación, entorno, lo que el caminante puede ver ahora mismo — sin inventar nada de lo anterior que el extracto no respalde.\n\n`;
+        ? `\nVerified facts about this place (Wikipedia extract) — the ONLY facts you may use for author, date, figures, materials, reason for creation, attributed meaning, architectural style or period, and religious details (patron saint, order, denomination, year of consecration):\n"${poi._extract}"\n\nStrict rule: if the extract does not mention a fact — who made it, when, why, what it means, what style it is, which saint or cult it is dedicated to — do NOT fill that gap yourself. Describe the observable instead — apparent size, location, surroundings, what the walker can see right now — without inventing anything above that the extract doesn't support.\n\nIf the extract DOES mention the author, the creation or inauguration date, or the specific reason it was created, you MUST include those facts explicitly in the chapter — they are Follower's credibility anchor, not optional.\n\nIf the extract describes a trait shared by a group of elements (for example, a set of figures or species), do not attribute it to a single individual element unless the extract distinguishes it explicitly for that one.\n\n`
+        : `\nHechos verificados sobre este lugar (extracto de Wikipedia) — son los ÚNICOS hechos que puedes usar para autor, fecha, cifras, materiales, motivo de creación, significado atribuido, estilo o período arquitectónico, y detalles religiosos (advocación, orden, denominación, año de consagración):\n"${poi._extract}"\n\nRegla estricta: si el extracto no menciona un dato — quién lo hizo, cuándo, por qué, qué significa, de qué estilo es, a qué santo o culto está dedicado — NO llenes ese vacío por tu cuenta. Describe en su lugar lo observable — tamaño aparente, ubicación, entorno, lo que el caminante puede ver ahora mismo — sin inventar nada de lo anterior que el extracto no respalde.\n\nSi el extracto SÍ menciona autor, fecha de creación o inauguración, o el motivo específico de su creación, DEBES incluir esos datos explícitamente en el capítulo — son el ancla de credibilidad de Follower, no un detalle opcional.\n\nSi el extracto describe una característica compartida por un conjunto de elementos (por ejemplo, un grupo de figuras o especies), no se la atribuyas a un elemento individual salvo que el extracto lo distinga explícitamente para ese elemento en particular.\n\n`;
     }
 
     if (poi._source === 'osm') {

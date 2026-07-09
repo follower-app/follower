@@ -32,8 +32,14 @@ const POI = (() => {
      propios editores de Wikipedia consideraron la introducción). Este tope
      de caracteres es solo un salvavidas para intros anormalmente largas —
      NO es la estrategia principal de recorte (Sesión de definición DT-51,
-     punto 3a: truncar por conteo fijo arriesga cortar justo el dato clave). */
-  const EXTRACT_MAX_CHARS = 1000;
+     punto 3a: truncar por conteo fijo arriesga cortar justo el dato clave).
+     Evidencia de campo (caso Monumento a la Maceta, 09-Jul-2026): con 1000
+     el corte caía ANTES del párrafo de autoría/fecha (articulo sin
+     subtitulos, exintro devuelve casi el cuerpo completo) — el modelo no
+     alucino, pero tampoco tuvo la oportunidad de respetar la regla de "no
+     inventar lo que falta" porque el dato nunca llego. Subido a 2500 para
+     que articulos de ese tamaño lleguen completos. */
+  const EXTRACT_MAX_CHARS = 2500;
 
   /* ── COLA NARRATIVA (S2-A2) ── */
   const QUEUE_MAX_SIZE = 3;          // máximo POIs en cola simultáneamente

@@ -8,7 +8,7 @@
 
 // Incrementar CACHE_VERSION fuerza descarga de todos los archivos
 // en el proximo arranque — incluso si el navegador tiene version cacheada.
-const CACHE_VERSION = 'follower-v25';  // DT-51: EXTRACT_MAX_CHARS 1000->2500 (poi.js) + cache de narracion invalida por huella del extracto (narration.js) — v24 ya estaba en campo con la version corta
+const CACHE_VERSION = 'follower-v26';  // DT-51 (afinamiento): PROMPT_VERSION v3.2 — autor/fecha obligatorios si el extracto los trae, no generalizar conjunto->individuo, IDEA CENTRAL anclada a identidad local
 
 const STATIC_ASSETS = [
   './',

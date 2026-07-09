@@ -8,7 +8,7 @@
 
 // Incrementar CACHE_VERSION fuerza descarga de todos los archivos
 // en el proximo arranque — incluso si el navegador tiene version cacheada.
-const CACHE_VERSION = 'follower-v23';  // BUG-046: histeresis de desactivacion (GPS flicker) + fix visited marcado en activatePOI revivia BUG-044
+const CACHE_VERSION = 'follower-v24';  // DT-51: grounding narrativo — extract de Wikipedia (poi.js) + bloque anti-invencion en prompt (narration.js)
 
 const STATIC_ASSETS = [
   './',

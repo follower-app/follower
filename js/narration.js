@@ -21,7 +21,7 @@ const Narration = (() => {
     API_MODEL:   'claude-haiku-4-5-20251001',
     API_TIMEOUT: 15000,
     MAX_TOKENS:  380,   // S23: 150 palabras max ≈ 300 tokens, 380 es techo seguro (BUG-047 cerrada por diseño)
-    PROMPT_VERSION: 'v3.4',  // DT-51 (refuerzo 2): ejemplo de integracion natural autor/fecha + resuelve conflicto con regla "no lista de datos" en HISTORIA (evidencia: v3.1-v3.3 omitieron autor/fecha 3 veces seguidas, hipotesis de conflicto con esa regla vieja) — mismo commit (espejo DA-71)
+    PROMPT_VERSION: 'v3.5',  // DT-51 (nueva categoria): prohibicion de inventar biografia de figuras homonimas (santos/personas que dan nombre al lugar) — evidencia: Parroquia San Alfonso Maria de Ligorio, "jesuita italiano" inventado (fue fundador de los Redentoristas). Regla en LIMITES ESTRICTOS + refuerzo en bloque osm + verificacion final — mismo commit (espejo DA-71)
     CARE_MAX_TOKENS: 120  // DT-42: mensaje de Care, mucho mas corto que un capitulo
   };
 
@@ -141,6 +141,8 @@ Como máximo una metáfora o imagen central por capítulo. Constrúyela, sostenl
 
 Nunca personifiques la ciudad como si fuera una persona que decide, se mira al espejo, habla consigo misma, late o siente. La ciudad es un lugar real habitado por personas reales.
 
+Si el lugar debe su nombre a una persona, santo o figura histórica, NO inventes datos biográficos sobre esa persona (profesión, orden religiosa, nacionalidad, enseñanzas, obra) salvo que el extracto los confirme explícitamente. Puedes mencionar que el lugar lleva su nombre, sin elaborar una biografía no verificada.
+
 ESTILO
 
 Conversacional. Cercano. Inteligente. Curioso. Nunca académico. Nunca enciclopédico. Nunca turístico.
@@ -151,7 +153,7 @@ Objetivo: 90–130 palabras. Excepcionalmente hasta 150 palabras cuando el lugar
 
 VERIFICACIÓN FINAL
 
-Antes de entregar, verifica solo esto: ¿Generé un título que no fue pedido? ¿Hay más de una metáfora? ¿Personifiqué la ciudad? ¿Repetí el recurso sensorial o sonoro del capítulo anterior? ¿Si el lugar es de culto, negué o evité artificialmente la fe como idea central? ¿Si me dieron un extracto con autor o fecha, los incluí explícitamente en el capítulo?
+Antes de entregar, verifica solo esto: ¿Generé un título que no fue pedido? ¿Hay más de una metáfora? ¿Personifiqué la ciudad? ¿Repetí el recurso sensorial o sonoro del capítulo anterior? ¿Si el lugar es de culto, negué o evité artificialmente la fe como idea central? ¿Si me dieron un extracto con autor o fecha, los incluí explícitamente en el capítulo? ¿Si el lugar lleva el nombre de una persona o santo, inventé algo biográfico sobre ella que el extracto no confirma?
 
 Si algo falla, corrige antes de entregar. No muestres esta verificación — solo el capítulo.
 
@@ -213,6 +215,8 @@ At most one central metaphor or image per chapter. Build it, sustain it, and do 
 
 Never personify the city as if it were a person that decides, looks at itself in the mirror, talks to itself, beats, or feels. The city is a real place inhabited by real people.
 
+If the place is named after a person, saint, or historical figure, do NOT invent biographical facts about that person (profession, religious order, nationality, teachings, work) unless the extract explicitly confirms them. You may mention that the place is named after them, without elaborating an unverified biography.
+
 STYLE
 
 Conversational. Close. Intelligent. Curious. Never academic. Never encyclopedic. Never touristy.
@@ -223,7 +227,7 @@ Target: 90–130 words. Exceptionally up to 150 words when the place justifies i
 
 FINAL CHECK
 
-Before delivering, verify only this: Did I generate a title that wasn't requested? Is there more than one metaphor? Did I personify the city? Did I repeat the sensory or sound resource from the previous chapter? If the place is a place of worship, did I deny or artificially avoid faith as the central idea? If I was given an extract with an author or date, did I include them explicitly in the chapter?
+Before delivering, verify only this: Did I generate a title that wasn't requested? Is there more than one metaphor? Did I personify the city? Did I repeat the sensory or sound resource from the previous chapter? If the place is a place of worship, did I deny or artificially avoid faith as the central idea? If I was given an extract with an author or date, did I include them explicitly in the chapter? If the place is named after a person or saint, did I invent any biographical detail about them that the extract doesn't confirm?
 
 If anything fails, correct before delivering. Do not show this check — only the chapter.
 
@@ -519,8 +523,8 @@ Idioma: ${lang}`;
     if (poi._source === 'osm') {
       const inscription = poi.tags?.inscription || null;
       return (lang === 'en')
-        ? `\nThis place has no verified article — only its name and location are known${inscription ? `, plus this inscription: "${inscription}"` : ''}.\nDo not invent author, date, architectural style, or religious order. Describe the observable: what the name suggests, the surroundings, the visible architecture in general terms (without attributing a period), and why it deserves the pause — without fabricating historical data.\n\n`
-        : `\nEste lugar no tiene artículo verificado — solo se conoce su nombre y ubicación${inscription ? `, y esta inscripción: "${inscription}"` : ''}.\nNo inventes autor, fecha, estilo arquitectónico ni orden religiosa. Describe lo observable: lo que sugiere el nombre, el entorno, la arquitectura visible en términos generales (sin atribuir período), y por qué merece la pausa — sin fabricar datos históricos.\n\n`;
+        ? `\nThis place has no verified article — only its name and location are known${inscription ? `, plus this inscription: "${inscription}"` : ''}.\nDo not invent author, date, architectural style, or religious order. If the name refers to a person or saint (e.g. a parish named after someone), do not invent biographical facts about them either — no profession, no religious order, no nationality, no teachings. Describe the observable: what the name suggests, the surroundings, the visible architecture in general terms (without attributing a period), and why it deserves the pause — without fabricating historical data.\n\n`
+        : `\nEste lugar no tiene artículo verificado — solo se conoce su nombre y ubicación${inscription ? `, y esta inscripción: "${inscription}"` : ''}.\nNo inventes autor, fecha, estilo arquitectónico ni orden religiosa. Si el nombre refiere a una persona o santo (por ejemplo, una parroquia con nombre de alguien), tampoco inventes datos biográficos sobre esa persona — nada de profesión, orden religiosa, nacionalidad ni enseñanzas. Describe lo observable: lo que sugiere el nombre, el entorno, la arquitectura visible en términos generales (sin atribuir período), y por qué merece la pausa — sin fabricar datos históricos.\n\n`;
     }
 
     // _source ausente (defensivo — no debería pasar con DA-72/DT-52 vigentes)

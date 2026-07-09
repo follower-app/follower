@@ -8,7 +8,7 @@
 
 // Incrementar CACHE_VERSION fuerza descarga de todos los archivos
 // en el proximo arranque — incluso si el navegador tiene version cacheada.
-const CACHE_VERSION = 'follower-v26';  // DT-51 (afinamiento): PROMPT_VERSION v3.2 — autor/fecha obligatorios si el extracto los trae, no generalizar conjunto->individuo, IDEA CENTRAL anclada a identidad local
+const CACHE_VERSION = 'follower-v27';  // DT-51 (refuerzo): PROMPT_VERSION v3.3 — autor/fecha como primera verificacion obligatoria + pregunta en VERIFICACION FINAL
 
 const STATIC_ASSETS = [
   './',

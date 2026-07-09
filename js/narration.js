@@ -21,7 +21,7 @@ const Narration = (() => {
     API_MODEL:   'claude-haiku-4-5-20251001',
     API_TIMEOUT: 15000,
     MAX_TOKENS:  380,   // S23: 150 palabras max ≈ 300 tokens, 380 es techo seguro (BUG-047 cerrada por diseño)
-    PROMPT_VERSION: 'v3.2',  // DT-51 (afinamiento): forzar autor/fecha si el extracto los trae, no generalizar de conjunto a individuo, IDEA CENTRAL anclada a identidad local real — mismo commit (espejo DA-71)
+    PROMPT_VERSION: 'v3.3',  // DT-51 (refuerzo): autor/fecha como primera verificacion obligatoria del bloque de grounding + pregunta en VERIFICACION FINAL del SYSTEM_PROMPT (evidencia: v3.2 seguia omitiendo autor/fecha presentes) — mismo commit (espejo DA-71)
     CARE_MAX_TOKENS: 120  // DT-42: mensaje de Care, mucho mas corto que un capitulo
   };
 
@@ -151,7 +151,7 @@ Objetivo: 90–130 palabras. Excepcionalmente hasta 150 palabras cuando el lugar
 
 VERIFICACIÓN FINAL
 
-Antes de entregar, verifica solo esto: ¿Generé un título que no fue pedido? ¿Hay más de una metáfora? ¿Personifiqué la ciudad? ¿Repetí el recurso sensorial o sonoro del capítulo anterior? ¿Si el lugar es de culto, negué o evité artificialmente la fe como idea central?
+Antes de entregar, verifica solo esto: ¿Generé un título que no fue pedido? ¿Hay más de una metáfora? ¿Personifiqué la ciudad? ¿Repetí el recurso sensorial o sonoro del capítulo anterior? ¿Si el lugar es de culto, negué o evité artificialmente la fe como idea central? ¿Si me dieron un extracto con autor o fecha, los incluí explícitamente en el capítulo?
 
 Si algo falla, corrige antes de entregar. No muestres esta verificación — solo el capítulo.
 
@@ -223,7 +223,7 @@ Target: 90–130 words. Exceptionally up to 150 words when the place justifies i
 
 FINAL CHECK
 
-Before delivering, verify only this: Did I generate a title that wasn't requested? Is there more than one metaphor? Did I personify the city? Did I repeat the sensory or sound resource from the previous chapter? If the place is a place of worship, did I deny or artificially avoid faith as the central idea?
+Before delivering, verify only this: Did I generate a title that wasn't requested? Is there more than one metaphor? Did I personify the city? Did I repeat the sensory or sound resource from the previous chapter? If the place is a place of worship, did I deny or artificially avoid faith as the central idea? If I was given an extract with an author or date, did I include them explicitly in the chapter?
 
 If anything fails, correct before delivering. Do not show this check — only the chapter.
 
@@ -512,8 +512,8 @@ Idioma: ${lang}`;
   function buildGroundingBlock(poi, lang) {
     if (poi._source === 'wiki' && poi._extract) {
       return (lang === 'en')
-        ? `\nVerified facts about this place (Wikipedia extract) — the ONLY facts you may use for author, date, figures, materials, reason for creation, attributed meaning, architectural style or period, and religious details (patron saint, order, denomination, year of consecration):\n"${poi._extract}"\n\nStrict rule: if the extract does not mention a fact — who made it, when, why, what it means, what style it is, which saint or cult it is dedicated to — do NOT fill that gap yourself. Describe the observable instead — apparent size, location, surroundings, what the walker can see right now — without inventing anything above that the extract doesn't support.\n\nIf the extract DOES mention the author, the creation or inauguration date, or the specific reason it was created, you MUST include those facts explicitly in the chapter — they are Follower's credibility anchor, not optional.\n\nIf the extract describes a trait shared by a group of elements (for example, a set of figures or species), do not attribute it to a single individual element unless the extract distinguishes it explicitly for that one.\n\n`
-        : `\nHechos verificados sobre este lugar (extracto de Wikipedia) — son los ÚNICOS hechos que puedes usar para autor, fecha, cifras, materiales, motivo de creación, significado atribuido, estilo o período arquitectónico, y detalles religiosos (advocación, orden, denominación, año de consagración):\n"${poi._extract}"\n\nRegla estricta: si el extracto no menciona un dato — quién lo hizo, cuándo, por qué, qué significa, de qué estilo es, a qué santo o culto está dedicado — NO llenes ese vacío por tu cuenta. Describe en su lugar lo observable — tamaño aparente, ubicación, entorno, lo que el caminante puede ver ahora mismo — sin inventar nada de lo anterior que el extracto no respalde.\n\nSi el extracto SÍ menciona autor, fecha de creación o inauguración, o el motivo específico de su creación, DEBES incluir esos datos explícitamente en el capítulo — son el ancla de credibilidad de Follower, no un detalle opcional.\n\nSi el extracto describe una característica compartida por un conjunto de elementos (por ejemplo, un grupo de figuras o especies), no se la atribuyas a un elemento individual salvo que el extracto lo distinga explícitamente para ese elemento en particular.\n\n`;
+        ? `\nVerified facts about this place (Wikipedia extract):\n"${poi._extract}"\n\nMANDATORY FIRST CHECK — read the extract above before writing anything: does it mention the author, the creation or inauguration date, or the specific reason it was created? If YES, you MUST include those exact facts explicitly in the chapter — they are Follower's credibility anchor, never optional, never left out for the sake of style.\n\nThese are the ONLY facts you may use for author, date, figures, materials, reason for creation, attributed meaning, architectural style or period, and religious details (patron saint, order, denomination, year of consecration). If the extract does not mention one of these — do NOT fill that gap yourself. Describe the observable instead — apparent size, location, surroundings, what the walker can see right now — without inventing anything the extract doesn't support.\n\nIf the extract describes a trait shared by a group of elements (for example, a set of figures or species), do not attribute it to a single individual element unless the extract distinguishes it explicitly for that one.\n\n`
+        : `\nHechos verificados sobre este lugar (extracto de Wikipedia):\n"${poi._extract}"\n\nVERIFICACIÓN OBLIGATORIA PRIMERO — lee el extracto de arriba antes de escribir nada: ¿menciona autor, fecha de creación o inauguración, o el motivo específico de su creación? Si SÍ, DEBES incluir esos datos exactos explícitamente en el capítulo — son el ancla de credibilidad de Follower, nunca opcionales, nunca omitidos por estilo.\n\nEstos son los ÚNICOS hechos que puedes usar para autor, fecha, cifras, materiales, motivo de creación, significado atribuido, estilo o período arquitectónico, y detalles religiosos (advocación, orden, denominación, año de consagración). Si el extracto no menciona alguno de estos — NO llenes ese vacío por tu cuenta. Describe en su lugar lo observable — tamaño aparente, ubicación, entorno, lo que el caminante puede ver ahora mismo — sin inventar nada que el extracto no respalde.\n\nSi el extracto describe una característica compartida por un conjunto de elementos (por ejemplo, un grupo de figuras o especies), no se la atribuyas a un elemento individual salvo que el extracto lo distinga explícitamente para ese elemento en particular.\n\n`;
     }
 
     if (poi._source === 'osm') {

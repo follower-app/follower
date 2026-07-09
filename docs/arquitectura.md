@@ -2244,4 +2244,82 @@ patrón que fade/TTL: se calibra con evidencia de campo.
 
 ---
 
-*Follower — Arquitectura v0.9 | Sesión 26 | 8 Julio 2026*
+## DA-79 — Grounding de narración (DT-51): extract por POI + cache autoinvalidante
+
+**Contexto (Sesión 27).** Evidencia de campo (caso Monumento a la Maceta,
+Cali): `buildPrompt()` enviaba a Claude Haiku solo nombre + ciudad — cero
+extracto, cero hechos verificables. El modelo rellenaba autor, fecha y
+significado por asociación libre, con el mismo tono de certeza que un
+hecho real. Mecanismo confirmado en el pipeline de producción, no solo en
+el caso puntual del chat.
+
+**Decisión — extract vía `exintro`, no fusión de llamadas.** `poi.js`
+gana una función `_attachExtracts()`, llamada DESPUÉS del filtro editorial
+DA-70 y del dedup DT-49 (solo se pide extract de lo que sobrevive, no de
+los ~50 crudos que el filtro ya iba a descartar). Pide
+`prop=extracts&exintro=true&explaintext=true&exchars=EXTRACT_MAX_CHARS
+&exlimit=max` agrupando pageids por `_baseUrl` de origen (cada pageid solo
+es válido en el wiki que lo devolvió), en lotes de 20. **Deliberadamente
+NO se fusionó con `generator=geosearch&prop=extracts` en una sola
+llamada** — eso cambia la forma de la respuesta (`query.pages` en vez de
+`query.geosearch`) y hubiera arriesgado el filtro `gsprop=type` de DA-70,
+ya probado en campo. Dos llamadas HTTP, cero riesgo a código que
+funciona — "una variable a la vez", mismo principio que evitó la
+regresión DA-68.
+
+**`EXTRACT_MAX_CHARS` como salvavidas, no estrategia de recorte.**
+`exintro=true` ya recorta al resumen editorial que Wikipedia considera la
+introducción — el tope de caracteres solo protege contra intros
+anormalmente largas. Evidencia de campo obligó a subirlo de 1000 a 2500:
+con 1000, el corte caía sistemáticamente antes del párrafo de
+autoría/fecha en artículos sin subtítulos (donde `exintro` devuelve casi
+el cuerpo completo).
+
+**Bloque de grounding — `buildGroundingBlock(poi, lang)` en `narration.js`.**
+Se arma por POI según `_source` (contrato DA-72/DT-52) e se inyecta en el
+USER PROMPT como bloque aparte (mismo patrón que `prevBlock`), NO en el
+SYSTEM_PROMPT — cambia en cada llamada. Wiki con extracto: hechos
+verificados + obligación de incluir autor/fecha si están + prohibición de
+generalizar de conjunto a individuo. OSM (sin artículo): solo lo
+observable, prohibido inventar autor/fecha/estilo/orden religiosa/
+biografía de figura homónima.
+
+**Fix de cache — huella del extract, no solo `PROMPT_VERSION` (hallazgo
+de campo).** La clave de cache de narraciones
+(`promptVersion_poiId_lang_topic`) asumía que el único insumo variable
+era el Prompt Maestro. Subir `EXTRACT_MAX_CHARS` no toca el Prompt
+Maestro — no ameritaba subir `PROMPT_VERSION` por la letra de DT-50 — pero
+sí cambia lo que Claude recibe. Resultado en campo: la narración vieja
+(generada con el extract corto) se sirvió de cache indefinidamente, sin
+que ningún bump de versión la invalidara — y sin Mac ni Web Inspector en
+el iPhone de campo, no había forma de purgar IndexedDB a mano. **Fix:**
+`_fingerprint()` (hash corto tipo djb2, base36) del `poi._extract` se
+agrega como componente final de la clave, en ambos lados
+(`loadFromCache`/`saveToCache`). Cualquier cambio futuro al extract —
+tope de caracteres, mejora de `exintro`, edición del artículo en
+Wikipedia — invalida el cache automáticamente, en cualquier dispositivo,
+sin intervención manual. Autoinvalidante por diseño: el cambio de formato
+de clave (un componente más) ya deja huérfanas todas las entradas
+anteriores, sin necesitar ningún bump adicional.
+
+**Calibración de campo — cinco versiones de prompt en una sesión.**
+`PROMPT_VERSION` recorrió v3.1→v3.5 en la misma sesión, cada versión
+respondiendo a una categoría de fallo distinta encontrada en campo real
+(detalle completo en `bitacora.md`, Sesión 27): omisión de autor/fecha
+disponibles → conflicto con regla preexistente "nunca lista de datos" en
+HISTORIA → invención de biografía de una figura homónima (persona/santo
+que da nombre al lugar, distinta del lugar mismo). Este último es un hueco
+categórico que ninguna regla anterior contemplaba — el modelo puede
+alucinar sobre CUALQUIER entidad nombrada dentro de un POI, no solo sobre
+el lugar.
+
+**Sin cerrar.** Cinco iteraciones sobre el mismo síntoma en una sola
+sesión es evidencia de que el método (campo dirige la calibración) está
+funcionando, pero no de que haya convergido. Falta validar con un lote de
+POIs variados (templo, monumento, plaza, museo) antes de considerar DT-51
+estable. Ver DT-61 (`producto.md`) — idea relacionada sobre si todo POI
+amerita capítulo completo, registrada para sesión aparte.
+
+---
+
+*Follower — Arquitectura v0.9 | Sesión 27 | 9 Julio 2026*

@@ -16,7 +16,7 @@ Antes de modificar cualquier archivo SIEMPRE preguntar: "¿El archivo [nombre] e
 
 ## Documentos del proyecto
 
-README · REGLAS_IA · docs/: contexto_maestro (alma, pregunta rectora) · producto (DTs activas, visión v2.0 accesibilidad) · arquitectura (DA-1 a DA-78) · bitacora (hasta S26) · manifiesto_narrativo (voz v3.0) · manifiesto_care_strip · prompt_maestro_follower (oficial) · dt42_care_miniprompt · dt45_bienvenida_animada (enmendada S24) · dt47_wizard_mockup_final.html (mockup ratificado) · registro_sesion24_interfaz · restauracion_poi_js (histórico)
+README · REGLAS_IA · docs/: contexto_maestro (alma, pregunta rectora) · producto (DTs activas, visión v2.0 accesibilidad) · arquitectura (DA-1 a DA-79) · bitacora (hasta S27) · manifiesto_narrativo (voz v3.0) · manifiesto_care_strip · prompt_maestro_follower (oficial, v3.5) · dt42_care_miniprompt · dt45_bienvenida_animada (enmendada S24) · dt47_wizard_mockup_final.html (mockup ratificado) · registro_sesion24_interfaz · restauracion_poi_js (histórico)
 
 ## Arquitectura de archivos
 
@@ -32,10 +32,10 @@ index.html (shell mínimo) · sw.js v23 (siempre último en commits) · manifest
 - POIs: **cascada compuesta DA-72** — wiki local+es → si neto < COMPOSITE_THRESHOLD (8) → Overpass nwr curado (Tier 1 siempre; Tier 2 solo si sigue el hambre; fusión wiki-gana) → si neto < EMERGENCY_MIN (3) → en.wikipedia → IndexedDB
 - Curaduría OSM: compuerta 0 (sin nombre → fuera) + blacklist. **Curar antes de exponer (DA-73)**
 - Dedup DT-49: título normalizado + <25m intra-OSM / 60m inter-fuente; wiki gana; el perdedor lega inscription/wikidata
-- Contrato DT-51: `_source: 'wiki'|'osm'` + `_osmType` — wiki narra con hechos, osm narrará lo observable (pendiente DT-51)
+- Contrato DT-51: `_source: 'wiki'|'osm'` + `_osmType` — wiki narra con hechos (extract real vía `exintro`), osm narra lo observable. Implementado y en calibración de campo (Sesión 27) — ver Pendientes críticos
 - Wikipedia: cadena [local → es] ACUMULA; en.wikipedia es emergencia FINAL — DA-69/72. Filtro `gsprop=type` — DA-70
-- **DA-71:** cambio en query/filtros/normalización POIs → `POI_CACHE_VERSION++` MISMO commit (actual: **v3**)
-- **DT-50:** cambio al Prompt Maestro → `PROMPT_VERSION++` MISMO commit (actual: **v3.0**). Clave: `${PROMPT_VERSION}_${poiId}_${lang}_${topic}`
+- **DA-71:** cambio en query/filtros/normalización POIs → `POI_CACHE_VERSION++` MISMO commit (actual: **v4**)
+- **DT-50:** cambio al Prompt Maestro → `PROMPT_VERSION++` MISMO commit (actual: **v3.5**). Clave: `${PROMPT_VERSION}_${poiId}_${lang}_${topic}_${extractFingerprint}` — el componente de huella (DT-51, Sesión 27) autoinvalida el cache cuando cambia el extract, sin depender de subir versión
 - ¿Archivo servido cambió? → sw.js bump, commit final aparte
 - Care y cola narrativa independientes: la cola guarda historias, Care es presente — nunca se encola
 - Nunca mostrar errores al usuario — siempre hay fallback
@@ -57,15 +57,15 @@ app.js: setPhase · navigateTo · welcomeCity (habla, no muestra) · _unlockAudi
 
 ## Estado actual
 
-v0.9 — Sesión 26 completada: **BUG-046 CERRADO** (histéresis de desactivación + fix de visited devuelto 100% a narration.js, revive BUG-044) validado con log real de campo. Flujo de entrada sigue en producción sin cambios (S25/DA-78). sw.js v23. POI_CACHE_VERSION v3. Prompt Maestro v3.0 (DA-74).
+v0.9 — Sesión 27 completada: **DT-51 (grounding) implementado y en calibración de campo, NO cerrada.** Cinco versiones de Prompt Maestro en una sesión (v3.1→v3.5), cada una respondiendo a una categoría de alucinación distinta encontrada en campo real. sw.js v29. POI_CACHE_VERSION v4. Prompt Maestro v3.5.
 
 Flujo actual (vigente hasta que DT-60 se implemente): splash decorativo (sin prompt GPS en 1ª vez) → wizard 4 pasos (GPS priming → idioma autodetect → nombre opcional → corazón desbloquea en silencio) → title card (fade puro, tap salta y desbloquea, techo 4s) → explore → saludo de ciudad hablado; primerísima vez incluye "Soy Follower" (DA-78).
 
-**Hallazgo nuevo (S26, pendiente de sesión propia):** narración detectada inventando hechos sobre un POI — evidencia de campo directa para DT-51 (grounding). Detalle (POI, texto, fuente) por traer a esa sesión.
+**DT-51 — resumen de la calibración (detalle completo en bitacora.md S27):** caso base Monumento a la Maceta (autoría/fecha/significado inventados) → extract real vía `exintro` + bloque de grounding en el prompt → v3.1: no inventa, pero omite autor/fecha por corte de `EXTRACT_MAX_CHARS` (1000→2500) → fix de cache por huella del extract (`_fingerprint`, no solo `PROMPT_VERSION`) → v3.2: autor/fecha obligatorios + no generalizar conjunto→individuo + idea central anclada a identidad local → v3.3: refuerzo de posición + verificación final → v3.4: ejemplo de integración natural + resuelve conflicto con regla "no lista de datos" → v3.5: nueva categoría — prohibido inventar biografía de figuras homónimas (caso Parroquia San Alfonso María de Ligorio, "jesuita italiano" falso). Sin validar aún con lote de POIs variados.
 
 **Timing en mano (fijar en caminata):** fade-in ~1.8s · techo 4s · TTL saludo 90s.
 
-## Completado en Sesiones 21-26
+## Completado en Sesiones 21-27
 
 - S21: causa raíz POIs Pasto · gsprop · DA-69/70/71 · sw.js v13
 - S22: fuente compuesta DT-52 (DA-72/73) · dedup+fusión · contrato _source · sw.js v15
@@ -79,13 +79,15 @@ Flujo actual (vigente hasta que DT-60 se implemente): splash decorativo (sin pro
 - S25f: **BUG-049 CERRADO** — `?reset=1` no reseteaba `Config` en memoria (orden de carga de scripts: config.js antes que app.js); `introHeard` sobrevivía stale. Fix: `Config.reset()` explícito en el hook. Nunca afectó producción, solo la herramienta de prueba · sw.js v22
 - S25g: refinamiento de diseño DT-60 (sin código) — splash 100% anónimo, personalización concentrada en el corazón del wizard, mecanismo DA-77 reutilizado sin código nuevo
 - S26: **BUG-046 CERRADO** — causa raíz real distinta a la asumida (`activatePOI()` marcaba visited de inmediato, sin guard de re-entrada; dejaba BUG-044 muerto en la práctica). Fix: histéresis `DEACTIVATE_CONFIRM_COUNT=3` (~15s) + visited devuelto a narration.js. Validado con log real de campo. Hallazgo de método: modo teletransportar no sirve para probar histéresis de GPS (resetea POIs en cada clic) — usar modo ruta. Falso positivo descartado en saludo de ciudad (DA-78 funcionando bien). Nuevo hallazgo registrado para DT-51: narración con hechos inventados · sw.js v23
+- S27: **DT-51 (grounding) implementado, NO cerrada** — extract real vía `exintro` en `poi.js` (DA-79), bloque de grounding wiki/osm en `narration.js`, fix de cache por huella del extract. Cinco versiones de prompt (v3.1→v3.5) sobre el mismo síntoma en cinco rondas de campo — ver bitacora.md para el detalle completo. **DT-61 registrada** (criterio de narrabilidad de POI — no todo POI merece capítulo completo). sw.js v24→v29
 
 ## Pendientes críticos
 
-- **DT-51 (grounding con extracts) — sube de prioridad implícita:** ahora con evidencia de campo directa (S26 — narración inventando hechos sobre un POI). Sigue siendo sesión de código mayor; detalle del caso (POI, texto, fuente wiki/osm) pendiente de traer
+- **DT-51 (grounding, Sesión 27) — implementado, NO cerrada:** cinco versiones de prompt (v3.1→v3.5) en la misma sesión, cada una resolviendo una categoría de alucinación distinta encontrada en campo. Falta validar con lote de POIs variados (templo, monumento, plaza, museo) antes de considerar estable. Detalle completo en bitacora.md S27
+- **DT-61 (nueva, sin ratificar):** criterio de narrabilidad de POI — ¿todo POI detectado merece capítulo completo, o los que no tienen sustancia real deberían anunciarse simple ("Aquí está la Iglesia San Felipe") en vez de forzar narración y arriesgar invención? Propuesto por Jaime al cierre de S27, pendiente de definición punto por punto
 - **DT-60 (registrada, próxima sesión de código mayor):** mover GPS/ciudad/POIs al wizard paso 2 + title card; splash pasa a estático (sin latido, sin mensajes falsos). Piedra técnica: Leaflet necesita contenedor visible — separar adquisición de datos de construcción del mapa (`onPosition()` en gps.js). Diseño refinado en S25g (splash 100% anónimo, DA-77 reutilizado sin código nuevo). Requiere ratificación punto por punto, mismo rigor que DT-45/47
 - **Validación pendiente en modo ruta del simulador:** BUG-046 se cerró con evidencia parcial de campo (histéresis contando bien, sin llegar a desactivar en esa sesión); la prueba dedicada de parpadeo cerca del borde del radio, en modo "🛤️ Dibujar ruta" (no teletransportar — resetea POIs en cada clic), sigue pendiente como confirmación adicional no bloqueante
-- **Caminata de campo** — observar voz v3.0, Overpass-iPhone, SPECIAL_ZONE_MIN: 3, y ahora también histéresis BUG-046 en movimiento real
+- **Caminata de campo** — observar voz v3.5, Overpass-iPhone, SPECIAL_ZONE_MIN: 3, histéresis BUG-046 en movimiento real, y ahora también grounding DT-51 con lote de POIs variados
 - **DT-58 (propuesta, SIN ratificar):** acceso a configuración post-wizard desde explore — idioma, nombre, volVoice, posible casa de DT-56. Pendiente de tu sí/no explícito
 - **DT-59 (propuesta, SIN ratificar):** calidad de voz en iOS — asimetría local/online en voice.js. Pendiente de evidencia real antes de tocar código. Trade-off con "offline obligatorio"
 - DT-53: getFarewell() — usa nombre DA-75 · pareja natural: DT-46
@@ -95,7 +97,7 @@ Flujo actual (vigente hasta que DT-60 se implemente): splash decorativo (sin pro
 
 ## El Narrador
 
-Una sola voz, sin selector. Prompt Maestro v3.0 define la voz completa — implementado en narration.js (es + en, espejo fiel). Ver docs/prompt_maestro_follower.md.
+Una sola voz, sin selector. Prompt Maestro v3.5 define la voz completa — implementado en narration.js (es + en, espejo fiel). Bloque de grounding dinámico (DT-51) inyectado por POI según `_source`. Ver docs/prompt_maestro_follower.md.
 
 ## Identidad
 

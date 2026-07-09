@@ -3993,4 +3993,173 @@ sesión por decisión de Jaime.
 
 ---
 
-*Follower — Bitácora v0.9 | Sesión 26 | 8 Julio 2026*
+# SESIÓN 27 — DT-51: grounding de narración (definición + implementación + calibración de campo)
+
+**Fecha:** 9 Julio 2026
+
+**Objetivo:** cerrar el hallazgo de Sesión 26 (narración inventada, detalle
+pendiente). Jaime trajo el caso concreto: Monumento a la Maceta, Cali —
+la narración le atribuyó autoría a Fernando Botero (1976) y un significado
+de "cultivo urbano", cuando el monumento real es de Diego Pombo (2015),
+homenaje al dulce tradicional "maceta" y al vínculo padrino-ahijado. Único
+dato correcto: la ubicación aproximada. Autor, fecha, escala y significado
+— inventados de cero, con el mismo tono de certeza que un hecho verificado.
+
+**Causa raíz confirmada en código, no solo en el caso puntual:**
+`buildPrompt()` en `narration.js` enviaba a Claude Haiku solo nombre +
+ciudad ("Estoy en 'X' en Ciudad. Escribe el capítulo de este lugar.") —
+cero extracto, cero hechos. `fetchWikipediaPOIs` nunca pedía descripción
+(`description: ''` siempre). El mecanismo que produjo la alucinación de
+la Maceta es el mismo que corre para cualquier POI real en producción,
+no un artefacto del chat.
+
+### Definición ratificada punto por punto (antes de tocar código)
+
+1. **Cuándo pedir el extract:** en `fetchWikipediaPOIs`, para todos los
+   POIs del área (no lazy por POI activado) — así no depende de la red
+   en el momento crítico de narrar, y respeta "offline nunca rompe la
+   experiencia"
+2. **Sin umbral de calidad del extract:** se descartó introducir un
+   `MIN_EXTRACT_LENGTH` — la existencia del artículo ya es la señal de
+   relevancia; la disciplina de no inventar vive en el prompt, no en un
+   filtro de longitud
+3. **Fuente del extract — `exintro=true`** (resumen editorial curado por
+   Wikipedia) en vez de truncamiento por conteo de caracteres fijo, con
+   `EXTRACT_MAX_CHARS` como salvavidas de seguridad, no como estrategia
+   principal. Instrucción anti-invención cubriendo autor, fecha, cifras,
+   materiales, motivo, significado, estilo arquitectónico y detalles
+   religiosos (a petición explícita de Jaime, motivada por precedente de
+   Sesión 21 — Pasto)
+4. **POIs solo-OSM:** bloque equivalente y más restrictivo — nombre +
+   inscripción heredada si existe, prohibiendo inventar autor/fecha/
+   estilo/orden religiosa
+5. **Cache y versión:** `POI_CACHE_VERSION` v3→v4, `PROMPT_VERSION`
+   v3.0→v3.1, commits separados (`poi.js` → `narration.js` → `sw.js`)
+
+### Implementación
+
+- **`poi.js`:** nueva función `_attachExtracts()` — tras el filtro
+  editorial y el dedup (no antes: solo se pide extract de lo que
+  sobrevive), agrupa pageids por `_baseUrl` de origen, pide
+  `exintro=true&explaintext=true&exchars=N&exlimit=max` en lotes de 20.
+  Decisión de arquitectura: **no** se fusionó con `generator=geosearch`
+  en una sola llamada — eso cambia la forma de la respuesta
+  (`query.pages` en vez de `query.geosearch`) y hubiera arriesgado el
+  filtro `gsprop=type` de DA-70. Dos llamadas, cero riesgo al código que
+  ya funciona en campo — "una variable a la vez"
+- **`narration.js`:** nueva función `buildGroundingBlock(poi, lang)` —
+  arma el bloque wiki (hechos + restricción) u osm (restricción sola)
+  según `_source`, inyectado en el user prompt como bloque aparte (mismo
+  patrón que `prevBlock`)
+
+### Calibración de campo — cinco rondas de evidencia real, mismo síntoma
+
+**Ronda 1 (EXTRACT_MAX_CHARS=1000, PROMPT_VERSION v3.1):** narración de
+la Maceta desde el pipeline real — ya no inventa autor/fecha, pero
+tampoco los incluye porque el extracto se cortó antes de llegar al
+párrafo de autoría (artículo sin subtítulos, cuerpo completo ~1904
+caracteres, el corte cayó ~500 caracteres antes del final). Hallazgo:
+"no alucinar" y "usar los datos disponibles" son cosas distintas — aquí
+solo se cumplió la primera, por casualidad de dónde cayó el corte.
+
+**Fix de cache descubierto en el camino:** repetir la prueba tras subir
+`EXTRACT_MAX_CHARS` a 2500 sirvió la MISMA narración vieja —
+`[narration] cache lookup: hit`. La clave de cache
+(`promptVersion_poiId_lang_topic`) no tenía forma de notar que el
+*insumo* (extract) cambió sin que `PROMPT_VERSION` cambiara. Sin Mac ni
+Web Inspector en el iPhone de campo, Jaime no podía purgar IndexedDB a
+mano — "esa no es la solución, hay que encontrarla de otra forma".
+**Fix:** `_fingerprint()` (hash corto del `_extract`) se agrega a la
+clave de cache en ambos lados (`loadFromCache`/`saveToCache`). Cualquier
+cambio futuro al extract invalida el cache solo, en cualquier
+dispositivo, sin intervención manual — autoinvalidante por diseño.
+
+**Ronda 2 (EXTRACT_MAX_CHARS=2500, v3.1, cache miss real):** hechos
+verificables correctos (acero, 37 figuras/7 niveles, aves, patrimonio
+2013) pero SIGUE omitiendo autor/fecha aunque el extracto completo
+(1904 caracteres) ya cabía entero. Además generalizó una característica
+del conjunto de 12 aves a un ave individual ("canarios del Valle del
+Cauca"). Y el cierre filosófico ("¿qué necesita una ciudad para recordar
+sus propias manos?") no tenía ninguna conexión con Cali — válido para
+cualquier ciudad del mundo.
+
+**v3.2:** tres correcciones ratificadas — (a) autor/fecha OBLIGATORIOS
+si el extracto los trae, (b) prohibido generalizar conjunto→individuo,
+(c) punto 6 IDEA CENTRAL del SYSTEM_PROMPT modificado: anclar a
+identidad/cultura/naturaleza de la ciudad específica, nunca reflexión
+filosófica genérica.
+
+**Ronda 3 (v3.2, cache miss real vía huella nueva):** (b) resuelto — sin
+generalización esta vez. (c) resuelto pero chocó con otra regla ya
+existente: el cierre "Eso es Cali viéndose a sí misma" cumplía el
+anclaje local pero violaba la prohibición de personificar la ciudad
+(DA-66, Sesión 16/18) — el modelo encontró el camino más fácil hacia
+"anclaje local" convirtiendo a la ciudad en sujeto. Anotado como
+observación de campo, sin tocar la regla de personificación todavía.
+(a) SIGUE fallando — tercera vez.
+
+**v3.3:** hipótesis — la instrucción de autor/fecha vivía al final de un
+bloque cargado de restricciones y se perdía en el ruido. Reubicada como
+PRIMERA verificación del bloque de grounding + nueva pregunta en
+VERIFICACIÓN FINAL del SYSTEM_PROMPT (mismo nivel que título/metáfora/
+personificación/fe).
+
+**Ronda 4 (v3.3, cache miss confirmado por log):** (a) sigue fallando —
+CUARTA vez. Nuevo dato: "durante siglos ha sido el vínculo..." — el
+extracto no dice "siglos", invención temporal menor no capturada por
+ninguna regla anterior.
+
+**Hipótesis revisada:** no era problema de ubicación de la instrucción,
+sino de conflicto directo con una regla YA EXISTENTE en HISTORIA — "Las
+fechas y hechos históricos... nunca aparecer como una lista de datos".
+El modelo probablemente resolvía el conflicto entre "no listar datos" y
+"debes incluir autor/fecha" priorizando la regla vieja, más establecida.
+
+**v3.4:** bloque de grounding recibe el CÓMO además del QUÉ — ejemplo de
+integración natural ("Diego Pombo lo construyó en 2015..." vs. formato
+de ficha técnica) + aclaración de que la prosa fluida no exime de
+incluir el dato. Sección HISTORIA del SYSTEM_PROMPT modificada con
+excepción explícita: esa regla no autoriza omitir lo que el grounding
+exige.
+
+**Ronda 5 (v3.4 aplicado a un POI nuevo — Parroquia San Alfonso María de
+Ligorio, `_source` probable 'osm', servido desde cache tras fallo total
+de la cascada online):** categoría de alucinación DISTINTA, nunca antes
+cubierta — el modelo no inventó sobre el templo, inventó biografía sobre
+el SANTO que da nombre al lugar ("jesuita italiano" — en realidad
+Alfonso María de Ligorio fundó su propia congregación, los
+Redentoristas). Ninguna regla anterior contemplaba una tercera entidad
+nombrada (persona/santo homónimo) distinta del lugar mismo.
+
+**v3.5:** nueva regla universal en LÍMITES ESTRICTOS (aplica con o sin
+grounding): prohibido inventar biografía de personas/santos que dan
+nombre a un lugar, salvo que el extracto lo confirme. Refuerzo explícito
+en el bloque OSM + nueva pregunta en VERIFICACIÓN FINAL.
+
+### Estado al cierre de la sesión
+
+`POI_CACHE_VERSION` v4. `PROMPT_VERSION` v3.5. `sw.js` v29.
+
+**NO se considera DT-51 cerrada.** Cinco versiones de prompt en una sola
+sesión, cada una respondiendo a un caso puntual de campo — exactamente
+el método correcto ("evidencia de campo dirige la calibración"), pero
+sin confirmar todavía que esto converge. Cada POI nuevo probado reveló
+una categoría de alucinación distinta que la versión anterior no cubría
+(autor/fecha omitidos → conflicto con regla vieja → biografía de figura
+homónima). Falta validar con un lote de POIs variados (templo, monumento,
+plaza, museo) antes de dar el prompt por estable.
+
+### Idea nueva registrada para próxima sesión (sin ticket de código aún)
+
+Jaime planteó revisar el criterio de qué POIs merecen capítulo completo.
+No todos los POIs detectados tienen sustancia narrativa real — algunos
+son solo un nombre sin extracto útil ni nada observable distintivo.
+Propuesta a definir: si un POI no tiene contenido suficiente, Follower
+debería anunciarlo simple ("Aquí está la Iglesia San Felipe") en vez de
+forzar un capítulo de 90-130 palabras y arriesgar rellenar con invención
+lo que no amerita narración. Pendiente de definición punto por punto —
+ver DT-61 en `producto.md`.
+
+---
+
+*Follower — Bitácora v0.9 | Sesión 27 | 9 Julio 2026*

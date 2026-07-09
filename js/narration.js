@@ -21,7 +21,7 @@ const Narration = (() => {
     API_MODEL:   'claude-haiku-4-5-20251001',
     API_TIMEOUT: 15000,
     MAX_TOKENS:  380,   // S23: 150 palabras max ≈ 300 tokens, 380 es techo seguro (BUG-047 cerrada por diseño)
-    PROMPT_VERSION: 'v3.3',  // DT-51 (refuerzo): autor/fecha como primera verificacion obligatoria del bloque de grounding + pregunta en VERIFICACION FINAL del SYSTEM_PROMPT (evidencia: v3.2 seguia omitiendo autor/fecha presentes) — mismo commit (espejo DA-71)
+    PROMPT_VERSION: 'v3.4',  // DT-51 (refuerzo 2): ejemplo de integracion natural autor/fecha + resuelve conflicto con regla "no lista de datos" en HISTORIA (evidencia: v3.1-v3.3 omitieron autor/fecha 3 veces seguidas, hipotesis de conflicto con esa regla vieja) — mismo commit (espejo DA-71)
     CARE_MAX_TOKENS: 120  // DT-42: mensaje de Care, mucho mas corto que un capitulo
   };
 
@@ -125,7 +125,7 @@ Si el POI posee elementos arquitectónicos visibles, explica: qué está viendo 
 
 HISTORIA
 
-Las fechas y hechos históricos deben ayudar a explicar el lugar. Nunca aparecer como una lista de datos.
+Las fechas y hechos históricos deben ayudar a explicar el lugar. Nunca aparecer como una lista de datos — pero esto no autoriza a omitir un dato que el bloque de hechos verificados exige incluir (autor, fecha). Intégralo en la prosa; no lo elimines.
 
 CULTURA
 
@@ -197,7 +197,7 @@ If the POI has visible architectural elements, explain: what the walker is seein
 
 HISTORY
 
-Dates and historical facts must help explain the place. Never appear as a list of data.
+Dates and historical facts must help explain the place. Never appear as a list of data — but this does not authorize dropping a fact the verified-facts block requires you to include (author, date). Weave it into the prose; do not remove it.
 
 CULTURE
 
@@ -512,8 +512,8 @@ Idioma: ${lang}`;
   function buildGroundingBlock(poi, lang) {
     if (poi._source === 'wiki' && poi._extract) {
       return (lang === 'en')
-        ? `\nVerified facts about this place (Wikipedia extract):\n"${poi._extract}"\n\nMANDATORY FIRST CHECK — read the extract above before writing anything: does it mention the author, the creation or inauguration date, or the specific reason it was created? If YES, you MUST include those exact facts explicitly in the chapter — they are Follower's credibility anchor, never optional, never left out for the sake of style.\n\nThese are the ONLY facts you may use for author, date, figures, materials, reason for creation, attributed meaning, architectural style or period, and religious details (patron saint, order, denomination, year of consecration). If the extract does not mention one of these — do NOT fill that gap yourself. Describe the observable instead — apparent size, location, surroundings, what the walker can see right now — without inventing anything the extract doesn't support.\n\nIf the extract describes a trait shared by a group of elements (for example, a set of figures or species), do not attribute it to a single individual element unless the extract distinguishes it explicitly for that one.\n\n`
-        : `\nHechos verificados sobre este lugar (extracto de Wikipedia):\n"${poi._extract}"\n\nVERIFICACIÓN OBLIGATORIA PRIMERO — lee el extracto de arriba antes de escribir nada: ¿menciona autor, fecha de creación o inauguración, o el motivo específico de su creación? Si SÍ, DEBES incluir esos datos exactos explícitamente en el capítulo — son el ancla de credibilidad de Follower, nunca opcionales, nunca omitidos por estilo.\n\nEstos son los ÚNICOS hechos que puedes usar para autor, fecha, cifras, materiales, motivo de creación, significado atribuido, estilo o período arquitectónico, y detalles religiosos (advocación, orden, denominación, año de consagración). Si el extracto no menciona alguno de estos — NO llenes ese vacío por tu cuenta. Describe en su lugar lo observable — tamaño aparente, ubicación, entorno, lo que el caminante puede ver ahora mismo — sin inventar nada que el extracto no respalde.\n\nSi el extracto describe una característica compartida por un conjunto de elementos (por ejemplo, un grupo de figuras o especies), no se la atribuyas a un elemento individual salvo que el extracto lo distinga explícitamente para ese elemento en particular.\n\n`;
+        ? `\nVerified facts about this place (Wikipedia extract):\n"${poi._extract}"\n\nMANDATORY FIRST CHECK — read the extract above before writing anything: does it mention the author, the creation or inauguration date, or the specific reason it was created? If YES, you MUST include those exact facts explicitly in the chapter — they are Follower's credibility anchor, never optional, never left out for the sake of style or flow.\n\nHow to include them: weave them into a sentence naturally — e.g. "Diego Pombo built it in 2015..." — never as a separate fact-sheet line like "Author: Diego Pombo. Date: 2015." But smooth prose is NOT an excuse to drop the fact — if you can't find a graceful way to fit it in, include it plainly anyway. Losing the fact is worse than a slightly less elegant sentence.\n\nThese are the ONLY facts you may use for author, date, figures, materials, reason for creation, attributed meaning, architectural style or period, and religious details (patron saint, order, denomination, year of consecration). If the extract does not mention one of these — do NOT fill that gap yourself. Describe the observable instead — apparent size, location, surroundings, what the walker can see right now — without inventing anything the extract doesn't support.\n\nIf the extract describes a trait shared by a group of elements (for example, a set of figures or species), do not attribute it to a single individual element unless the extract distinguishes it explicitly for that one.\n\n`
+        : `\nHechos verificados sobre este lugar (extracto de Wikipedia):\n"${poi._extract}"\n\nVERIFICACIÓN OBLIGATORIA PRIMERO — lee el extracto de arriba antes de escribir nada: ¿menciona autor, fecha de creación o inauguración, o el motivo específico de su creación? Si SÍ, DEBES incluir esos datos exactos explícitamente en el capítulo — son el ancla de credibilidad de Follower, nunca opcionales, nunca omitidos por mantener el estilo o el flujo.\n\nCómo incluirlos: téjelos en una frase con naturalidad — ej. "Diego Pombo lo construyó en 2015..." — nunca como una línea de ficha técnica separada tipo "Autor: Diego Pombo. Fecha: 2015." Pero la prosa fluida NO es excusa para omitir el dato — si no encuentras una forma elegante de incluirlo, inclúyelo de todas formas aunque suene menos pulido. Perder el dato es peor que una frase un poco menos elegante.\n\nEstos son los ÚNICOS hechos que puedes usar para autor, fecha, cifras, materiales, motivo de creación, significado atribuido, estilo o período arquitectónico, y detalles religiosos (advocación, orden, denominación, año de consagración). Si el extracto no menciona alguno de estos — NO llenes ese vacío por tu cuenta. Describe en su lugar lo observable — tamaño aparente, ubicación, entorno, lo que el caminante puede ver ahora mismo — sin inventar nada que el extracto no respalde.\n\nSi el extracto describe una característica compartida por un conjunto de elementos (por ejemplo, un grupo de figuras o especies), no se la atribuyas a un elemento individual salvo que el extracto lo distinga explícitamente para ese elemento en particular.\n\n`;
     }
 
     if (poi._source === 'osm') {

@@ -8,7 +8,7 @@
 
 // Incrementar CACHE_VERSION fuerza descarga de todos los archivos
 // en el proximo arranque — incluso si el navegador tiene version cacheada.
-const CACHE_VERSION = 'follower-v32';  // BUG-050: sanitizar nombre de ciudad (Nominatim devolvio "Cali ciudad") + DT-51 PRUEBA v3.7-test vigente
+const CACHE_VERSION = 'follower-v33';  // DT-51: revertido experimento v3.7-test (MAX_TOKENS/rango de palabras) tras confirmar que no trajo autor/fecha. BUG-050 (sanitizar ciudad) se mantiene
 
 const STATIC_ASSETS = [
   './',

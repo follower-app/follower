@@ -4162,4 +4162,88 @@ ver DT-61 en `producto.md`.
 
 ---
 
-*Follower — Bitácora v0.9 | Sesión 27 | 9 Julio 2026*
+# SESIÓN 27b — DT-51: prueba probabilística n=4 (mismo POI, mismo prompt)
+
+**Fecha:** 10 Julio 2026
+
+**Motivación.** Cierre de S27 dejó una advertencia explícita: cinco
+iteraciones de prompt sobre el mismo síntoma (autor/fecha omitidos) sin
+convergencia clara podían significar que el problema ya no era de
+redacción sino de cómo Haiku resuelve conflictos entre instrucciones, o
+simplemente de la naturaleza no determinista del modelo — una sola
+muestra por versión (n=1) no alcanza para distinguir "se corrigió" de
+"esta vez salió bien". Jaime decidió correr **la misma corrida cuatro
+veces** (mismo POI — Monumento a la Maceta — mismo `PROMPT_VERSION` v3.5),
+usando cuatro navegadores distintos (Chrome, Firefox, Edge, Safari) para
+forzar cache miss real en cada una sin depender de borrar IndexedDB a
+mano.
+
+**Resultado (n=4, PROMPT_VERSION v3.5):**
+
+| Regla | Chrome | Firefox | Edge | Safari | Tasa |
+|---|---|---|---|---|---|
+| Autor/fecha (Diego Pombo, 2015) | ❌ | ❌ | ❌ | ❌ | **0/4 (0%)** |
+| No generalizar conjunto→individuo | ✅ | ✅ | ✅ | ❌ | 3/4 (75%) |
+| No inventar duración ("durante siglos") | ❌ | ✅ | ✅ | ❌ | 2/4 (50%) |
+| No personificar la ciudad (regla preexistente DA-66) | ✅ | ❌ | ✅ | ✅ | 3/4 (75%) |
+
+**Lectura del resultado.** Autor/fecha en 0/4 tras tres rondas de refuerzo
+de prompt (v3.2, v3.3, v3.4) es evidencia fuerte de que el problema no es
+de redacción — el modelo, dado este extracto y este conjunto de
+instrucciones, sistemáticamente prioriza el flujo narrativo sobre incluir
+el dato. Seguir iterando el texto del prompt sobre este punto
+probablemente no mueve la aguja; se necesita un enfoque distinto (ver
+Pendientes).
+
+**Hallazgo nuevo — invención de duración temporal ("durante siglos"), 2/4
+fallos.** Esta categoría ya se había visto en la Ronda 4 de S27 pero
+nunca tuvo una regla explícita, solo quedó anotada como observación. Con
+evidencia repetida (2 de 4 corridas), se ratificó una regla nueva.
+
+**Hallazgo secundario — ninguna regla es 100% incluso cuando "funciona".**
+La generalización conjunto→individuo, que la Ronda 3 de S27 había dado
+por resuelta con una sola muestra positiva, reaparece en 1 de 4 corridas
+aquí. Y la personificación de la ciudad — regla preexistente desde DA-66,
+con varias sesiones de uso — falla en Firefox ("una ciudad se conoce a sí
+misma"). Confirma que ninguna corrida individual, pase o falle, es
+evidencia suficiente sobre una regla; hace falta muestreo repetido para
+hablar de tasas reales.
+
+### v3.6 (ratificado, implementado)
+
+Regla nueva en LÍMITES ESTRICTOS (es/en) — no afirmar cuánto tiempo lleva
+una tradición/vínculo/práctica ("durante siglos", "durante generaciones",
+"desde tiempos ancestrales") salvo que el extracto lo respalde
+explícitamente. Reforzada también en la lista de hechos permitidos del
+bloque de grounding wiki. `PROMPT_VERSION` v3.5→v3.6, `sw.js` v29→v30.
+
+**Autor/fecha (0/4) deliberadamente sin tocar en este commit** — no se
+sigue ajustando texto de prompt sobre este punto; se traslada a la
+próxima sesión como problema de enfoque, no de redacción.
+
+### Pendientes para próxima sesión (dos caminos, sin decidir aún)
+
+**A. Enfoque estructural (determinista):** verificar programáticamente
+si el extracto trae autor/fecha (regex sobre patrones de fecha y verbos
+de autoría) y, si el capítulo generado no los menciona, regenerar con un
+prompt más directivo o insertar la mención de forma controlada fuera de
+la prosa libre del modelo. Más costoso (posible llamada extra), pero
+garantizado.
+
+**B. Enfoque de medición (probabilístico) generalizado:** aceptar que el
+prompt nunca será determinista al 100%, y establecer un protocolo formal
+de n=5-10 corridas por versión antes de considerar cualquier ajuste
+"validado" — no solo para autor/fecha, sino para toda regla del Prompt
+Maestro de aquí en adelante. Esta sesión ya demostró que n=1 no es
+confiable ni para reglas que parecían simples (personificación, con
+sesiones de historial detrás, falló 1/4).
+
+**DT-51 sigue NO cerrada.** Estado real tras S27+S27b: cero invención de
+autor/fecha *falsos* (mejora real desde el caso Maceta original), pero
+omisión sistemática de autor/fecha *reales* cuando están disponibles
+(0/4). El grounding cumple su promesa mínima (no mentir) pero no la
+promesa completa (usar lo que se sabe).
+
+---
+
+*Follower — Bitácora v0.9 | Sesión 27b | 10 Julio 2026*

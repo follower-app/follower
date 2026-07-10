@@ -307,7 +307,7 @@ El Prompt Maestro v2.7 (narrador único) tiene versiones en español e inglés. 
 | DT-53 | getFarewell() — despedida de caminata, nunca implementada; usa nombre DA-75 | Media |
 | DT-54 | Wake lock + modo caminata — resuelve suspensión por bloqueo de pantalla (spec S24) | Alta |
 | DT-55 | Prefetch de narraciones cercanas — conexión por ráfagas (spec S24) | Media |
-| DT-51 | Grounding de narración — **implementado y en calibración (Sesión 27), NO cerrada.** `poi.js` trae extract real (`exintro`) por POI; `narration.js` inyecta bloque de hechos/restricción según `_source`. Caso de evidencia: Monumento a la Maceta (autoría/fecha/significado inventados) resuelto en cuanto a NO inventar, pero cinco rondas de campo revelaron categorías nuevas de fallo cada vez (autor/fecha omitidos pese a estar disponibles, conflicto con regla "no lista de datos", biografía inventada de figura homónima al lugar — caso Parroquia San Alfonso). `PROMPT_VERSION` en v3.5. Falta validar con lote de POIs variados antes de considerar estable | Alta |
+| DT-51 | Grounding de narración — **implementado, en calibración (S27+S27b), NO cerrado.** Prueba probabilística n=4 (mismo POI, mismo prompt v3.5, 4 navegadores): autor/fecha **0/4** — confirma que es problema estructural, no de redacción, tres rondas de refuerzo de prompt no lo movieron. Generalización conjunto→individuo 3/4, duración temporal inventada 2/4 (corregida en v3.6), personificación preexistente 3/4. `PROMPT_VERSION` v3.6. **Próxima sesión: decidir entre enfoque estructural (verificación programática + regeneración) o protocolo formal de muestreo n=5-10 antes de validar cualquier ajuste** | Alta |
 | DT-61 | Criterio de narrabilidad de POI — evaluar si TODO POI detectado merece capítulo completo, o si los que no tienen sustancia real (sin extracto útil, sin nada observable distintivo) deberían anunciarse simple ("Aquí está la Iglesia San Felipe") en vez de forzar 90-130 palabras y arriesgar inventar contenido para llenar el hueco. Propuesto por Jaime al cierre de Sesión 27, pendiente de definición punto por punto | Alta |
 
 ### Resueltas recientemente
@@ -376,4 +376,4 @@ puerta de entrada accesible: la app se presenta hablando, no mostrando.
 
 ---
 
-*Follower — Documento de Producto v0.9 | Sesión 27 | 9 Julio 2026*
+*Follower — Documento de Producto v0.9 | Sesión 27b | 10 Julio 2026*

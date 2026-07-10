@@ -2320,6 +2320,24 @@ POIs variados (templo, monumento, plaza, museo) antes de considerar DT-51
 estable. Ver DT-61 (`producto.md`) — idea relacionada sobre si todo POI
 amerita capítulo completo, registrada para sesión aparte.
 
+**Apéndice (S27b) — de n=1 a n=4: por qué una muestra no valida una
+regla.** Sospecha del cierre de S27 confirmada: se corrió el mismo POI
+(Maceta) con el mismo `PROMPT_VERSION` (v3.5) cuatro veces (Chrome,
+Firefox, Edge, Safari, forzando cache miss real sin depender de purgar
+IndexedDB). Autor/fecha: **0/4** — tres rondas previas de refuerzo de
+prompt (v3.2-v3.4) no movieron esta tasa; el modelo prioriza
+sistemáticamente el flujo narrativo sobre incluir el dato disponible.
+Esto descarta el enfoque de "seguir afinando el texto del prompt" para
+este punto específico y traslada la decisión a la próxima sesión entre
+dos caminos: (A) verificación programática post-generación + regeneración
+o inserción controlada (determinista, más costoso), o (B) protocolo
+formal de n=5-10 corridas por versión antes de dar cualquier ajuste por
+validado (acepta la naturaleza probabilística del modelo en vez de pelear
+contra ella). Dato adicional que refuerza la necesidad de (B): la regla
+de personificación de la ciudad, preexistente desde DA-66 y en uso varias
+sesiones sin incidentes reportados, falló 1 de las 4 corridas — ninguna
+regla, por probada que parezca, tiene garantía al 100% con este modelo.
+
 ---
 
-*Follower — Arquitectura v0.9 | Sesión 27 | 9 Julio 2026*
+*Follower — Arquitectura v0.9 | Sesión 27b | 10 Julio 2026*

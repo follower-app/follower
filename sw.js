@@ -8,7 +8,7 @@
 
 // Incrementar CACHE_VERSION fuerza descarga de todos los archivos
 // en el proximo arranque — incluso si el navegador tiene version cacheada.
-const CACHE_VERSION = 'follower-v29';  // DT-51 (nueva categoria): PROMPT_VERSION v3.5 — prohibicion de inventar biografia de figuras homonimas (caso Parroquia San Alfonso Maria de Ligorio)
+const CACHE_VERSION = 'follower-v31';  // DT-51 PRUEBA (S27b): rango de palabras 90-170 + MAX_TOKENS 500, hipotesis presupuesto vs autor/fecha (0/4). Version experimental v3.7-test
 
 const STATIC_ASSETS = [
   './',

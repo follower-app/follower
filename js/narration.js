@@ -20,8 +20,8 @@ const Narration = (() => {
     API_URL:     'https://followernarration.jaimeand.workers.dev/narration',
     API_MODEL:   'claude-haiku-4-5-20251001',
     API_TIMEOUT: 15000,
-    MAX_TOKENS:  500,   // DT-51 PRUEBA (S27b, hipotesis presupuesto): subido de 380 — 170 palabras max ≈ 340 tokens + margen. Variable aislada para probar si autor/fecha (0/4) se debe a que el capitulo no tiene espacio para el dato sin sacrificar el cierre narrativo. Si no mejora la tasa, revertir a 380 (BUG-047 establecio ese techo por otra razon: evitar cortes de audio largos)
-    PROMPT_VERSION: 'v3.7-test',  // DT-51 PRUEBA DE HIPOTESIS (S27b): rango de palabras 90-130->90-170 (excepcional 150->200) + MAX_TOKENS 380->500. Aisla si autor/fecha (0/4 en v3.5) se debe a presupuesto de palabras compitiendo con el cierre narrativo. NO es un cambio de regla, es un experimento — revertir a v3.6 + MAX_TOKENS 380 si no mejora la tasa — mismo commit (espejo DA-71)
+    MAX_TOKENS:  380,   // S23: 150 palabras max ≈ 300 tokens, 380 es techo seguro (BUG-047 cerrada por diseño). Revertido tras experimento fallido (S27b): subir a 500 no trajo autor/fecha — hipotesis 3 (presupuesto de palabras) descartada
+    PROMPT_VERSION: 'v3.6',  // DT-51: revertido tras experimento v3.7-test (S27b) — subir MAX_TOKENS/rango de palabras NO trajo autor/fecha (hipotesis 3 descartada, misma tasa 0/n). Contenido identico al v3.6 original: duracion/antiguedad inventada corregida en LIMITES ESTRICTOS + bloque de grounding — mismo commit (espejo DA-71)
     CARE_MAX_TOKENS: 120  // DT-42: mensaje de Care, mucho mas corto que un capitulo
   };
 
@@ -151,7 +151,7 @@ Conversacional. Cercano. Inteligente. Curioso. Nunca académico. Nunca enciclop�
 
 LONGITUD
 
-Objetivo: 90–170 palabras. Excepcionalmente hasta 200 palabras cuando el lugar lo justifique. Esta cuenta es solo del cuerpo del capítulo.
+Objetivo: 90–130 palabras. Excepcionalmente hasta 150 palabras cuando el lugar lo justifique. Esta cuenta es solo del cuerpo del capítulo.
 
 VERIFICACIÓN FINAL
 
@@ -227,7 +227,7 @@ Conversational. Close. Intelligent. Curious. Never academic. Never encyclopedic.
 
 LENGTH
 
-Target: 90–170 words. Exceptionally up to 200 words when the place justifies it. This count covers only the body of the chapter.
+Target: 90–130 words. Exceptionally up to 150 words when the place justifies it. This count covers only the body of the chapter.
 
 FINAL CHECK
 

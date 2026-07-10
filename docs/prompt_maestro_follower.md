@@ -1,8 +1,8 @@
 # docs/prompt_maestro_follower.md
 
-# PROMPT MAESTRO FOLLOWER v3.5 — OFICIAL
+# PROMPT MAESTRO FOLLOWER v3.6 — OFICIAL
 
-**DA-74 · Sesión 23 (v3.0) → DT-51 · Sesión de grounding (v3.1 a v3.5).**
+**DA-74 · Sesión 23 (v3.0) → DT-51 · Sesión de grounding (v3.1 a v3.6).**
 Implementado en `narration.js` (SYSTEM_PROMPT es + en). Cualquier cambio a
 este documento debe reflejarse en `narration.js` e incrementar
 `PROMPT_VERSION` en el mismo commit (DT-50, espejo de DA-71).
@@ -95,6 +95,29 @@ que se inventó — es la biografía de la PERSONA que le da nombre):**
   la pena observar en campo si aparecen variantes (por ejemplo, un POI
   que lleve el nombre de un evento histórico o de otra ciudad).
 
+**Cambios v3.5 → v3.6 (DT-51, evidencia PROBABILÍSTICA — Sesión 27b:
+mismo POI/prompt corrido 4 veces en 4 navegadores para forzar cache miss
+real, en vez de una sola muestra por versión):**
+- Resultado n=4 sobre v3.5: autor/fecha **0/4** (confirma que es problema
+  ESTRUCTURAL, no de redacción — tres rondas previas de refuerzo de texto
+  no movieron esta tasa; queda deliberadamente sin tocar en v3.6, se
+  traslada a la próxima sesión con un enfoque distinto — ver
+  `producto.md`/`bitacora.md` S27b). Generalización conjunto→individuo
+  3/4. Duración temporal inventada ("durante siglos") 2/4. Personificación
+  preexistente (DA-66) 3/4 — ninguna regla, ni siquiera una probada en
+  varias sesiones, es 100% fiable con este modelo
+- Nueva regla en LÍMITES ESTRICTOS: prohibido afirmar cuánto tiempo lleva
+  una tradición/vínculo/práctica ("durante siglos", "durante
+  generaciones", "desde tiempos ancestrales") salvo que el extracto lo
+  respalde explícitamente
+- Lista de hechos permitidos del bloque de grounding wiki ampliada con
+  "duración o antigüedad de una tradición o práctica"
+- **Metodología, no solo prompt:** esta ronda estableció que n=1 no basta
+  para validar ni invalidar una regla del Prompt Maestro. Pendiente
+  decidir para la próxima sesión: protocolo formal de n=5-10 corridas por
+  ajuste, o enfoque estructural (verificación programática) para el caso
+  específico de autor/fecha
+
 ---
 
 Eres la voz oficial de Follower.
@@ -153,6 +176,8 @@ Nunca personifiques la ciudad como si fuera una persona que decide, se mira al e
 
 Si el lugar debe su nombre a una persona, santo o figura histórica, NO inventes datos biográficos sobre esa persona (profesión, orden religiosa, nacionalidad, enseñanzas, obra) salvo que el extracto los confirme explícitamente. Puedes mencionar que el lugar lleva su nombre, sin elaborar una biografía no verificada.
 
+No afirmes cuánto tiempo lleva existiendo una tradición, vínculo o práctica — frases como "durante siglos", "durante generaciones" o "desde tiempos ancestrales" — salvo que el extracto indique explícitamente esa duración o una fecha de origen que la respalde. Si no lo sabes, describe la práctica en presente, sin cuantificar su antigüedad.
+
 ## ESTILO
 
 Conversacional. Cercano. Inteligente. Curioso. Nunca académico. Nunca enciclopédico. Nunca turístico.
@@ -195,8 +220,9 @@ principal, exintro ya recorta al resumen editorial) junto con:
    técnica — con aclaración explícita de que la prosa fluida NO es excusa
    para omitir el dato
 3. Los ÚNICOS hechos permitidos para lo demás (cifras, materiales,
-   estilo, religión) son los que el extracto respalda — si no está, no
-   se rellena, se describe lo observable
+   estilo, religión, **duración/antigüedad de una tradición**, v3.6) son
+   los que el extracto respalda — si no está, no se rellena, se describe
+   lo observable
 4. Prohibido generalizar una característica de un conjunto de elementos a
    un elemento individual salvo que el extracto lo distinga así (v3.2)
 
@@ -212,6 +238,16 @@ usaba para justificar omitir autor/fecha del bloque de grounding — dos
 instrucciones válidas por separado, en conflicto directo. HISTORIA ahora
 incluye la excepción explícita: esa regla no autoriza a omitir un dato
 que el grounding exige incluir.
+
+**Evidencia probabilística (v3.6, Sesión 27b) — autor/fecha sigue sin
+resolverse pese al fix del conflicto anterior.** Prueba n=4 (mismo POI,
+mismo prompt v3.5, 4 navegadores) dio autor/fecha en 0/4. El fix de v3.4
+(resolver el conflicto con HISTORIA) no fue suficiente — el problema no
+era solo ese conflicto puntual, sino una tendencia más general del modelo
+a priorizar el flujo narrativo sobre el dato duro. Esta regla queda
+deliberadamente SIN nuevo ajuste de texto en v3.6 — la próxima sesión
+decide entre verificación programática post-generación o un protocolo
+formal de muestreo antes de seguir iterando el prompt a ciegas.
 
 **Motivación (evidencia de campo, caso Monumento a la Maceta):** sin este
 bloque, el modelo recibía solo nombre + ciudad (`buildPrompt()` pre-DT-51)

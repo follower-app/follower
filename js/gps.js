@@ -171,6 +171,26 @@ const GPS = (() => {
   }
 
   /* ── OBTENER NOMBRE DE CIUDAD (Nominatim) ── */
+  /* ── BUG-050: sanitizar nombre de ciudad ──
+     Evidencia de campo (10-Jul-2026): Nominatim devolvio "Cali ciudad"
+     para una coordenada real en Cali — el sufijo administrativo generico
+     viene DENTRO del propio dato, no es una concatenacion de nuestro
+     codigo. Reproducible en Chrome y Firefox, misma coordenada, 3 veces.
+     Riesgo real de otras ciudades colombianas/latinoamericanas con
+     fronteras OSM de "area urbana" separadas del municipio completo.
+     Fix deliberadamente conservador: solo elimina la palabra generica
+     cuando aparece AL FINAL del string, como palabra suelta — nunca al
+     inicio, para no romper nombres propios legitimos que empiezan con
+     "Ciudad" (Ciudad de Mexico, Ciudad Juarez, Ciudad Bolivar, Ciudad
+     del Este). El patron real del bug es "Nombre + generico", no
+     "Generico + de + Nombre". */
+  const CITY_GENERIC_SUFFIXES = /\s+(ciudad|municipio|distrito|corregimiento|comuna)$/i;
+
+  function _sanitizeCityName(name) {
+    if (!name) return name;
+    return name.replace(CITY_GENERIC_SUFFIXES, '').trim();
+  }
+
   async function fetchCityName(lat, lng) {
     // Instrumentacion puente S25d — sin esta visibilidad no se puede
     // diagnosticar por que Nominatim no resuelve (red, CORS, sin campo de
@@ -191,11 +211,13 @@ const GPS = (() => {
       const data = await res.json();
       const _ms  = Math.round(performance.now() - _t0);
 
-      const city = data.address?.city
-                || data.address?.town
-                || data.address?.village
-                || data.address?.county
-                || '';
+      const city = _sanitizeCityName(
+        data.address?.city
+        || data.address?.town
+        || data.address?.village
+        || data.address?.county
+        || ''
+      );
 
       const country = data.address?.country_code?.toUpperCase() || '';
 

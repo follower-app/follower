@@ -20,8 +20,8 @@ const Narration = (() => {
     API_URL:     'https://followernarration.jaimeand.workers.dev/narration',
     API_MODEL:   'claude-haiku-4-5-20251001',
     API_TIMEOUT: 15000,
-    MAX_TOKENS:  380,   // S23: 150 palabras max ≈ 300 tokens, 380 es techo seguro (BUG-047 cerrada por diseño)
-    PROMPT_VERSION: 'v3.5',  // DT-51 (nueva categoria): prohibicion de inventar biografia de figuras homonimas (santos/personas que dan nombre al lugar) — evidencia: Parroquia San Alfonso Maria de Ligorio, "jesuita italiano" inventado (fue fundador de los Redentoristas). Regla en LIMITES ESTRICTOS + refuerzo en bloque osm + verificacion final — mismo commit (espejo DA-71)
+    MAX_TOKENS:  500,   // DT-51 PRUEBA (S27b, hipotesis presupuesto): subido de 380 — 170 palabras max ≈ 340 tokens + margen. Variable aislada para probar si autor/fecha (0/4) se debe a que el capitulo no tiene espacio para el dato sin sacrificar el cierre narrativo. Si no mejora la tasa, revertir a 380 (BUG-047 establecio ese techo por otra razon: evitar cortes de audio largos)
+    PROMPT_VERSION: 'v3.7-test',  // DT-51 PRUEBA DE HIPOTESIS (S27b): rango de palabras 90-130->90-170 (excepcional 150->200) + MAX_TOKENS 380->500. Aisla si autor/fecha (0/4 en v3.5) se debe a presupuesto de palabras compitiendo con el cierre narrativo. NO es un cambio de regla, es un experimento — revertir a v3.6 + MAX_TOKENS 380 si no mejora la tasa — mismo commit (espejo DA-71)
     CARE_MAX_TOKENS: 120  // DT-42: mensaje de Care, mucho mas corto que un capitulo
   };
 
@@ -143,13 +143,15 @@ Nunca personifiques la ciudad como si fuera una persona que decide, se mira al e
 
 Si el lugar debe su nombre a una persona, santo o figura histórica, NO inventes datos biográficos sobre esa persona (profesión, orden religiosa, nacionalidad, enseñanzas, obra) salvo que el extracto los confirme explícitamente. Puedes mencionar que el lugar lleva su nombre, sin elaborar una biografía no verificada.
 
+No afirmes cuánto tiempo lleva existiendo una tradición, vínculo o práctica — frases como "durante siglos", "durante generaciones" o "desde tiempos ancestrales" — salvo que el extracto indique explícitamente esa duración o una fecha de origen que la respalde. Si no lo sabes, describe la práctica en presente, sin cuantificar su antigüedad.
+
 ESTILO
 
 Conversacional. Cercano. Inteligente. Curioso. Nunca académico. Nunca enciclopédico. Nunca turístico.
 
 LONGITUD
 
-Objetivo: 90–130 palabras. Excepcionalmente hasta 150 palabras cuando el lugar lo justifique. Esta cuenta es solo del cuerpo del capítulo.
+Objetivo: 90–170 palabras. Excepcionalmente hasta 200 palabras cuando el lugar lo justifique. Esta cuenta es solo del cuerpo del capítulo.
 
 VERIFICACIÓN FINAL
 
@@ -217,13 +219,15 @@ Never personify the city as if it were a person that decides, looks at itself in
 
 If the place is named after a person, saint, or historical figure, do NOT invent biographical facts about that person (profession, religious order, nationality, teachings, work) unless the extract explicitly confirms them. You may mention that the place is named after them, without elaborating an unverified biography.
 
+Do not claim how long a tradition, bond, or practice has existed — phrases like "for centuries", "for generations", or "since ancient times" — unless the extract explicitly states that duration or an origin date that supports it. If you don't know, describe the practice in the present tense, without quantifying its age.
+
 STYLE
 
 Conversational. Close. Intelligent. Curious. Never academic. Never encyclopedic. Never touristy.
 
 LENGTH
 
-Target: 90–130 words. Exceptionally up to 150 words when the place justifies it. This count covers only the body of the chapter.
+Target: 90–170 words. Exceptionally up to 200 words when the place justifies it. This count covers only the body of the chapter.
 
 FINAL CHECK
 
@@ -516,8 +520,8 @@ Idioma: ${lang}`;
   function buildGroundingBlock(poi, lang) {
     if (poi._source === 'wiki' && poi._extract) {
       return (lang === 'en')
-        ? `\nVerified facts about this place (Wikipedia extract):\n"${poi._extract}"\n\nMANDATORY FIRST CHECK — read the extract above before writing anything: does it mention the author, the creation or inauguration date, or the specific reason it was created? If YES, you MUST include those exact facts explicitly in the chapter — they are Follower's credibility anchor, never optional, never left out for the sake of style or flow.\n\nHow to include them: weave them into a sentence naturally — e.g. "Diego Pombo built it in 2015..." — never as a separate fact-sheet line like "Author: Diego Pombo. Date: 2015." But smooth prose is NOT an excuse to drop the fact — if you can't find a graceful way to fit it in, include it plainly anyway. Losing the fact is worse than a slightly less elegant sentence.\n\nThese are the ONLY facts you may use for author, date, figures, materials, reason for creation, attributed meaning, architectural style or period, and religious details (patron saint, order, denomination, year of consecration). If the extract does not mention one of these — do NOT fill that gap yourself. Describe the observable instead — apparent size, location, surroundings, what the walker can see right now — without inventing anything the extract doesn't support.\n\nIf the extract describes a trait shared by a group of elements (for example, a set of figures or species), do not attribute it to a single individual element unless the extract distinguishes it explicitly for that one.\n\n`
-        : `\nHechos verificados sobre este lugar (extracto de Wikipedia):\n"${poi._extract}"\n\nVERIFICACIÓN OBLIGATORIA PRIMERO — lee el extracto de arriba antes de escribir nada: ¿menciona autor, fecha de creación o inauguración, o el motivo específico de su creación? Si SÍ, DEBES incluir esos datos exactos explícitamente en el capítulo — son el ancla de credibilidad de Follower, nunca opcionales, nunca omitidos por mantener el estilo o el flujo.\n\nCómo incluirlos: téjelos en una frase con naturalidad — ej. "Diego Pombo lo construyó en 2015..." — nunca como una línea de ficha técnica separada tipo "Autor: Diego Pombo. Fecha: 2015." Pero la prosa fluida NO es excusa para omitir el dato — si no encuentras una forma elegante de incluirlo, inclúyelo de todas formas aunque suene menos pulido. Perder el dato es peor que una frase un poco menos elegante.\n\nEstos son los ÚNICOS hechos que puedes usar para autor, fecha, cifras, materiales, motivo de creación, significado atribuido, estilo o período arquitectónico, y detalles religiosos (advocación, orden, denominación, año de consagración). Si el extracto no menciona alguno de estos — NO llenes ese vacío por tu cuenta. Describe en su lugar lo observable — tamaño aparente, ubicación, entorno, lo que el caminante puede ver ahora mismo — sin inventar nada que el extracto no respalde.\n\nSi el extracto describe una característica compartida por un conjunto de elementos (por ejemplo, un grupo de figuras o especies), no se la atribuyas a un elemento individual salvo que el extracto lo distinga explícitamente para ese elemento en particular.\n\n`;
+        ? `\nVerified facts about this place (Wikipedia extract):\n"${poi._extract}"\n\nMANDATORY FIRST CHECK — read the extract above before writing anything: does it mention the author, the creation or inauguration date, or the specific reason it was created? If YES, you MUST include those exact facts explicitly in the chapter — they are Follower's credibility anchor, never optional, never left out for the sake of style or flow.\n\nHow to include them: weave them into a sentence naturally — e.g. "Diego Pombo built it in 2015..." — never as a separate fact-sheet line like "Author: Diego Pombo. Date: 2015." But smooth prose is NOT an excuse to drop the fact — if you can't find a graceful way to fit it in, include it plainly anyway. Losing the fact is worse than a slightly less elegant sentence.\n\nThese are the ONLY facts you may use for author, date, figures, materials, reason for creation, attributed meaning, architectural style or period, how long a tradition or practice has existed, and religious details (patron saint, order, denomination, year of consecration). If the extract does not mention one of these — do NOT fill that gap yourself. Never claim "for centuries", "for generations", or equivalent duration phrases if the extract doesn't say so. Describe the observable instead — apparent size, location, surroundings, what the walker can see right now — without inventing anything the extract doesn't support.\n\nIf the extract describes a trait shared by a group of elements (for example, a set of figures or species), do not attribute it to a single individual element unless the extract distinguishes it explicitly for that one.\n\n`
+        : `\nHechos verificados sobre este lugar (extracto de Wikipedia):\n"${poi._extract}"\n\nVERIFICACIÓN OBLIGATORIA PRIMERO — lee el extracto de arriba antes de escribir nada: ¿menciona autor, fecha de creación o inauguración, o el motivo específico de su creación? Si SÍ, DEBES incluir esos datos exactos explícitamente en el capítulo — son el ancla de credibilidad de Follower, nunca opcionales, nunca omitidos por mantener el estilo o el flujo.\n\nCómo incluirlos: téjelos en una frase con naturalidad — ej. "Diego Pombo lo construyó en 2015..." — nunca como una línea de ficha técnica separada tipo "Autor: Diego Pombo. Fecha: 2015." Pero la prosa fluida NO es excusa para omitir el dato — si no encuentras una forma elegante de incluirlo, inclúyelo de todas formas aunque suene menos pulido. Perder el dato es peor que una frase un poco menos elegante.\n\nEstos son los ÚNICOS hechos que puedes usar para autor, fecha, cifras, materiales, motivo de creación, significado atribuido, estilo o período arquitectónico, duración o antigüedad de una tradición o práctica, y detalles religiosos (advocación, orden, denominación, año de consagración). Si el extracto no menciona alguno de estos — NO llenes ese vacío por tu cuenta. Nunca afirmes "durante siglos", "durante generaciones" ni expresiones equivalentes de duración si el extracto no lo dice. Describe en su lugar lo observable — tamaño aparente, ubicación, entorno, lo que el caminante puede ver ahora mismo — sin inventar nada que el extracto no respalde.\n\nSi el extracto describe una característica compartida por un conjunto de elementos (por ejemplo, un grupo de figuras o especies), no se la atribuyas a un elemento individual salvo que el extracto lo distinga explícitamente para ese elemento en particular.\n\n`;
     }
 
     if (poi._source === 'osm') {

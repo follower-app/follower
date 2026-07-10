@@ -4246,4 +4246,69 @@ promesa completa (usar lo que se sabe).
 
 ---
 
+### Continuación S27b (misma fecha) — hipótesis 3, BUG-050, lección de proceso
+
+**Hipótesis 3 probada y DESCARTADA: presupuesto de palabras.** Sospecha
+de Claude: el rango de 90-130 palabras (`MAX_TOKENS=380`) podía estar
+compitiendo con incluir autor/fecha — el modelo sacrificaría el dato
+"extra" para proteger un cierre narrativo elegante dentro de un espacio
+apretado. Prueba aislada (única variable): rango subido a 90-170 palabras
+(excepcional 200), `MAX_TOKENS` 380→500, etiquetado explícitamente
+`PROMPT_VERSION: 'v3.7-test'` para dejar claro en el código que era un
+experimento reversible. **Resultado: autor/fecha siguió sin aparecer.**
+Revertido a los valores estables de v3.6 (`MAX_TOKENS=380`, rango
+90-130/150) — el mismo `PROMPT_VERSION: 'v3.6'` se reutiliza
+deliberadamente porque el contenido es idéntico al v3.6 original, lo que
+además revalida cualquier narración vieja cacheada bajo esa versión.
+
+**Conclusión acumulada sobre autor/fecha (0/n en todos los intentos):**
+cuatro enfoques de prompt distintos (obligación explícita v3.2,
+reubicación + verificación final v3.3, ejemplo de integración v3.4,
+presupuesto de palabras v3.7-test) fallaron en el mismo punto. Esto
+descarta con bastante confianza seguir iterando el texto del prompt para
+este caso específico — la recomendación para la próxima sesión es el
+enfoque estructural (verificación programática post-generación), no otro
+ajuste de redacción.
+
+**BUG-050 — nombre de ciudad con sufijo administrativo genérico
+("Cali ciudad").** Reportado por Jaime en `Firefox` y `Chrome`, reproducido
+tres veces con la misma coordenada. Causa confirmada por log: Nominatim
+devolvió literalmente `"Cali ciudad"` en `data.address.city` (o el
+fallback que haya aplicado) — no era una concatenación del código.
+Hipótesis: Cali, como varios municipios colombianos, puede tener una
+frontera OSM de "área urbana" separada del municipio completo, con un
+nombre administrativo que incluye el sufijo genérico. **Fix:**
+`_sanitizeCityName()` en `gps.js` — elimina palabras administrativas
+genéricas (`ciudad, municipio, distrito, corregimiento, comuna`) SOLO
+cuando aparecen al final del string, como palabra suelta. Diseño
+deliberadamente conservador para no romper nombres propios legítimos que
+empiezan con esas palabras ("Ciudad de México", "Ciudad Juárez", "Ciudad
+Bolívar") — el patrón real del bug es "Nombre + genérico", nunca
+"Genérico + de + Nombre". `sw.js` bump correspondiente.
+
+**Lección de proceso — desfase entre archivos entregados y commits
+reales.** Durante esta sesión, Jaime se atrasó comiteando algunos
+archivos que Claude ya había vuelto a modificar en un paso posterior de
+la conversación; al copiar el archivo "más reciente" pensando que
+conservaba el estado anterior, terminó comiteando cambios acumulados de
+varios pasos bajo un mensaje de commit pensado para uno solo — y en un
+caso reusó (copió/pegó) un mensaje de commit viejo sin actualizarlo.
+Arqueología de git (`git log -S`) confirmó: mensaje "DT-51: fetch de
+extract Wikipedia en batch tras dedup, POI_CACHE_VERSION v4" duplicado
+en dos commits distintos; el commit dedicado a subir `EXTRACT_MAX_CHARS`
+a 2500 nunca existió como tal (el cambio quedó dentro de uno de los
+duplicados); `sw.js` saltó de v30 a v32 sin que v31 tuviera su propio
+commit. **Verificado que el contenido final en GitHub es idéntico byte a
+byte a los archivos entregados** — es un problema puramente de
+trazabilidad del historial, no de código. Causa raíz identificada por
+Jaime mismo: cada archivo que Claude entrega en una sesión activa es el
+acumulado completo hasta ese punto, no un parche — si el commit real se
+atrasa respecto a la conversación, el archivo copiado ya contiene pasos
+posteriores a los que se pensaba comitear por separado. Sin acción
+correctiva sobre el historial (reescribirlo tiene más riesgo que
+beneficio para un problema cosmético); simplemente comitear con más
+disciplina de aquí en adelante.
+
+---
+
 *Follower — Bitácora v0.9 | Sesión 27b | 10 Julio 2026*

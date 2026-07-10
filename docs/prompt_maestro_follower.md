@@ -117,6 +117,18 @@ real, en vez de una sola muestra por versión):**
   decidir para la próxima sesión: protocolo formal de n=5-10 corridas por
   ajuste, o enfoque estructural (verificación programática) para el caso
   específico de autor/fecha
+- **Adenda (misma sesión, S27b) — hipótesis 3 probada y descartada en
+  código, sin cambio de voz:** se probó experimentalmente subir el rango
+  de palabras (90-170, excepcional 200) y `MAX_TOKENS` (380→500) bajo la
+  etiqueta `v3.7-test`, para aislar si el presupuesto de palabras
+  competía con incluir autor/fecha. Resultado: autor/fecha siguió sin
+  aparecer — revertido a los valores estables de este documento
+  (90-130/150, `MAX_TOKENS=380`). Cuarto enfoque de prompt consecutivo
+  que falla en el mismo punto (0/n): obligación explícita (v3.2),
+  reubicación + verificación final (v3.3), ejemplo de integración (v3.4),
+  presupuesto de palabras (v3.7-test). Refuerza la recomendación de
+  pasar a un enfoque estructural para autor/fecha en vez de seguir
+  ajustando texto de prompt
 
 ---
 

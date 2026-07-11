@@ -280,7 +280,7 @@ El Prompt Maestro v2.7 (narrador único) tiene versiones en español e inglés. 
 
 ---
 
-## 19. Deuda Técnica Activa *(actualizada a Sesión 26 — 8 julio 2026)*
+## 19. Deuda Técnica Activa *(actualizada a Sesión 28 — 10 julio 2026)*
 
 | ID | Descripción | Prioridad |
 |----|-------------|-----------|
@@ -307,7 +307,8 @@ El Prompt Maestro v2.7 (narrador único) tiene versiones en español e inglés. 
 | DT-53 | getFarewell() — despedida de caminata, nunca implementada; usa nombre DA-75 | Media |
 | DT-54 | Wake lock + modo caminata — resuelve suspensión por bloqueo de pantalla (spec S24) | Alta |
 | DT-55 | Prefetch de narraciones cercanas — conexión por ráfagas (spec S24) | Media |
-| DT-51 | Grounding de narración — **implementado, en calibración (S27+S27b), NO cerrado.** Prueba probabilística n=4 (mismo POI, mismo prompt v3.5, 4 navegadores): autor/fecha **0/4** — confirma que es problema estructural, no de redacción. Generalización conjunto→individuo 3/4, duración temporal inventada 2/4 (corregida en v3.6), personificación preexistente 3/4. **Hipótesis 3 probada y descartada:** subir el presupuesto de palabras (90-170, MAX_TOKENS 500, `v3.7-test`) tampoco trajo autor/fecha — revertido a v3.6 estable. Cuatro enfoques de prompt distintos han fallado en el mismo punto (0/n). `PROMPT_VERSION` v3.6. **Recomendación para próxima sesión: enfoque estructural (verificación programática post-generación + regeneración/inserción controlada) — seguir ajustando el prompt ya no parece el camino correcto** | Alta |
+| DT-51 | Grounding de narración — **implementado, instrumentado (S28), NO cerrado.** S27b: prueba n=4 confirmó autor/fecha 0/4 tras cuatro enfoques de redacción — se descartó seguir ajustando texto del prompt. S28 ejecutó el enfoque estructural recomendado: detector determinista (regex, patrón de atribución + ventana ±1 oración + veredicto OR) validado 3/3 contra narraciones REALES de Claude Haiku 4.5 para Maceta/Pasto/Sagrada Familia (metodología exploratoria, sin confirmar `system` real vs. concatenado — ver DT-62). Implementado en producción como **solo instrumentación/logging** (`Debug.log`, no altera ni bloquea la narración) — decisión explícita de no regenerar ni insertar todavía, a la espera de evidencia real de campo. `PROMPT_VERSION` se mantiene v3.6 (sin cambios de prompt esta sesión). `sw.js` v34 | Alta |
+| DT-62 | Revalidar metodología de prueba de prompt — campo `system` real de la API vs. concatenado en un mensaje. Motivado por hallazgo colateral de S28: las 3 narraciones reales usadas para validar DT-51 (generadas sin confirmar cuál de las dos formas se usó) mostraron longitud excedida 3/3 (153-198 palabras vs. objetivo 90-130/150) y personificación de la ciudad 2/3 — ambas prohibidas por el Prompt Maestro v3.6. Repetir el experimento confirmando `system` real determina si son fallas genuinas del prompt o artefacto metodológico de esta sesión. Registrada, pendiente de definición punto por punto | Alta |
 | DT-61 | Criterio de narrabilidad de POI — evaluar si TODO POI detectado merece capítulo completo, o si los que no tienen sustancia real (sin extracto útil, sin nada observable distintivo) deberían anunciarse simple ("Aquí está la Iglesia San Felipe") en vez de forzar 90-130 palabras y arriesgar inventar contenido para llenar el hueco. Propuesto por Jaime al cierre de Sesión 27, pendiente de definición punto por punto | Alta |
 
 ### Resueltas recientemente
@@ -377,4 +378,4 @@ puerta de entrada accesible: la app se presenta hablando, no mostrando.
 
 ---
 
-*Follower — Documento de Producto v0.9 | Sesión 27b | 10 Julio 2026*
+*Follower — Documento de Producto v0.9 | Sesión 28 | 10 Julio 2026*

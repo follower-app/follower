@@ -4311,4 +4311,169 @@ disciplina de aquí en adelante.
 
 ---
 
-*Follower — Bitácora v0.9 | Sesión 27b | 10 Julio 2026*
+---
+
+# SESIÓN 28 — DT-51: enfoque estructural (verificación programática, solo instrumentación)
+
+**Fecha:** 10 Julio 2026
+
+**Motivación.** Cierre de S27b recomendó explícitamente abandonar el
+ajuste de texto del Prompt Maestro para el punto autor/fecha (0/n tras
+cuatro enfoques de redacción distintos) y pasar a un enfoque estructural:
+verificación programática post-generación. Esta sesión ejecutó esa
+recomendación, en modo exploratorio y con ratificación punto por punto
+antes de tocar código.
+
+### Diseño del detector — cinco iteraciones sobre tres POIs reales
+
+Se usaron los extractos reales de Wikipedia (no inventados) de tres POIs
+de prueba elegidos a propósito: Monumento a la Maceta (el caso
+fundacional del ticket), Catedral de Pasto y Sagrada Familia de
+Barcelona.
+
+- **Enfoque A — regex de año suelto.** Funciona en Maceta (extracto con
+  solo 2 años, ambos relevantes) pero falla en Pasto y Sagrada Familia:
+  extractos reales traen 5-6 años (resoluciones administrativas,
+  declaraciones patrimoniales, fundación de asociaciones) que no tienen
+  por qué aparecer en un capítulo de 100 palabras. El detector marcaba
+  como "incompleto" un capítulo que en realidad cumplía bien la regla.
+  Descartado.
+- **Enfoque B — año + nombre en la misma oración.** Reduce ruido pero
+  falla exactamente en el caso Maceta: en el extracto real, "2015" y
+  "Diego Pombo" están en oraciones distintas ("La obra fue revelada el 25
+  de julio de 2015... La ceremonia... fue dirigida por... Diego Pombo").
+  La ventana de una sola oración no los empareja — habría fallado en
+  detectar justo el caso que originó el ticket. Descartado.
+- **Enfoque C — ventana ±1 oración + patrón de atribución (verbo tipo
+  "construido/diseñado/dirigido... por/de").** Resuelve Maceta, Pasto y
+  Sagrada Familia en sus casos principales. Pero el filtro de "nombre
+  propio" (heurística de mayúsculas) confunde instituciones/lugares con
+  personas — capturó "Sagrado Corazón" y "El Templo Expiatorio" como si
+  fueran nombres de persona.
+- **Enfoque D — patrón ceñido (verbo+conector+nombre en secuencia) +
+  veredicto OR (basta que UN candidato aparezca, no todos).** El
+  veredicto OR resuelve el problema de POIs con más de una figura
+  atribuible (Sagrada Familia tiene a Bocabella/Manyanet como fundadores
+  de la idea Y a Gaudí como arquitecto — exigir que aparezcan TODOS
+  penalizaba capítulos que narraban bien solo a Gaudí). Validado 6/6
+  sobre narraciones escritas a mano (3 POIs × con/sin el dato) — pero se
+  encontraron dos bugs de implementación (ver abajo) que daban un falso
+  "cumple" en el caso Maceta sin el dato.
+- **Enfoque E — D con los dos bugs corregidos.** 6/6 correcto sobre las
+  narraciones escritas a mano.
+
+**Dos bugs de implementación encontrados y corregidos, antes de dar el
+detector por validado:**
+1. `re.IGNORECASE` (Python) / flag `i` (JS) aplicado a todo el patrón
+   neutralizaba sin querer la exigencia de mayúscula inicial del grupo
+   que captura el nombre — capturaba basura en minúscula como si fuera un
+   "nombre propio" (`"se hizo coincidir con los"`, `"duró"`).
+2. Verificación de presencia por `substring` (`token in texto`) daba
+   falsos positivos con tokens cortos: un "apellido" mal capturado de una
+   sola palabra corta (`"los"`) aparece como substring de casi cualquier
+   texto (`"los caleños"`), dando un falso "sí lo incluyó".
+
+Ambos bugs eran del código de verificación, no de Follower ni de Haiku —
+pero el resultado final parecía razonable hasta auditar candidato por
+candidato. Corregidos: `IGNORECASE` acotado solo al grupo del verbo,
+verificación por límites de palabra completa (`\b...\b`).
+
+### Validación contra narraciones REALES de Claude Haiku 4.5
+
+El entorno de Claude no tiene salida de red hacia
+`followernarration.jaimeand.workers.dev` (bloqueado por allowlist del
+proxy de egress) ni una API key propia — no se pudo invocar el Worker de
+producción directamente. En su lugar, Jaime generó tres narraciones
+reales pegando el `SYSTEM_PROMPT` v3.6 completo + el bloque de grounding
+exacto (`buildGroundingBlock`, replicado fielmente con los extractos
+reales) en un chat aparte con **Claude Haiku 4.5**, un POI a la vez
+(Maceta, Catedral de Pasto, Sagrada Familia). **Metodología exploratoria,
+no confirmada como equivalente al Worker real** — quedó sin resolver si
+el prompt se envió en el campo `system` real de la API o concatenado en
+un solo mensaje de usuario (ver DT-62 más abajo).
+
+**Resultado — Enfoque E, 3/3 correcto:**
+
+| POI | Candidato correcto detectado | Veredicto |
+|---|---|---|
+| Maceta | Diego Pombo / 2015 | ✅ CUMPLE |
+| Catedral de Pasto | Antonio María Pueyo / 1899, 1920 | ✅ CUMPLE |
+| Sagrada Familia | Antoni Gaudí / 1882 | ✅ CUMPLE |
+
+Contraste fuerte con el 0/4 de S27b — pero n=3, muestra pequeña, y la
+metodología de prueba (ver arriba) no está confirmada como comparable al
+comportamiento real de producción.
+
+**Tercer bug encontrado durante esta prueba conjunta.** En Sagrada
+Familia, el candidato detectado fue inicialmente "Sagrada Familia" (el
+propio nombre del lugar) en vez de "Antoni Gaudí" — el patrón de nombre
+buscaba el primer conector (`de`/`por`/`by`) de TODA la oración, no el
+que sigue específicamente al verbo de atribución detectado. La oración
+real tiene un "de" anterior ("Templo Expiatorio **de** la Sagrada
+Familia... diseñada **por** el arquitecto Antoni Gaudí"). El veredicto
+final no cambiaba (coincidencia: "Sagrada Familia" aparece en cualquier
+capítulo sobre ese POI), pero el candidato identificado era incorrecto.
+Fix: anclar la búsqueda del nombre inmediatamente después del
+verbo+conector que hizo match específicamente, no en la oración completa.
+
+**Limitación conocida, sin resolver.** Los límites de palabra (`\b`) en
+JavaScript son ASCII-only — con nombres acentuados (ej. "Gaudí") pueden
+fallar en detectar el límite correcto. No bloqueante aquí porque la
+lógica es OR (basta el nombre o el año), pero queda anotado.
+
+### Hallazgo colateral — longitud y personificación (sin ticket propio, ver DT-62)
+
+Las tres narraciones reales, independientemente del resultado de
+autor/fecha, mostraron dos violaciones consistentes del Prompt Maestro
+v3.6 que nadie estaba buscando:
+
+| POI | Longitud | Personificación de la ciudad |
+|---|---|---|
+| Maceta | 198 palabras | Sí — "la ciudad diciéndose a sí misma quién es" |
+| Pasto | 192 palabras | Sí — "la ciudad decidió reconstruir" |
+| Sagrada Familia | 153 palabras | No (pero varias metáforas apiladas) |
+
+Objetivo de longitud es 90-130 (excepcional 150) — dos de tres casi
+duplican el techo. La personificación de la ciudad está prohibida
+explícitamente en LÍMITES ESTRICTOS. Como la metodología de prueba no
+confirmó el uso del campo `system` real de la API, no se puede saber
+todavía si esto es una falla genuina del prompt v3.6 o un artefacto de
+haber concatenado las instrucciones en vez de enviarlas como `system` —
+de ahí **DT-62** (`producto.md`), registrada sin ratificar.
+
+### Punto 2 — decisión de alcance (ratificada)
+
+Tres caminos evaluados para qué hacer cuando la verificación detecta
+"falla": regenerar con refuerzo (descartada — costo/latencia sin
+garantía), insertar el dato de forma determinista sin IA (descartada — el
+detector a veces engancha candidatos de baja calidad, insertarlos sería
+peor que omitirlos, y choca con 5 versiones de prompt evitando que
+autor/fecha suene a ficha técnica), y **solo instrumentar/loguear**
+(elegida) — no altera ni bloquea la narración entregada, solo registra
+`Debug.log` con el veredicto para juntar evidencia real de campo antes de
+decidir el resto.
+
+### Implementado
+
+`narration.js`: `_dt51ExtractCandidates()`, `_dt51WordPresent()`,
+`_dt51VerifyAutorFecha()`, invocadas en `trigger()` tras
+`sanitizeNarration()`, solo si `source !== 'fallback'`. No se tocó
+`SYSTEM_PROMPT` ni el bloque de grounding — `PROMPT_VERSION` se mantiene
+en v3.6. `sw.js` v33→v34. Ver DA-80 (`arquitectura.md`) para el detalle
+de diseño completo.
+
+### Pendiente
+
+**DT-51 sigue NO cerrada** — ahora instrumentada, a la espera de datos
+reales de campo (no simulados, no exploratorios) antes de decidir el
+Punto 2 completo (regenerar/insertar) o dar el problema por resuelto.
+
+**DT-62 (nueva, registrada, sin ratificar)** — revalidar si longitud y
+personificación son fallas reales del Prompt Maestro v3.6 o un artefacto
+de la metodología de prueba de esta sesión (campo `system` vs.
+concatenado), repitiendo el mismo experimento con el campo `system`
+confirmado antes de decidir si ameritan trabajo de prompt.
+
+---
+
+*Follower — Bitácora v0.9 | Sesión 28 | 10 Julio 2026*

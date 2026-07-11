@@ -2340,4 +2340,101 @@ regla, por probada que parezca, tiene garantía al 100% con este modelo.
 
 ---
 
-*Follower — Arquitectura v0.9 | Sesión 27b | 10 Julio 2026*
+## DA-80 — Verificación programática de autor/fecha (DT-51): instrumentación de solo-medición
+
+**Contexto (Sesión 28).** Cierre de S27b recomendó abandonar el ajuste de
+texto del prompt para el punto autor/fecha y pasar a un enfoque
+estructural. Esta sesión ejecutó esa recomendación en modo exploratorio:
+diseñar y validar un detector determinista antes de decidir qué hacer con
+su resultado.
+
+**Enfoque de detección — cinco iteraciones hasta converger:**
+- **Enfoque A (regex de año suelto):** ruidoso en extractos largos — un
+  extracto con 5-6 años (trámites administrativos, declaraciones
+  patrimoniales) marca como "incompleto" un capítulo que en realidad narró
+  bien el año relevante. Descartado.
+- **Enfoque B (año + nombre en la misma oración):** ventana insuficiente —
+  falla exactamente en el caso fundacional del ticket (Maceta): en el
+  extracto real, el año y el nombre del autor están en oraciones
+  distintas. Descartado.
+- **Enfoque C (ventana ±1 oración + verbo de atribución):** resuelve el
+  caso Maceta, pero el filtro de "nombre propio" (heurística de
+  mayúsculas) confunde instituciones/lugares con personas ("Sagrado
+  Corazón", "El Templo Expiatorio").
+- **Enfoque D (patrón ceñido verbo+conector+nombre + veredicto OR entre
+  candidatos):** 6/6 correcto sobre narraciones simuladas a mano — pero
+  dos bugs de implementación (ver más abajo) dieron un falso "cumple" en
+  un caso.
+- **Enfoque E (D con los dos bugs corregidos):** 6/6 correcto. Validado
+  además contra tres narraciones REALES de Claude Haiku 4.5 (no
+  simuladas) para los mismos POIs de prueba (Maceta, Catedral de Pasto,
+  Sagrada Familia) — 3/3 correcto, con un tercer bug encontrado y
+  corregido en el proceso.
+
+**Tres bugs de implementación encontrados y corregidos — documentados
+porque son bugs de la clase "casi invisibles" (el resultado final parece
+razonable hasta auditar candidato por candidato):**
+1. El flag case-insensitive (`i`) aplicado a todo el patrón neutraliza sin
+   querer la exigencia de mayúscula inicial en el grupo que captura el
+   nombre propio — cualquier palabra en minúscula se cuela como "nombre".
+   Fix: el flag `i` solo aplica al grupo del verbo (regex separada para
+   verbo+conector vs. nombre).
+2. Verificación de presencia por `substring` (`token in texto`) da falsos
+   positivos con tokens cortos o mal capturados — un "apellido" de una
+   sola palabra corta puede aparecer como substring de cualquier palabra
+   del capítulo. Fix: verificación por límites de palabra completa
+   (`\b...\b`).
+3. El patrón de nombre buscaba el primer conector (`de`/`por`/`by`) de
+   TODA la oración, no el que sigue específicamente al verbo de
+   atribución detectado — en oraciones con más de un conector, capturaba
+   el nombre equivocado (ej. "Templo... **de** la Sagrada Familia...
+   diseñada **por** Gaudí" capturaba "Sagrada Familia" en vez de
+   "Gaudí"). Fix: el nombre se busca anclado (`^`) inmediatamente después
+   del verbo+conector que hizo match, no en la oración completa.
+
+**Limitación conocida, sin resolver.** Los límites de palabra (`\b`) en
+JavaScript son ASCII-only por defecto — con nombres acentuados (ej.
+"Gaudí") pueden no detectar correctamente el límite. No bloqueante para
+esta instrumentación porque la lógica es OR (basta el año o el nombre),
+pero queda anotado para si se necesita precisión por nombre en el futuro.
+
+**Decisión de alcance (Punto 2 — ratificada).** Tres opciones evaluadas
+para qué hacer cuando la verificación da "falla":
+- *Regenerar con refuerzo* (segunda llamada a Haiku): descartada por
+  ahora — doble latencia/costo sin garantía, rompe la sensación de
+  compañero invisible.
+- *Insertar el dato de forma determinista sin IA*: descartada por ahora —
+  el propio Prompt Maestro lleva cinco versiones evitando que autor/fecha
+  suene a "ficha técnica"; además el detector a veces engancha candidatos
+  de baja calidad (instituciones, nombres mal capturados) que se
+  insertarían con falsa certeza.
+- **Solo instrumentar/loguear (elegida):** no altera ni bloquea la
+  narración entregada al usuario. Registra `Debug.log('info'|'warn', ...)`
+  con el veredicto y los candidatos esperados, cada vez que se entrega un
+  capítulo con `_source:'wiki'` y `_extract`. Da métricas reales de
+  producción (vía exportación del panel de debug en campo) sin apostar
+  nada todavía. Punto 2 completo (regenerar/insertar) queda
+  deliberadamente pendiente hasta tener esa evidencia.
+
+**Implementación.** `narration.js` gana `_dt51ExtractCandidates()`,
+`_dt51WordPresent()` y `_dt51VerifyAutorFecha()`, invocadas en `trigger()`
+inmediatamente después de `sanitizeNarration()`, solo si
+`source !== 'fallback'`. No se tocó `SYSTEM_PROMPT` ni
+`buildGroundingBlock()` — `PROMPT_VERSION` se mantiene en v3.6. `sw.js`
+v33→v34 (archivo servido cambió).
+
+**Hallazgo colateral, sin ticket propio todavía — ver DT-62
+(`producto.md`).** Las tres narraciones reales usadas para validar el
+detector, generadas en un chat aparte con Claude Haiku 4.5 sin confirmar
+si el `SYSTEM_PROMPT` se envió en el campo `system` real de la API o
+concatenado en un solo mensaje (metodología exploratoria, no equivalente
+confirmada al Worker de producción), mostraron dos violaciones
+consistentes y no buscadas del Prompt Maestro v3.6: longitud 3/3 por
+encima del objetivo (153-198 palabras vs. 90-130/150) y personificación
+de la ciudad 2/3 ("la ciudad decidió...", "la ciudad diciéndose a sí
+misma..."). DT-62 registra revalidar esto con la metodología correcta
+antes de decidir si ameritan trabajo de prompt.
+
+---
+
+*Follower — Arquitectura v0.9 | Sesión 28 | 10 Julio 2026*

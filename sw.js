@@ -8,7 +8,7 @@
 
 // Incrementar CACHE_VERSION fuerza descarga de todos los archivos
 // en el proximo arranque — incluso si el navegador tiene version cacheada.
-const CACHE_VERSION = 'follower-v34';  // DT-51 (Sesion 28): instrumentacion de verificacion programatica autor/fecha en narration.js (solo logging, no altera narracion entregada)
+const CACHE_VERSION = 'follower-v35';  // Splash eliminado (DT-60 revisado): title card unifica carga real (GPS/ciudad/POIs) para primera vez y recurrente; paso 4 wizard sin badge especial; iconos PWA finales (DT-1)
 
 const STATIC_ASSETS = [
   './',
@@ -32,6 +32,9 @@ const STATIC_ASSETS = [
   './css/modal.css',
   './css/wizard.css',
   './css/components.css',
+  './assets/icons/icon-192.png',
+  './assets/icons/icon-512.png',
+  './assets/icons/apple-touch-icon.png',
 ];
 
 // ── INSTALL: cachear assets estaticos ──

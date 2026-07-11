@@ -4476,4 +4476,81 @@ confirmado antes de decidir si ameritan trabajo de prompt.
 
 ---
 
-*Follower — Bitácora v0.9 | Sesión 28 | 10 Julio 2026*
+## Sesión 29 — 11 Julio 2026 — Icono PWA (DT-1 cerrada), splash eliminado, title card unifica carga (DA-81)
+
+**DT-1 cerrada.** Ícono C2 (corazón+brújula) llevado a producción:
+`assets/icon-master.svg` (fuente del PNG del ícono PWA, mark centrado con
+margen de seguridad para `purpose: maskable`) + `assets/icons/icon-192.png`,
+`icon-512.png`, `apple-touch-icon.png` + `assets/logo.svg` (lockup
+completo para README/listing, con la tipografía corregida contra los
+tokens reales del title card en vez de una versión inventada anterior).
+Iteración de escala del mark dentro del ícono cuadrado: 0.8 → 1.15 → 1.4,
+buscando "grande, casi al borde, sin recortar el trazo". Prueba de fondo
+azul (`--color-systole`) revertida a `--color-night` original — no se veía
+bien.
+
+**Revisión de interfaz pantalla por pantalla.** Se recorrieron splash,
+wizard 1-4 y title card uno por uno con mockups HTML standalone (tokens
+reales de `main.css`/`wizard.css`/`splash.css`). Iconos de wizard
+explorados en tres direcciones: (1) brújula técnica + burbuja de chat +
+carnet de identificación — descartada por sentirse "distante, no
+cercana"; (2) variaciones del corazón de marca (pin, ondas, firma) —
+más cálida pero se alejaba del lenguaje ya usado en la app; (3) versión
+final: **emoji simple** (📍 🗣️ 👋 💗), igual que ya estaba en producción
+para los pasos 1-2, extendido a nombre y voz por consistencia. Decisión
+de fondo: el mark elaborado (corazón+brújula real, con latido y anillos)
+queda reservado exclusivamente para el title card, no se reparte diluido
+en los 4 círculos del wizard — el paso 4 pierde su badge circular con
+gradiente y pasa a ser el mismo `.wizard-icon` plano que los demás pasos.
+
+**Hallazgo que motivó DA-81.** Al ir a codificar la eliminación del
+splash, se encontró que `runSplash()` no era solo decorativo de primera
+vez — era la única pantalla de espera para el usuario recurrente
+(`Config.isFirstTime() === false`), donde se pedía GPS y se esperaba
+hasta 8s antes de entrar a explorar. Eliminar el splash sin más habría
+dejado a ese usuario sin ningún lugar donde esperar datos. Decisión
+(confirmada por Jaime): el title card absorbe esa función para ambos
+casos — primera vez (datos ya en camino desde el paso 1 del wizard) y
+recurrente (único disparo de `requestGPSPermission()`, repetido en **cada**
+apertura de la app, porque el mismo usuario puede estar hoy en Barcelona y
+mañana en Lisboa — no hay nada que cachear de una sesión a otra sobre
+"dónde está").
+
+**Implementación.** `index.html`: `#screen-splash` eliminado; `#screen-titlecard`
+gana el mark+anillos+barra de progreso (`titlecardProgressFill`/`Label`);
+paso 4 del wizard usa `.wizard-icon`; `<link rel="apple-touch-icon">`
+agregado. `css/splash.css` reescrito completo — cero líneas de splash,
+solo title card (`.titlecard-wrap`/`.titlecard-ring`/`.titlecard-mark` con
+latido propio, `.titlecard-progress-*`). `css/wizard.css`: `.wizard-heart`
+y sus keyframes eliminados, `cursor:pointer` movido a `#wizHeartBtn`.
+`js/app.js`: `runSplash()`/`expandHeart()` eliminados; `_showTitleCard()`
+reescrito para pedir GPS (si recurrente) y correr la barra de progreso con
+los mismos mensajes que tenía el splash viejo, piso de 1.8s
+(`TITLECARD_MIN_MS`) + techo de 8s (`TITLECARD_TIMEOUT_MS`); `init()`
+bifurca directo a `_startWizard()` o `_enterExploreViaTitleCard()` según
+`Config.isFirstTime()`, sin splash de por medio. Validado con
+`node --check`. `sw.js` v34→v35 (STATIC_ASSETS gana los 3 íconos nuevos).
+
+**Fix post-entrega (`sw.js` v35→v36).** Jaime mandó screenshots reales del
+dispositivo y se detectaron dos piezas acordadas en el chat que no
+llegaron al archivo entregado: el ícono 👋 del paso 3 (nombre) faltaba
+por completo, y el paso 4 (voz) no tenía el texto explicativo que sí
+tienen los demás pasos. Corregido en un commit aparte de `index.html`.
+Lección repetida (ya vista en S27b): el desfase entre lo acordado en
+conversación y lo realmente escrito en el archivo es un riesgo
+estructural — verificar con screenshots reales del dispositivo, no
+asumir que la conversación se tradujo 1:1 al código.
+
+**DT-63 registrada** — validación de campo pendiente de ambos caminos
+(primera vez y recurrente) del flujo sin splash.
+
+### Pendiente
+
+**DT-63 (nueva)** — probar en iPhone real primera vez (`?reset=1`) y
+usuario recurrente; confirmar que la barra del title card no se sienta
+como un "segundo splash" ni como espera injustificada, y que el cambio de
+ciudad de una sesión a otra se refleje de verdad.
+
+---
+
+*Follower — Bitácora v0.9 | Sesión 29 | 11 Julio 2026*

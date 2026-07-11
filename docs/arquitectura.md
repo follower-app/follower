@@ -2437,4 +2437,92 @@ antes de decidir si ameritan trabajo de prompt.
 
 ---
 
-*Follower — Arquitectura v0.9 | Sesión 28 | 10 Julio 2026*
+## DA-81 — Splash eliminado; title card absorbe la carga real (revisión de DT-60)
+
+DT-60 (S25d/g) proponía un splash **estático** (sin latido, sin mensajes,
+corazón+brújula quietos) como paso intermedio antes de mover la carga real
+al wizard. En sesión de julio 2026, revisando el flujo completo pantalla
+por pantalla, se decidió ir un paso más allá: **el splash desaparece del
+todo.** `#screen-splash` se elimina de `index.html`; `runSplash()` y
+`expandHeart()` se eliminan de `app.js`.
+
+**Hallazgo que motivó la revisión:** `runSplash()` no era solo decorativo
+de primera vez — era la *única* pantalla de espera para el usuario
+recurrente (`Config.isFirstTime() === false`), donde se pedía GPS y se
+esperaba hasta 8s antes de `_enterExploreViaTitleCard()`. Eliminar el
+splash sin más habría dejado al usuario recurrente sin ningún lugar donde
+esperar a que ciudad/POIs cargaran — un hueco real, no cosmético.
+
+**Decisión:** el title card (DT-45) absorbe esa función para ambos casos:
+
+- **Primera vez:** GPS ya se pidió en el paso 1 del wizard (DT-47). El
+  title card corre su barra igual, por consistencia visual, pero
+  normalmente completa casi de inmediato.
+- **Usuario recurrente:** el title card es el único disparo de
+  `requestGPSPermission()` — y se repite **cada vez** que abre la app,
+  no solo la primera. Motivo explícito: el mismo usuario puede estar hoy
+  en Barcelona y mañana en Lisboa; no hay nada que cachear de una sesión
+  a otra sobre "dónde está".
+
+**Timing:** piso de 1.8s (`TITLECARD_MIN_MS`) para que la pantalla nunca
+sea un flash aunque los datos ya estén listos; techo de 8s
+(`TITLECARD_TIMEOUT_MS`, mismo valor que tenía el splash viejo para GPS).
+El tap sigue saltando y desbloqueando la voz sin esperar a los datos —
+eso no cambió.
+
+**Archivos:** `index.html` (splash eliminado, title card con mark+anillos+
+barra), `css/splash.css` (reescrito — ya no tiene una sola línea de
+splash, solo title card), `css/wizard.css` (paso 4 sin badge especial),
+`js/app.js` (`_showTitleCard` unificado, `init()` bifurca directo a
+wizard o title card). `sw.js` v34→v35, y v35→v36 en un fix posterior de
+la misma sesión (ver más abajo).
+
+**Decisión de diseño acompañante:** el paso 4 del wizard (corazón que
+desbloquea la voz) deja de tener un badge circular con gradiente y latido
+propio — ahora es el mismo `.wizard-icon` plano que los pasos 1-3, con el
+emoji 💗. Motivo: los 4 pasos deben sentirse como una sola pantalla que
+cambia de contenido, no cuatro pantallas distintas. El mark elaborado
+(corazón+brújula real, con latido y anillos) queda reservado
+exclusivamente para el title card — aparece una sola vez, con todo su
+peso, en el cierre cinematográfico del flujo.
+
+**Fix de la misma sesión (`sw.js` v35→v36):** al escribir el código se
+perdieron dos piezas que sí se habían acordado en el chat pero no
+llegaron al archivo — el ícono 👋 del paso 3 (nombre) y el texto
+explicativo del paso 4 (voz). Detectado por Jaime con screenshots reales
+del dispositivo, no en el chat. Ambos agregados en un commit de `index.html`
+aparte. Lección repetida (ya vista en S27b): el desfase entre lo acordado
+en conversación y lo que realmente queda escrito en el archivo es un
+riesgo estructural, no un accidente aislado — vale la pena que Jaime siga
+verificando con screenshots reales antes de dar por cerrada una sesión de
+código.
+
+---
+
+## DA-82 (cierra DT-1) — Logo e iconos PWA finales
+
+Ícono C2 (corazón+brújula) llevado a producción:
+
+- `assets/icon-master.svg` — fuente del ícono PWA. Mark centrado con
+  margen de seguridad amplio para cumplir `purpose: "maskable"` sin que
+  el sistema recorte contenido (iterado en escala 0.8 → 1.15 → 1.4 hasta
+  encontrar el tamaño correcto); fondo full-bleed `#0d1420`
+  (`--color-night`, probado también en `--color-systole` azul y revertido
+  por decisión de Jaime — el navy oscuro se veía mejor), sin esquinas
+  redondeadas (el OS aplica su propia máscara).
+- `assets/logo.svg` — lockup completo (mark + wordmark + slogan) para
+  README, listing de app store, social preview. Wordmark en Inter,
+  tracking 0.42em, color ice — slogan en DM Serif Display itálica, gold.
+  Corrige una versión anterior que usaba tipografía inventada (Inter thin
+  200 + gris plano) en vez de los tokens reales ya ratificados en el
+  title card (DT-45).
+- `assets/icons/icon-192.png`, `icon-512.png`, `apple-touch-icon.png`
+  (180×180) — exportados desde `icon-master.svg`. `manifest.json` sin
+  cambios de contenido, ya apuntaba a estas rutas. `index.html` gana
+  `<link rel="apple-touch-icon">`.
+
+DT-1 pasa de "candidato a rediseño" a **cerrado**.
+
+---
+
+*Follower — Arquitectura v0.9 | Sesión 29 | 11 Julio 2026*

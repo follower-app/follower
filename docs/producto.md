@@ -284,7 +284,7 @@ El Prompt Maestro v2.7 (narrador único) tiene versiones en español e inglés. 
 
 | ID | Descripción | Prioridad |
 |----|-------------|-----------|
-| DT-1 | Logo SVG final + iconos PWA (candidato a rediseño — feedback S25) | Alta |
+| DT-1 | Logo SVG final + iconos PWA | **CERRADA** (S29) — assets/logo.svg, assets/icon-master.svg, assets/icons/*.png |
 | DT-60 | Mover carga real de GPS/ciudad/POIs al wizard (paso 2 idioma) + title card; splash pasa a ser estático (sin latido, sin mensajes, sin nombre — corazón+brújula quietos y anónimos). Personalización (nombre, ciudad, "Soy Follower") concentrada en el gesto del corazón al final del wizard. Refinamiento clave: el mecanismo ya existe (DA-77 pendiente+TTL) — si `fetchCityName()` arranca en paso 2 y resuelve antes del corazón, el saludo suena en ese tap sin código nuevo, vía `_unlockAudioOnFirstTap()` vaciando `_pendingWelcome`. Piedra técnica: Leaflet necesita contenedor visible — separar adquisición de datos de construcción del mapa. Diseño co-creado con Jaime en S25d/g, sesión propia con ratificación punto por punto | Alta |
 | DT-4 | Pantalla resumen del paseo | Media |
 | DT-5 | Más ciudades en routes.js | Baja |
@@ -378,4 +378,31 @@ puerta de entrada accesible: la app se presenta hablando, no mostrando.
 
 ---
 
-*Follower — Documento de Producto v0.9 | Sesión 28 | 10 Julio 2026*
+## DT-60 — CERRADA (revisada, S29)
+
+Ver `arquitectura.md` DA-81 para el detalle completo. Resumen: en vez de
+"splash pasa a ser estático", el splash se **elimina del todo** —
+`#screen-splash` desaparece de `index.html`, `runSplash()`/`expandHeart()`
+desaparecen de `app.js`. El title card (DT-45) absorbe la función de
+carga real (GPS/ciudad/POIs) tanto para primera vez como para usuario
+recurrente, con una barra de progreso propia.
+
+## DT-63 (nueva, S29) — Validar en campo el flujo sin splash
+
+Confirmar en iPhone real ambos caminos del nuevo flujo (post DA-81):
+
+1. **Primera vez** (`?reset=1`): wizard 4 pasos → title card (datos ya en
+   camino desde el paso 1, barra debería completar casi de inmediato) →
+   explore.
+2. **Usuario recurrente** (sin reset): title card directo desde el
+   arranque de la app, pidiendo GPS fresco y esperando hasta 8s — validar
+   que no se sienta como una espera injustificada, y que si cambia de
+   ciudad de un día a otro (p.ej. Barcelona → Lisboa) la detección
+   efectivamente se refresca y no queda pegada a la ciudad anterior.
+
+Prioridad: Alta — es el único camino de entrada a la app para ambos tipos
+de usuario; cualquier regresión aquí bloquea el uso completo.
+
+---
+
+*Follower — Documento de Producto v0.9 | Sesión 29 | 11 Julio 2026*

@@ -31,63 +31,51 @@
 
   <!-- Manifest — temporal sin icono -->
   <link rel="manifest" href="manifest.json">
+  <link rel="apple-touch-icon" href="assets/icons/apple-touch-icon.png">
 </head>
 <body>
 
   <!-- ══════════════════════════════════════ -->
-  <!-- PANTALLA 1 — SPLASH                   -->
-  <!-- ══════════════════════════════════════ -->
-  <div id="screen-splash" class="screen active">
-
-    <div class="splash-center">
-
-      <!-- Logo / corazón latiendo -->
-      <div class="splash-logo-wrap" id="splashLogo">
-        <div class="splash-rings">
-          <div class="ring"></div>
-          <div class="ring"></div>
-          <div class="ring"></div>
-          <div class="ring"></div>
-        </div>
-        <svg class="heart-svg" id="heartSvg" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
-          <path d="M50,75 C50,75 16,54 16,31 C16,16 27,8 38,11 C44,13 48,19 50,25 C52,19 56,13 62,11 C73,8 84,16 84,31 C84,54 50,75 50,75 Z"
-            fill="none" stroke="#c8d4e0" stroke-width="2.2" stroke-linejoin="round"/>
-          <line x1="50" y1="2" x2="50" y2="9" stroke="#c0392b" stroke-width="2" stroke-linecap="round"/>
-          <text x="50" y="9" text-anchor="middle" font-family="Inter,sans-serif" font-size="7" font-weight="700" fill="#c0392b">N</text>
-          <line x1="50" y1="76" x2="50" y2="83" stroke="#c8d4e0" stroke-width="1" stroke-linecap="round" opacity="0.2"/>
-          <line x1="85" y1="40" x2="92" y2="40" stroke="#c8d4e0" stroke-width="1" stroke-linecap="round" opacity="0.2"/>
-          <line x1="8"  y1="40" x2="15" y2="40" stroke="#c8d4e0" stroke-width="1" stroke-linecap="round" opacity="0.2"/>
-          <polygon points="50,10 46,40 50,34 54,40" fill="#c0392b"/>
-          <polygon points="50,71 46,40 50,46 54,40" fill="#c8d4e0" opacity="0.18"/>
-          <circle cx="50" cy="40" r="4.5" fill="none" stroke="#c8d4e0" stroke-width="1.5"/>
-          <circle cx="50" cy="40" r="2" fill="#c8d4e0"/>
-        </svg>
-      </div>
-
-      <h1 class="splash-name">follower</h1>
-      <p class="splash-slogan">your city soundtrack</p>
-
-    </div>
-
-    <!-- Barra de progreso -->
-    <div class="splash-progress">
-      <div class="progress-bar">
-        <div class="progress-fill" id="progressFill"></div>
-      </div>
-      <p class="progress-label" id="progressLabel">iniciando...</p>
-    </div>
-
-  </div>
-
-  <!-- ══════════════════════════════════════ -->
-  <!-- TITLE CARD — DT-45                     -->
-  <!-- La pantalla titula, la voz saluda      -->
+  <!-- TITLE CARD — DT-45 / DT-60             -->
+  <!-- La pantalla titula, la voz saluda.     -->
+  <!-- Unica pantalla de espera real: aqui    -->
+  <!-- carga GPS/ciudad/POIs para usuario     -->
+  <!-- recurrente (primera vez ya lo pidio    -->
+  <!-- en el paso 1 del wizard).              -->
   <!-- ══════════════════════════════════════ -->
   <div id="screen-titlecard" class="screen hidden">
     <div class="titlecard-glow"></div>
     <div class="titlecard-center">
+      <div class="titlecard-wrap">
+        <div class="titlecard-rings">
+          <div class="titlecard-ring"></div>
+          <div class="titlecard-ring"></div>
+          <div class="titlecard-ring"></div>
+          <div class="titlecard-ring"></div>
+        </div>
+        <svg class="titlecard-mark" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+          <path d="M50,68 C50,68 28,55 28,41 C28,31 35,25 43,27 C47,28 49,32 50,35 C51,32 53,28 57,27 C65,25 72,31 72,41 C72,55 50,68 50,68 Z"
+            fill="none" stroke="#c8d4e0" stroke-width="1.8" stroke-linejoin="round"/>
+          <line x1="50" y1="18" x2="50" y2="23" stroke="#e74c3c" stroke-width="1.8" stroke-linecap="round"/>
+          <text x="50" y="17" text-anchor="middle" font-family="Inter,sans-serif" font-size="8" font-weight="700" fill="#e74c3c">N</text>
+          <line x1="50" y1="68" x2="50" y2="73" stroke="#c8d4e0" stroke-width="1" stroke-linecap="round" opacity="0.18"/>
+          <line x1="72" y1="44" x2="77" y2="44" stroke="#c8d4e0" stroke-width="1" stroke-linecap="round" opacity="0.18"/>
+          <line x1="23" y1="44" x2="28" y2="44" stroke="#c8d4e0" stroke-width="1" stroke-linecap="round" opacity="0.18"/>
+          <polygon points="50,24 47,44 50,40 53,44" fill="#e74c3c"/>
+          <polygon points="50,65 47,44 50,48 53,44" fill="#c8d4e0" opacity="0.18"/>
+          <circle cx="50" cy="44" r="3.5" fill="none" stroke="#c8d4e0" stroke-width="1.2"/>
+          <circle cx="50" cy="44" r="1.5" fill="#c8d4e0"/>
+        </svg>
+      </div>
       <h1 class="titlecard-wordmark">FOLLOWER</h1>
       <p class="titlecard-slogan">your city soundtrack</p>
+      <!-- Barra de progreso — reemplaza la del splash eliminado -->
+      <div class="titlecard-progress">
+        <div class="titlecard-progress-bar">
+          <div class="titlecard-progress-fill" id="titlecardProgressFill"></div>
+        </div>
+        <p class="titlecard-progress-label" id="titlecardProgressLabel">iniciando...</p>
+      </div>
     </div>
   </div>
 
@@ -137,7 +125,7 @@
     <!-- Paso 4 — Voz (cierre: touchend desbloquea speechSynthesis — linaje BUG-036) -->
     <section class="wizard-step">
       <div class="wizard-dots"><span class="wdot on"></span><span class="wdot on"></span><span class="wdot on"></span><span class="wdot on"></span></div>
-      <div class="wizard-heart" id="wizHeartBtn">💗</div>
+      <div class="wizard-icon" id="wizHeartBtn">💗</div>
       <h3 class="wizard-title">Toca para escucharme</h3>
     </section>
 

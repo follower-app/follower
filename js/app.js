@@ -6,7 +6,7 @@
 
 /* ── APP STATE — fuente de verdad ── */
 const AppState = {
-  screen:      'splash',
+  screen:      'wizard',
   phase:       'systole',
   mode:        'free',
   lang:        'es',
@@ -244,94 +244,100 @@ function requestGPSPermission() {
   });
 }
 
-/* ── SPLASH — progreso de carga ── */
-async function runSplash() {
-  const fill   = document.getElementById('progressFill');
-  const label  = document.getElementById('progressLabel');
-  const heart  = document.getElementById('heartSvg');
+/* ── DT-45 / DT-60: TITLE CARD — mark + wordmark + slogan, con carga real ──
+   El splash decorativo se elimino (sesion julio 2026). Para el usuario que
+   regresa, el title card es la UNICA pantalla de espera antes de explorar,
+   y debe re-detectar ciudad/POIs cada vez — el mismo usuario puede estar
+   hoy en Barcelona y mañana en Lisboa. Para primera vez, el GPS ya se pidio
+   en el paso 1 del wizard (DT-47), asi que aqui la barra normalmente
+   completa casi de inmediato — pero corre igual, por consistencia visual
+   y porque nada garantiza que ya haya resuelto. */
 
-  // Métrica: tiempo total de arranque
-  const splashId = (typeof Debug !== 'undefined')
-    ? Debug.metricStart('app', 'arranque → exploración lista')
+const TITLECARD_MIN_MS     = 1800;  // piso: que no sea un flash aunque los datos ya esten listos
+const TITLECARD_TIMEOUT_MS = 8000;  // techo: mismo valor que tenia el splash viejo para GPS
+
+const TITLECARD_MSGS = [
+  'iniciando...',
+  'obteniendo ubicación...',
+  'cargando puntos históricos...',
+  'preparando tu soundtrack...',
+  'casi listo...'
+];
+
+function _showTitleCard(onDone) {
+  const card = document.getElementById('screen-titlecard');
+  if (!card) { onDone(); return; } // fallback: sin pantalla, flujo intacto
+
+  navigateTo('titlecard');
+
+  const fill  = document.getElementById('titlecardProgressFill');
+  const label = document.getElementById('titlecardProgressLabel');
+
+  const isFirst = Config.isFirstTime();
+  const startTs = performance.now();
+
+  const cardId = (typeof Debug !== 'undefined')
+    ? Debug.metricStart('app', 'title card → exploración lista')
     : null;
 
-  const msgs = [
-    'iniciando...',
-    'obteniendo ubicación...',
-    'cargando puntos históricos...',
-    'preparando tu soundtrack...',
-    'casi listo...'
-  ];
+  let done = false;
+  let iv   = null;
+
+  const finish = () => {
+    if (done) return;
+    done = true;
+    if (iv) clearInterval(iv);
+    if (cardId) Debug.metricEnd(cardId, isFirst ? 'first-time' : 'returning-user');
+    onDone();
+  };
+
+  // DT-47: primera vez ya pidio GPS en el paso 1 del wizard — aqui no se
+  // vuelve a pedir. Usuario recurrente: este es el UNICO disparo, y se
+  // repite cada vez que abre la app (la ciudad pudo haber cambiado).
+  const dataPromise = isFirst ? Promise.resolve(true) : requestGPSPermission();
 
   let pct = 0;
-
-  // DT-47: en primera vez el GPS se pide en el paso 1 del wizard (priming) —
-  // el splash nunca dispara el prompt nativo sin contexto
-  const isFirst     = Config.isFirstTime();
-  const gpsStartTs  = performance.now();
-  const gpsPromise  = isFirst ? Promise.resolve(null) : requestGPSPermission();
-
-  const iv = setInterval(() => {
-    // Avanzar más lento al llegar a 80% — esperar GPS
-    const increment = pct < 80
-      ? Math.random() * 16 + 7
-      : Math.random() * 4 + 1;
-
-    pct += increment;
-    if (pct > 95) pct = 95; // No llegar al 100% hasta tener GPS
-
+  iv = setInterval(() => {
+    const increment = pct < 80 ? Math.random() * 16 + 7 : Math.random() * 4 + 1;
+    pct = Math.min(pct + increment, 95);
     if (fill)  fill.style.width = pct + '%';
-    if (label) label.textContent = msgs[
-      Math.min(Math.floor((pct / 100) * msgs.length), msgs.length - 1)
+    if (label) label.textContent = TITLECARD_MSGS[
+      Math.min(Math.floor((pct / 100) * TITLECARD_MSGS.length), TITLECARD_MSGS.length - 1)
     ];
   }, 480);
 
-  // Esperar GPS (máximo 8 segundos)
-  const gpsOk = await Promise.race([
-    gpsPromise,
-    new Promise(resolve => setTimeout(() => resolve(false), 8000))
-  ]);
+  Promise.race([
+    dataPromise,
+    new Promise(resolve => setTimeout(() => resolve(false), TITLECARD_TIMEOUT_MS))
+  ]).then((ok) => {
+    if (typeof Debug !== 'undefined' && !isFirst) {
+      Debug.log(
+        ok ? 'info' : 'warn',
+        `Title card: datos ${ok ? 'listos' : 'timeout'} · ${Math.round(performance.now() - startTs)}ms`
+      );
+    }
+    if (fill)  fill.style.width = '100%';
+    if (label) label.textContent = ok ? 'listo ✓' : 'continuando sin GPS...';
 
-  const gpsDurationMs = Math.round(performance.now() - gpsStartTs);
+    // Piso de permanencia — que el title card no sea un flash aunque los
+    // datos ya estuvieran listos (p.ej. primera vez, prefetch del paso 1)
+    const elapsed   = performance.now() - startTs;
+    const remaining = Math.max(TITLECARD_MIN_MS - elapsed, 0);
+    setTimeout(finish, remaining);
+  });
 
-  if (typeof Debug !== 'undefined' && !isFirst) {
-    Debug.log(
-      gpsOk ? 'info' : 'warn',
-      `GPS arranque: ${gpsOk ? 'concedido' : 'denegado/timeout'} · ${gpsDurationMs}ms`
-    );
-  }
-
-  clearInterval(iv);
-
-  // Completar barra
-  if (fill)  fill.style.width = '100%';
-  if (label) label.textContent = (gpsOk || isFirst) ? 'listo ✓' : 'continuando sin GPS...';
-
-  setTimeout(() => expandHeart(heart, splashId), 400);
+  // Tap salta Y desbloquea la voz — no espera a los datos, igual que antes
+  const tapFinish = () => { _unlockAudioOnFirstTap(); finish(); };
+  card.addEventListener('touchend', tapFinish, { once: true });
+  card.addEventListener('click',    tapFinish, { once: true });
 }
 
-function expandHeart(heart, splashId) {
-  if (!heart) return;
-  heart.classList.add('expanding');
-
-  setTimeout(() => {
-    const splash = document.getElementById('screen-splash');
-    if (splash) splash.classList.add('fade-out');
-  }, 550);
-
-  setTimeout(() => {
-    if (Config.isFirstTime()) {
-      // DT-47: primera vez — wizard de entrada
-      if (splashId) Debug.metricEnd(splashId, 'first-time');
-      _startWizard();
-    } else {
-      // Sesión anterior — ir directo a exploración con config guardada
-      AppState.lang  = Config.get('lang');
-      AppState.mode  = Config.get('mode');
-      if (splashId) Debug.metricEnd(splashId, 'returning-user');
-      _enterExploreViaTitleCard();
-    }
-  }, 720);
+function _enterExploreViaTitleCard(afterExplore) {
+  _showTitleCard(() => {
+    navigateTo('explore');
+    initExplore();
+    if (typeof afterExplore === 'function') afterExplore();
+  });
 }
 
 /* ── UNLOCK DE AUDIO — iOS Safari requiere gesto del usuario (por carga de pagina) ──
@@ -368,41 +374,6 @@ function _unlockAudioOnFirstTap() {
       Debug.log('info', 'Bienvenida descartada — TTL vencido (intro conservada para proxima vez)');
     }
   }
-}
-
-/* ── DT-45: TITLE CARD — FOLLOWER + slogan, fade puro ──
-   La pantalla titula, la voz saluda (enmienda S24).
-   Timing provisional — se fija en mano. */
-const TITLECARD_MAX_MS = 4000; // techo
-
-function _showTitleCard(onDone) {
-  const card = document.getElementById('screen-titlecard');
-  if (!card) { onDone(); return; } // fallback: sin pantalla, flujo intacto
-
-  navigateTo('titlecard');
-
-  let done = false;
-  const finish = () => {
-    if (done) return;
-    done = true;
-    clearTimeout(ceiling);
-    onDone();
-  };
-
-  const ceiling = setTimeout(finish, TITLECARD_MAX_MS);
-
-  // Tap salta Y desbloquea la voz (el techo de 4s NO desbloquea — no es gesto)
-  const tapFinish = () => { _unlockAudioOnFirstTap(); finish(); };
-  card.addEventListener('touchend', tapFinish, { once: true });
-  card.addEventListener('click',    tapFinish, { once: true });
-}
-
-function _enterExploreViaTitleCard(afterExplore) {
-  _showTitleCard(() => {
-    navigateTo('explore');
-    initExplore();
-    if (typeof afterExplore === 'function') afterExplore();
-  });
 }
 
 /* ── INICIALIZAR EXPLORACIÓN ── */
@@ -946,7 +917,14 @@ function init() {
   initModeModal();
   initExploreListeners();
 
-  runSplash();
+  // DT-60 revisado (sesion julio 2026): sin splash. Primera vez -> wizard
+  // (que ya pide GPS en su paso 1). Recurrente -> title card directo, unica
+  // pantalla de espera real, con su propia barra (ver _showTitleCard).
+  if (Config.isFirstTime()) {
+    _startWizard();
+  } else {
+    _enterExploreViaTitleCard();
+  }
 }
 
 document.addEventListener('DOMContentLoaded', init);

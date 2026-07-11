@@ -1,0 +1,24 @@
+<svg width="280" height="320" viewBox="0 0 280 320" xmlns="http://www.w3.org/2000/svg">
+  <rect width="280" height="320" fill="#0d1420"/>
+  <path d="M140,158
+    C140,158 96,132 96,103
+    C96,84 109,73 124,76
+    C132,78 138,85 140,92
+    C142,85 148,78 156,76
+    C171,73 184,84 184,103
+    C184,132 140,158 140,158 Z"
+    fill="none" stroke="#c8d4e0" stroke-width="2" stroke-linejoin="round"/>
+  <line x1="140" y1="58" x2="140" y2="66" stroke="#e74c3c" stroke-width="2" stroke-linecap="round"/>
+  <text x="140" y="56" text-anchor="middle" font-family="Inter,sans-serif" font-size="11" font-weight="700" fill="#e74c3c">N</text>
+  <line x1="140" y1="159" x2="140" y2="167" stroke="#c8d4e0" stroke-width="1.2" stroke-linecap="round" opacity="0.18"/>
+  <line x1="185" y1="112" x2="193" y2="112" stroke="#c8d4e0" stroke-width="1.2" stroke-linecap="round" opacity="0.18"/>
+  <line x1="87" y1="112" x2="95" y2="112" stroke="#c8d4e0" stroke-width="1.2" stroke-linecap="round" opacity="0.18"/>
+  <polygon points="140,68 136,112 140,106 144,112" fill="#e74c3c"/>
+  <polygon points="140,153 136,112 140,118 144,112" fill="#c8d4e0" opacity="0.18"/>
+  <circle cx="140" cy="112" r="4.5" fill="none" stroke="#c8d4e0" stroke-width="1.5"/>
+  <circle cx="140" cy="112" r="2" fill="#c8d4e0"/>
+  <!-- wordmark: Inter 400, tracking 0.42em, ice — igual que .wordmark-lg del title card DT-45 -->
+  <text x="140" y="212" text-anchor="middle" font-family="Inter, sans-serif" font-size="22" font-weight="400" letter-spacing="0.42em" fill="#e8eef4">follower</text>
+  <!-- slogan: DM Serif Display itálica, gold — igual que .slogan del title card DT-45 -->
+  <text x="140" y="238" text-anchor="middle" font-family="'DM Serif Display', serif" font-style="italic" font-size="14" fill="#f0c87a" opacity="0.9">your city soundtrack</text>
+</svg>

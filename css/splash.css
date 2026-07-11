@@ -1,172 +1,14 @@
 /* ═══════════════════════════════════════════
    FOLLOWER — splash.css
-   Pantalla de carga, latido y transición
+   Title card: mark + wordmark + slogan + carga
+   Splash decorativo eliminado (sesion julio 2026,
+   ver DT-60 revisado) — el title card es ahora la
+   unica pantalla de espera, para primera vez y para
+   usuario recurrente.
    ═══════════════════════════════════════════ */
 
-/* ── PANTALLA SPLASH ── */
-
-#screen-splash {
-  background: var(--color-night);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  position: relative;
-}
-
-#screen-splash.fade-out {
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 0.7s ease;
-}
-
-/* ── CENTRO — logo + nombre + slogan ── */
-
-.splash-center {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: var(--space-xl);
-}
-
-/* ── LOGO WRAP — contiene rings + corazón ── */
-
-.splash-logo-wrap {
-  position: relative;
-  width: 160px;
-  height: 160px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-/* ── ANILLOS DE PULSO ── */
-
-.splash-rings {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.ring {
-  position: absolute;
-  border-radius: 50%;
-  border: 1px solid rgba(192, 57, 43, 0.4);
-  animation: ring-pulse 2.8s ease-out infinite;
-}
-
-.ring:nth-child(1) { animation-delay: 0s; }
-.ring:nth-child(2) { animation-delay: 0.7s; }
-.ring:nth-child(3) { animation-delay: 1.4s; }
-.ring:nth-child(4) { animation-delay: 2.1s; }
-
-@keyframes ring-pulse {
-  0% {
-    width: 70px;
-    height: 70px;
-    opacity: 0.6;
-  }
-  100% {
-    width: 190px;
-    height: 190px;
-    opacity: 0;
-  }
-}
-
-/* ── CORAZÓN SVG ── */
-
-.heart-svg {
-  width: 120px;
-  height: 120px;
-  position: relative;
-  z-index: 2;
-  transform-origin: center;
-  animation: heartbeat 1.4s ease-in-out infinite;
-}
-
-@keyframes heartbeat {
-  0%   { transform: scale(1); }
-  15%  { transform: scale(1.13); }
-  30%  { transform: scale(1); }
-  45%  { transform: scale(1.07); }
-  60%  { transform: scale(1); }
-  100% { transform: scale(1); }
-}
-
-/* Estado expansión — al terminar la carga */
-.heart-svg.expanding {
-  animation: heart-expand 0.9s cubic-bezier(0.4, 0, 0.2, 1) forwards;
-}
-
-@keyframes heart-expand {
-  0%   { transform: scale(1);  opacity: 1; }
-  55%  { transform: scale(3);  opacity: 0.7; }
-  100% { transform: scale(10); opacity: 0; }
-}
-
-/* ── NOMBRE DE LA APP ── */
-
-.splash-name {
-  font-family: var(--font-display);
-  font-size: 40px;
-  font-weight: 400;
-  color: var(--color-ice);
-  letter-spacing: 0.03em;
-  animation: splash-rise 0.8s ease 0.4s both;
-}
-
-/* ── SLOGAN ── */
-
-.splash-slogan {
-  font-family: var(--font-ui);
-  font-size: 10px;
-  font-weight: var(--weight-light);
-  color: var(--color-smoke-3);
-  letter-spacing: 0.26em;
-  text-transform: uppercase;
-  animation: splash-rise 0.8s ease 0.7s both;
-}
-
-/* ── ANIMACIÓN RISE ── */
-
-@keyframes splash-rise {
-  from {
-    opacity: 0;
-    transform: translateY(10px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-/* ── PROGRESO DE CARGA ── */
-
-.splash-progress {
-  position: absolute;
-  bottom: 72px;
-  left: 40px;
-  right: 40px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: var(--space-md);
-  animation: splash-rise 0.8s ease 1s both;
-}
-
-.progress-label {
-  font-family: var(--font-ui);
-  font-size: 10px;
-  font-weight: var(--weight-light);
-  color: var(--color-smoke-3);
-  letter-spacing: 0.1em;
-}
-
 /* ═══════════════════════════════════════════
-   DT-45: TITLE CARD — fade puro, sin animacion de letras
-   Timing provisional (fade-in ~1.8s) — se fija en mano
+   DT-45 / DT-60: TITLE CARD
    ═══════════════════════════════════════════ */
 
 #screen-titlecard {
@@ -203,6 +45,70 @@
   animation: titlecard-fade 1.8s ease forwards;
 }
 
+/* ── MARK — corazón-brújula, con anillos de pulso ── */
+
+.titlecard-wrap {
+  position: relative;
+  width: 190px;
+  height: 190px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.titlecard-rings {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.titlecard-ring {
+  position: absolute;
+  border-radius: 50%;
+  border: 1px solid rgba(192, 57, 43, 0.4);
+  animation: titlecard-ring-pulse 2.8s ease-out infinite;
+}
+
+.titlecard-ring:nth-child(1) { animation-delay: 0s; }
+.titlecard-ring:nth-child(2) { animation-delay: 0.7s; }
+.titlecard-ring:nth-child(3) { animation-delay: 1.4s; }
+.titlecard-ring:nth-child(4) { animation-delay: 2.1s; }
+
+@keyframes titlecard-ring-pulse {
+  0% {
+    width: 110px;
+    height: 110px;
+    opacity: 0.6;
+  }
+  100% {
+    width: 235px;
+    height: 235px;
+    opacity: 0;
+  }
+}
+
+.titlecard-mark {
+  width: 160px;
+  height: 160px;
+  position: relative;
+  z-index: 2;
+  transform-origin: center;
+  animation: titlecard-heartbeat 1.4s ease-in-out infinite;
+}
+
+@keyframes titlecard-heartbeat {
+  0%   { transform: scale(1); }
+  15%  { transform: scale(1.08); }
+  30%  { transform: scale(1); }
+  45%  { transform: scale(1.04); }
+  60%  { transform: scale(1); }
+  100% { transform: scale(1); }
+}
+
+/* ── WORDMARK + SLOGAN ── */
+
 .titlecard-wordmark {
   font-family: var(--font-ui);
   font-weight: var(--weight-light);
@@ -225,4 +131,45 @@
 @keyframes titlecard-fade {
   from { opacity: 0; }
   to   { opacity: 1; }
+}
+
+/* ── PROGRESO DE CARGA — reemplaza al splash eliminado ──
+   Unica pantalla de espera real: GPS/ciudad/POIs para
+   usuario recurrente (primera vez ya pidio GPS en el
+   paso 1 del wizard, ver DT-47 y app.js _showTitleCard). */
+
+.titlecard-progress {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-sm);
+  margin-top: var(--space-lg);
+}
+
+.titlecard-progress-bar {
+  width: 140px;
+  height: 2px;
+  background: var(--color-border);
+  border-radius: var(--radius-pill);
+  overflow: hidden;
+}
+
+.titlecard-progress-fill {
+  height: 100%;
+  width: 0%;
+  background: var(--color-systole);
+  border-radius: var(--radius-pill);
+  transition: width 0.4s ease-out;
+}
+
+.titlecard-progress-label {
+  font-family: var(--font-ui);
+  font-size: 10px;
+  font-weight: var(--weight-light);
+  color: var(--color-smoke-3);
+  letter-spacing: 0.1em;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .titlecard-mark, .titlecard-ring { animation: none; }
 }

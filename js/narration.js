@@ -535,6 +535,80 @@ Idioma: ${lang}`;
     return '';
   }
 
+  /* ── DT-51 (instrumentación, Sesión 28): VERIFICACIÓN PROGRAMÁTICA AUTOR/FECHA ──
+     Punto 1 ratificado: enfoque estructural en vez de seguir ajustando texto
+     del prompt (S27b confirmó 0/n en autor/fecha tras cuatro intentos de
+     redacción distintos). Este bloque SOLO MIDE — no altera, no bloquea,
+     no regenera el capítulo entregado. El Punto 2 (qué hacer cuando la
+     verificación FALLA) queda deliberadamente sin resolver hasta tener
+     evidencia real de campo con esta instrumentación.
+
+     Enfoque validado en sesión de diseño: patrón de atribución
+     (verbo + por/de/by + nombre propio) con ventana de ±1 oración —
+     ventana de 1 sola oración fallaba en el caso fundacional del ticket
+     (Maceta: año y autor en oraciones distintas del extracto real).
+     Validado 3/3 contra narraciones REALES de Claude Haiku 4.5 (Maceta,
+     Catedral de Pasto, Sagrada Familia) antes de instrumentar aquí.
+
+     Dos bugs corregidos durante la validación, ambos relevantes para
+     mantener aquí: (1) el flag case-insensitive NUNCA debe aplicarse al
+     grupo que exige mayúscula inicial del nombre — si no, cualquier
+     palabra en minúscula se cuela como "nombre propio"; (2) la
+     verificación de presencia debe ser por palabra completa (límites \b),
+     nunca por substring — un apellido corto o mal capturado puede
+     aparecer como substring de cualquier palabra del capítulo y dar un
+     falso "sí lo incluyó". */
+
+  // FIX (encontrado al probar contra las 3 narraciones reales juntas):
+  // el nombre debe buscarse INMEDIATAMENTE despues del verbo+conector que
+  // matcheo, no en cualquier parte de la oracion — si no, una oracion con
+  // mas de un "de"/"por" (ej. "Templo... DE la Sagrada Familia... disenada
+  // POR Gaudi") captura el conector equivocado (el primero, no el del verbo).
+  const _DT51_VERB_CONECTOR_RE = /\b(?:constru\w+|diseñ\w+|cre\w+|dirigi\w+|fund\w+|inaugur\w+|revel\w+|erigi\w+|consagr\w+|inspirad\w+|inici\w+|built|designed|created|directed|founded|inaugurated|unveiled|erected|consecrated|inspired|initiated)\b\s+(?:por|de|by)\s+/i;
+  const _DT51_NAME_ANCHORED_RE = /^(?:(?:el|la|los|las|un|una|the|a|an)\s+)?(?:[a-záéíóúñ]+\s+){0,3}([A-ZÁÉÍÓÚÑ][a-záéíóúñ]+(?:\s+[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+)*)/;
+  const _DT51_YEAR_RE = /\b(1[4-9]\d{2}|20\d{2})\b/g;
+
+  function _dt51ExtractCandidates(extractText) {
+    if (!extractText) return [];
+    const sentences = extractText.replace(/\n/g, ' ').split(/(?<=[.!?])\s+/);
+    const candidatos = [];
+    sentences.forEach((sent, i) => {
+      const verbMatch = _DT51_VERB_CONECTOR_RE.exec(sent);
+      if (!verbMatch) return;
+      const resto = sent.slice(verbMatch.index + verbMatch[0].length);
+      const nameMatch = _DT51_NAME_ANCHORED_RE.exec(resto);
+      if (!nameMatch) return;
+      const nombre = nameMatch[1];
+      // sanity: descarta capturas basura (muy cortas o mal formadas)
+      if (!nombre || nombre.length < 3) return;
+      const ventana = sentences.slice(Math.max(0, i - 1), i + 2).join(' ');
+      const anios = Array.from(new Set(ventana.match(_DT51_YEAR_RE) || []));
+      candidatos.push({ nombre, anios });
+    });
+    return candidatos;
+  }
+
+  function _dt51WordPresent(token, texto) {
+    if (!token || !texto) return false;
+    const escaped = token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    return new RegExp('\\b' + escaped + '\\b').test(texto);
+  }
+
+  function _dt51VerifyAutorFecha(poi, textoGenerado) {
+    if (!poi || poi._source !== 'wiki' || !poi._extract) return null; // no aplica (osm o sin extracto)
+    const candidatos = _dt51ExtractCandidates(poi._extract);
+    if (candidatos.length === 0) return { veredicto: 'sin_candidatos', detalle: [] };
+
+    const detalle = candidatos.map(c => {
+      const apellido = c.nombre.split(' ').pop();
+      const nombrePresente = _dt51WordPresent(apellido, textoGenerado) || _dt51WordPresent(c.nombre, textoGenerado);
+      const aniosPresentes = c.anios.filter(a => _dt51WordPresent(a, textoGenerado));
+      return { nombre: c.nombre, nombrePresente, aniosPresentes };
+    });
+    const cumple = detalle.some(d => d.nombrePresente || d.aniosPresentes.length > 0);
+    return { veredicto: cumple ? 'cumple' : 'falla', detalle };
+  }
+
   /* ── CONSTRUIR PROMPT — DA-50: narrador único ── */
   function buildPrompt(poi, lang) {
     const system  = SYSTEM_PROMPT[lang] || SYSTEM_PROMPT.es;
@@ -810,6 +884,24 @@ Idioma: ${lang}`;
 
     // Sanitizar antes de mostrar y hablar — elimina markdown que la voz leería
     text = sanitizeNarration(text);
+
+    // DT-51 (instrumentación, Sesión 28): verificación programática de
+    // autor/fecha — SOLO mide y loguea, nunca altera `text` ni bloquea la
+    // entrega. Punto 2 (qué hacer si FALLA) sigue sin resolver a propósito.
+    if (source !== 'fallback' && typeof Debug !== 'undefined') {
+      try {
+        const verifDT51 = _dt51VerifyAutorFecha(poi, text);
+        if (verifDT51 && verifDT51.veredicto !== 'sin_candidatos') {
+          const nombres = verifDT51.detalle.map(d => d.nombre).join(', ');
+          Debug.log(
+            verifDT51.veredicto === 'cumple' ? 'info' : 'warn',
+            `DT-51 verificacion: ${verifDT51.veredicto} · POI=${poi.name} · source=${source} · candidatos=[${nombres}]`
+          );
+        }
+      } catch (e) {
+        Debug.log('warn', `DT-51 verificacion: error al verificar (${e.message}) — continuando sin instrumentar`);
+      }
+    }
 
     // DT-39: guardar capítulo completado para continuidad DA-52
     // Solo capítulos reales (no fallback) — el fallback genérico no aporta continuidad narrativa

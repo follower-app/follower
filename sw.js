@@ -8,7 +8,7 @@
 
 // Incrementar CACHE_VERSION fuerza descarga de todos los archivos
 // en el proximo arranque — incluso si el navegador tiene version cacheada.
-const CACHE_VERSION = 'follower-v35';  // Splash eliminado (DT-60 revisado): title card unifica carga real (GPS/ciudad/POIs) para primera vez y recurrente; paso 4 wizard sin badge especial; iconos PWA finales (DT-1)
+const CACHE_VERSION = 'follower-v36';  // fix: icono 👋 faltante en paso 3 y texto explicativo faltante en paso 4 del wizard (index.html)
 
 const STATIC_ASSETS = [
   './',

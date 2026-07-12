@@ -8,7 +8,7 @@
 
 // Incrementar CACHE_VERSION fuerza descarga de todos los archivos
 // en el proximo arranque — incluso si el navegador tiene version cacheada.
-const CACHE_VERSION = 'follower-v38';  // iconos PWA: iteracion final — ticks fuera del corazon y separados de la aguja, tick sur en gris, aguja recta sin rotar
+const CACHE_VERSION = 'follower-v39';  // iconos PWA: version rotada — ticks+aguja girados 40 grados juntos (corazon fijo), radio individual por tick para separacion pareja del corazon
 
 const STATIC_ASSETS = [
   './',

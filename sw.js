@@ -8,7 +8,7 @@
 
 // Incrementar CACHE_VERSION fuerza descarga de todos los archivos
 // en el proximo arranque — incluso si el navegador tiene version cacheada.
-const CACHE_VERSION = 'follower-v40';  // icono PWA definitivo: recto y grueso (corazon 4.2, ticks 3.2), ticks laterales separados del corazon y opacidad subida a 0.8
+const CACHE_VERSION = 'follower-v41';  // icono PWA: sin ticks cardinales, aguja rombo liso (sin muesca concava), corazon+aguja agrandados 0.78->1.0, fondo oscuro #0d1420
 
 const STATIC_ASSETS = [
   './',

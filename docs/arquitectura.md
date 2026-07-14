@@ -2525,4 +2525,68 @@ DT-1 pasa de "candidato a rediseño" a **cerrado**.
 
 ---
 
-*Follower — Arquitectura v0.9 | Sesión 29 | 11 Julio 2026*
+## DA-83 — Segunda pasada de refinamiento del ícono PWA (post S29)
+
+DA-82 (S29) cerró DT-1 con el ícono C2 llevado a producción, escala 1.4,
+con ticks cardinales. En sesión de julio 2026, revisando el resultado en
+capturas reales de iPhone (no solo en preview de escritorio), aparecieron
+tres problemas que DA-82 no había detectado:
+
+1. **Trazo demasiado delgado** — el corazón se perdía contra el wallpaper
+   oscuro y entre íconos de bloques de color sólido (Domino's, Music,
+   Citymapper) en el home screen real.
+2. **Aguja con muesca cóncava** — el polígono de 4 puntos (`50,3 45,44
+   50,32 55,44`) generaba una forma de "dardo" en vez de un diamante
+   liso, notorio a tamaño real.
+3. **Ticks pegados y tenues** — a menos de 5 unidades del contorno del
+   corazón, y a opacidad 0.55, casi invisibles en pantalla real.
+
+**Iteración (sw.js v38→v41), validada con capturas reales del dispositivo
+en cada paso, no solo en preview:**
+
+- v38: probado un giro de 40° en aguja+ticks (con el corazón fijo) — 
+  descartado. Un giro fijo no comunica nada ("no es el norte de ningún
+  lugar"), y rompe la convención de brújula en reposo. Se documentó el
+  hallazgo geométrico de que un corazón NO es simétrico bajo rotación
+  arbitraria — cada tick queda a distinta distancia real del contorno
+  según el ángulo, verificado por análisis de píxeles (esqueletización +
+  medición de distancia mínima), no a ojo.
+- v39→v40: vuelta a la aguja recta; corazón y ticks engrosados
+  (heart 3.4→4.2, ticks 2.6→3.2); ticks separados del corazón y su
+  opacidad lateral subida de 0.55→0.8.
+- v41 (definitivo): **ticks cardinales eliminados por completo** del
+  ícono (se quedan solo en `logo.svg`, donde el tamaño de uso es mayor y
+  no compiten por legibilidad); aguja rediseñada de 4 puntos con muesca
+  cóncava a **3 puntos, rombo liso** (`50,3 45,44 55,44`), validada
+  contra una referencia de diseño externa que mostraba ese mismo
+  tratamiento; corazón+aguja agrandados proporcionalmente (escala interna
+  0.78→1.0) usando el espacio que dejaron libre los ticks eliminados.
+
+**Exploraciones descartadas en la misma sesión** (documentadas para no
+repetirlas): fondo blanco completo, corazón relleno de blanco sólido,
+anillo de dial alrededor del hub, ícono alternativo tipo clipart
+("F" + corazón + flecha) — las tres primeras se probaron y Jaime las
+rechazó tras verlas en pantalla real; la cuarta se descartó en la
+conversación sin necesidad de mockup, por romper la continuidad de marca
+acumulada en splash/wizard/title card.
+
+**`logo.svg` actualizado en la misma sesión** para quedar sincronizado
+con el ícono v41: corazón engrosado (2→4.5, misma proporción), aguja
+rombo liso, hub corregido (proporción real hub/aguja = 0.84, no un
+círculo que tape toda la aguja), wordmark a mayúsculas (`FOLLOWER`,
+igual que `.titlecard-wordmark`) — corrige una inconsistencia de
+minúsculas heredada de una versión anterior. A diferencia del ícono, los
+4 ticks SÍ se mantienen en `logo.svg` (el tamaño de uso ahí es grande,
+no hay problema de legibilidad).
+
+**Método de validación usado en esta sesión:** dado que no hubo
+verificación visual confiable de mi parte en este entorno de chat, cada
+cambio geométrico (márgenes de seguridad, distancia tick-corazón,
+proporción hub-aguja) se verificó por medición de píxeles sobre el PNG
+renderizado, no por inspección visual — y toda decisión de "se ve bien"
+final vino de capturas reales de pantalla que Jaime compartió, no de mi
+propia evaluación estética.
+
+---
+
+*Follower — Arquitectura v0.9 | Sesión 30 | 14 Julio 2026*

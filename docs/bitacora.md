@@ -4553,4 +4553,71 @@ ciudad de una sesión a otra se refleje de verdad.
 
 ---
 
-*Follower — Bitácora v0.9 | Sesión 29 | 11 Julio 2026*
+## Sesión 30 — 14 Julio 2026 — Segunda pasada del ícono PWA (DA-83), logo.svg sincronizado
+
+Sesión centrada por completo en refinar el ícono que S29/DA-82 había dado
+por cerrado. Motivo: capturas reales de iPhone (no preview de escritorio)
+mostraron que el ícono se perdía en el home screen — trazo delgado, aguja
+con muesca cóncava poco legible, ticks pegados al corazón y casi
+invisibles a opacidad 0.55.
+
+**Iteración validada con capturas reales en cada paso (sw.js v38→v41):**
+- v38: prueba de aguja+ticks rotados 40° con corazón fijo. Descartada por
+  Jaime tras verla junto a la recta — no comunica nada como "norte" fijo,
+  y rompe la convención de brújula en reposo. Hallazgo técnico registrado:
+  un corazón no es simétrico bajo rotación arbitraria, así que cada tick
+  quedaba a distinta distancia real del contorno según el ángulo —
+  verificado con esqueletización de imagen + medición de distancia
+  mínima por píxeles (no a ojo), y corregido con radio individual por
+  tick antes de descartar la variante entera.
+- v39-v40: aguja recta de vuelta; corazón y ticks engrosados; ticks
+  separados del corazón y su opacidad lateral subida.
+- v41 (definitivo, confirmado por Jaime en su iPhone): ticks eliminados
+  del ícono por completo; aguja rediseñada de 4 puntos (con muesca
+  cóncava) a 3 puntos (rombo liso), inspirada en una referencia externa
+  que Jaime compartió; corazón+aguja agrandados usando el espacio que
+  dejaron libre los ticks.
+
+**Exploraciones probadas y descartadas** (con evidencia real de pantalla,
+no solo discusión): fondo blanco completo, corazón relleno de blanco
+sólido, anillo de dial alrededor del hub ("se satura con detalles"),
+ícono alternativo tipo clipart de una "F" con corazón y flecha (rechazado
+en conversación, sin necesidad de mockup, por romper la continuidad de
+marca ya construida en splash/wizard/title card).
+
+**Experimento aparte, sin éxito:** exploración de un wordmark "FOLLOWER"
+en estilo "single line art" (una sola línea continua, a partir de una
+foto de referencia que Jaime compartió de otra presentación). Se probaron
+dos caminos — extracción de contorno real de un font cursivo (Alex Brush,
+vía fonttools) y construcción manual de un path geométrico con un solo
+comando `M` — y se verificó matemáticamente que el resultado del font
+tiene 13 puntos finales y 35 cruces (no es ni puede ser una sola línea
+real sin simplificar mucho las letras). El intento manual sí cumplió la
+condición técnica (un solo `M`, cero cortes) pero Jaime lo vio en su
+pantalla y no se leía bien como "follower" — descartado. Aprendizaje de
+proceso explícito: en esta sesión no hubo verificación visual confiable
+de mi parte al revisar los renders, así que todo lo que sí se pudo
+verificar (continuidad del trazo, márgenes de seguridad, distancias
+tick-corazón) se hizo por medición de píxeles, y el veredicto estético
+final siempre vino de que Jaime lo viera en su propia pantalla, no de mi
+propia inspección.
+
+**`logo.svg` actualizado para quedar sincronizado con el ícono v41:**
+corazón engrosado (misma proporción 2→4.5), aguja rombo liso, hub
+corregido a la proporción real (v41 tiene el hub más chico que el
+semi-ancho de la aguja, no más grande — primer intento se pasó a r=10,
+corregido a r=6), wordmark corregido a mayúsculas (`FOLLOWER`, coincide
+con `.titlecard-wordmark`; tenía minúsculas por error heredado de una
+versión anterior). A diferencia del ícono, `logo.svg` sí conserva los 4
+ticks — ahí el tamaño de uso (README, listing) no tiene el problema de
+legibilidad que forzó a quitarlos del ícono pequeño.
+
+### Pendiente
+
+Sigue abierta **DT-63** (validación de campo del flujo sin splash,
+primera vez y recurrente) — sin cambios esta sesión, no se tocó
+`app.js`/`index.html`/wizard. Todo el trabajo de S30 fue ícono/logo.
+
+---
+
+*Follower — Bitácora v0.9 | Sesión 30 | 14 Julio 2026*

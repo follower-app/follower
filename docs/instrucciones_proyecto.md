@@ -16,11 +16,11 @@ Antes de modificar cualquier archivo SIEMPRE preguntar: "¿El archivo [nombre] e
 
 ## Documentos del proyecto
 
-README · REGLAS_IA · docs/: contexto_maestro (alma, pregunta rectora) · producto (DTs activas, visión v2.0 accesibilidad) · arquitectura (DA-1 a DA-82) · bitacora (hasta S29) · manifiesto_narrativo (voz v3.0) · manifiesto_care_strip · prompt_maestro_follower (oficial, v3.6) · dt42_care_miniprompt · dt45_bienvenida_animada (enmendada S24) · dt47_wizard_mockup_final.html (mockup ratificado) · registro_sesion24_interfaz · restauracion_poi_js (histórico)
+README · REGLAS_IA · docs/: contexto_maestro (alma, pregunta rectora) · producto (DTs activas, visión v2.0 accesibilidad) · arquitectura (DA-1 a DA-83) · bitacora (hasta S30) · manifiesto_narrativo (voz v3.0) · manifiesto_care_strip · prompt_maestro_follower (oficial, v3.6) · dt42_care_miniprompt · dt45_bienvenida_animada (enmendada S24) · dt47_wizard_mockup_final.html (mockup ratificado) · registro_sesion24_interfaz · restauracion_poi_js (histórico)
 
 ## Arquitectura de archivos
 
-index.html (shell mínimo) · sw.js v36 (siempre último en commits) · manifest.json · css/ (main, splash, explore, poi, modal, components, wizard) · js/ (app, config, gps, poi, narration, voice, weather, care, routes, debug, debug-sim; music.js stubbed) · assets/ (logo.svg, icon-master.svg, icons/ — DT-1 cerrada) · docs/
+index.html (shell mínimo) · sw.js v41 (siempre último en commits) · manifest.json · css/ (main, splash, explore, poi, modal, components, wizard) · js/ (app, config, gps, poi, narration, voice, weather, care, routes, debug, debug-sim; music.js stubbed) · assets/ (logo.svg, icon-master.svg, icons/ — DT-1 cerrada) · docs/
 
 ## Reglas críticas
 
@@ -57,7 +57,25 @@ app.js: setPhase · navigateTo · welcomeCity (habla, no muestra) · _unlockAudi
 
 ## Estado actual
 
-v0.9 — Sesión 29 completada: **DT-1 CERRADA** (icono PWA + logo.svg finales) y **DT-60 CERRADA, revisada** (DA-81: splash eliminado del todo, no solo estático — el title card absorbe la carga real de GPS/ciudad/POIs tanto para primera vez como para usuario recurrente, con barra de progreso propia). Paso 4 del wizard pierde su badge especial y pasa a usar el mismo `.wizard-icon` que los demás pasos. Fix post-entrega: ícono 👋 faltante en paso 3 y texto explicativo faltante en paso 4 (detectado por Jaime con screenshots reales, no en el chat). sw.js v34→v35→v36. **DT-63 registrada** — validación de campo pendiente de ambos caminos del nuevo flujo. Ver DA-81/82 en arquitectura.md y bitacora.md S29 para el detalle completo.
+v0.9 — Sesión 30 completada: segunda pasada del ícono PWA (**DA-83**) —
+S29/DA-82 había dado DT-1 por cerrado, pero capturas reales de iPhone
+mostraron que el ícono se perdía en el home screen. Iteración validada en
+el dispositivo real en cada paso (sw.js v38→v41): se descartó un intento
+de aguja+ticks rotados 40° (rompe la convención de brújula en reposo);
+versión definitiva v41 elimina los ticks del ícono, rediseña la aguja de
+4 puntos con muesca cóncava a 3 puntos (rombo liso), y agranda
+corazón+aguja con el espacio liberado. `logo.svg` actualizado para quedar
+sincronizado (mismo grosor, misma aguja, hub corregido a la proporción
+real, wordmark a mayúsculas `FOLLOWER`) — a diferencia del ícono,
+`logo.svg` sí conserva los ticks. Exploraciones descartadas con evidencia
+real: fondo blanco, corazón relleno, anillo de dial, clipart alternativo.
+Experimento sin éxito: wordmark en "single line art" (verificado
+matemáticamente que un font cursivo real no produce una sola línea sin
+cruces). Ver DA-83 en arquitectura.md y bitacora.md S30 para el detalle
+completo. Ningún archivo de app.js/index.html/wizard tocado esta sesión —
+DT-63 sigue exactamente como quedó en S29.
+
+Sesión 29 (previa): **DT-1 CERRADA** (icono PWA + logo.svg finales) y **DT-60 CERRADA, revisada** (DA-81: splash eliminado del todo, no solo estático — el title card absorbe la carga real de GPS/ciudad/POIs tanto para primera vez como para usuario recurrente, con barra de progreso propia). Paso 4 del wizard pierde su badge especial y pasa a usar el mismo `.wizard-icon` que los demás pasos. Fix post-entrega: ícono 👋 faltante en paso 3 y texto explicativo faltante en paso 4 (detectado por Jaime con screenshots reales, no en el chat). sw.js v34→v35→v36. **DT-63 registrada** — validación de campo pendiente de ambos caminos del nuevo flujo. Ver DA-81/82 en arquitectura.md y bitacora.md S29 para el detalle completo.
 
 Sesión 28 (previa): **DT-51 (grounding) implementado + instrumentado, NO cerrada.** S27b había confirmado autor/fecha 0/4 tras cuatro enfoques de redacción — se descartó seguir ajustando texto del prompt. S28 ejecutó el enfoque estructural recomendado: detector determinista (regex, patrón de atribución verbo+conector+nombre + ventana ±1 oración + veredicto OR entre candidatos) diseñado y validado en 5 iteraciones, con 3 bugs de implementación encontrados y corregidos en el camino (ver DA-80). Validado 3/3 contra narraciones REALES de Claude Haiku 4.5 (Maceta, Catedral de Pasto, Sagrada Familia) — metodología exploratoria, sin confirmar si se usó el campo `system` real de la API o concatenado (ver DT-62). Implementado en producción como **solo instrumentación/logging** (`Debug.log`, no altera ni bloquea la narración entregada) — decisión explícita de no regenerar ni insertar todavía. `PROMPT_VERSION` se mantiene v3.6 (sin cambios de prompt esta sesión). sw.js v34. POI_CACHE_VERSION v4.
 

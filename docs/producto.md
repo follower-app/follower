@@ -221,7 +221,7 @@ El Prompt Maestro v2.7 (narrador único) tiene versiones en español e inglés. 
 
 | Elemento | Valor |
 |----------|-------|
-| **Logo** | Corazón C2 con brújula · SVG pendiente (DT-1) |
+| **Logo** | Corazón C2 con brújula · SVG final v41 (DT-1 cerrada, DA-83) |
 | **Slogan** | *your city soundtrack* |
 | **Paleta** | Sístole `#1a5276` · Diástole `#c0392b` · Dorado `#f0c87a` · Noche `#0d1b2a` |
 | **Tipografía** | DM Serif Display (display / bienvenida ciudad) + Inter (UI) |
@@ -280,7 +280,7 @@ El Prompt Maestro v2.7 (narrador único) tiene versiones en español e inglés. 
 
 ---
 
-## 19. Deuda Técnica Activa *(actualizada a Sesión 28 — 10 julio 2026)*
+## 19. Deuda Técnica Activa *(actualizada a Sesión 30 — 14 julio 2026)*
 
 | ID | Descripción | Prioridad |
 |----|-------------|-----------|
@@ -405,4 +405,4 @@ de usuario; cualquier regresión aquí bloquea el uso completo.
 
 ---
 
-*Follower — Documento de Producto v0.9 | Sesión 29 | 11 Julio 2026*
+*Follower — Documento de Producto v0.9 | Sesión 30 | 14 Julio 2026*

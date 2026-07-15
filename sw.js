@@ -8,7 +8,7 @@
 
 // Incrementar CACHE_VERSION fuerza descarga de todos los archivos
 // en el proximo arranque — incluso si el navegador tiene version cacheada.
-const CACHE_VERSION = 'follower-v44';  // BUG-053: auto-seguimiento del mapa con margen 30% y gracia de arrastre; BUG-058: blindaje pointer-events del overlay modo caminata
+const CACHE_VERSION = 'follower-v45';  // BUG-059 strip preambulo verificacion, BUG-051 audio automatico title card, BUG-056 care strip solo clima, BUG-055 POI expandido sin relictos v1
 
 const STATIC_ASSETS = [
   './',

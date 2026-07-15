@@ -53,6 +53,9 @@ const GPS = (() => {
       maxZoom:         CONFIG.MAP_ZOOM_MAX
     });
 
+    // BUG-053: arrastre manual pausa el auto-seguimiento por 10s
+    _map.on('dragstart', () => { _lastManualPan = Date.now(); });
+
     // Tiles CartoDB Voyager — DA-13 revisado otra vez: Positron resultó
     // demasiado minimalista (sin parques/agua/etiquetas suficientes).
     // Voyager da color + info manteniendo legibilidad, más cerca de Google Maps
@@ -111,9 +114,26 @@ const GPS = (() => {
   }
 
   /* ── ACTUALIZAR POSICIÓN EN EL MAPA ── */
+  let _lastManualPan = 0;   // BUG-053: timestamp del ultimo arrastre manual del mapa
+
   function updateUserPosition(lat, lng) {
     if (!_map || !_userMarker) return;
     _userMarker.setLatLng([lat, lng]);
+
+    // BUG-053: auto-seguimiento con margen. El mapa NO re-centra en cada
+    // lectura (marearia a quien lo mira) — solo hace panTo suave cuando el
+    // caminante sale del 70% central del viewport. pad(-0.3) encoge los
+    // bounds un 30% por lado; fuera de esa zona interior => seguir.
+    // Si el usuario arrastro el mapa manualmente, respetar su intencion
+    // por 10s antes de retomar el seguimiento — sin boton ni estado extra.
+    try {
+      if (Date.now() - _lastManualPan > 10000) {
+        const inner = _map.getBounds().pad(-0.3);
+        if (!inner.contains([lat, lng])) {
+          _map.panTo([lat, lng], { animate: true, duration: 0.8 });
+        }
+      }
+    } catch (e) { /* silencioso — el seguimiento nunca debe romper el GPS */ }
   }
 
   /* ── CONO DE DIRECCIÓN ── */

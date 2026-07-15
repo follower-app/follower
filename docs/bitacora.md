@@ -4913,10 +4913,76 @@ inofensivo).
   con la evidencia de producción.
 
 `node --check` OK en los tres JS. sw.js v42→v43, commit final aparte.
-Pendiente de validación de campo: repetir el escenario (minimizar a
-mitad de narración, volver) y verificar que la app revive sola en ~1.5s;
-verificar si el wake lock se adquiere en el primer tap; verificar cierre
-del panel con tap directo.
+
+### Continuación Sesión 31 — Segunda prueba de campo (v43): victorias confirmadas, BUG-058, y fix de BUG-053
+
+Jaime repitió la prueba con el simulador (ruta en Barcelona) ya con
+sw.js v43 activo. Log exportado + 4 capturas. Resultado neto: los fixes
+de la ronda anterior funcionan, apareció un bug nuevo de secuestro de
+pantalla, y se implementó el auto-seguimiento del mapa.
+
+**Victorias confirmadas en el log:**
+
+- **Wake lock (fix D) validado:** `NotAllowedError` al cargar →
+  "reintento programado al primer gesto" → 2s después: "wake lock
+  adquirido". El ciclo completo rechazo→gesto→adquisición operando como
+  se diseñó. El lock además se re-adquirió solo tras cada liberación del
+  sistema durante la sesión (3 ciclos limpios en el log).
+- **Modo caminata (DT-54, entrada C) debutó:** `12:49:15 ON — movimiento
+  sostenido sin interaccion` → `12:49:50 OFF — tap del usuario`. Primera
+  activación real, entrada y salida limpias.
+- **BUG-057 contenido:** la voz siguió muriendo en silencio (2 de 3
+  narraciones cerraron por safety-timer — el keep-alive iOS sigue sin
+  prevenir el congelamiento), pero con el techo de 120s los rescates
+  llegaron en 87-94s en vez de 262s, y la app siguió narrando después.
+  Cero errores de síntesis, cero voz zombie, lag texto→voz normal
+  (131ms promedio vs. 43.7s de la prueba anterior).
+- **Primera verificación DT-51 en producción:** "cumple · Templo
+  Expiatorio de la Sagrada Familia · candidatos=[Antoni Gaudí]" — el
+  detector de autor/fecha generando evidencia real, como se diseñó en
+  S28.
+- El typo "Jaimr" ya no está (Jaime lo corrigió); la bienvenida sonó
+  con ciudad real y nombre correcto.
+
+**BUG-058 (nuevo) — pantalla secuestrada con el panel de historias
+abierto.** Con el panel abierto, ningún tap respondió: ni el propio
+panel (el fix C de v43 debía cerrarlo), ni el mapa, ni la barra de
+debug. Jaime tuvo que matar la app. Que los taps mueran también FUERA
+del panel apunta a un interceptor global, no al panel. Hipótesis
+principal: `#walkmodeOverlay` — fixed, z-index 9999, el único elemento
+de pantalla completa nuevo de DT-54 — presente pero invisible por una
+carrera (p.ej. la ventana de 600ms del fade de salida en la que sigue
+en `display:flex` con `opacity:0`, capturando todos los taps sin que se
+vea nada). Blindaje aplicado en `explore.css`: `pointer-events: none`
+por defecto en el overlay, `auto` solo con `.visible` — el overlay ya
+no puede capturar eventos siendo invisible, sea o no la causa exacta.
+Si el secuestro se repite con v44, la hipótesis queda descartada.
+
+**BUG-053 — fix aplicado (auto-seguimiento del mapa).** Diseño
+ratificado en esta misma sesión: `panTo` suave (0.8s) en
+`updateUserPosition()` solo cuando el caminante sale del 70% central
+del viewport (`getBounds().pad(-0.3).contains()`), nunca en cada
+lectura. Respeto a la intención del usuario: `dragstart` del mapa pausa
+el seguimiento por 10s (gracia temporal — sin botón ni estado extra; se
+descartó `dragging.moved()` de Leaflet porque queda en true tras el
+primer arrastre y mataría el seguimiento para siempre). El fallo del
+seguimiento nunca rompe el GPS (try/catch silencioso).
+
+**Observación de campo para DT-61 (cara inversa del problema):** un
+parque urbano grande y evidente en el recorrido no existe para Follower
+— sin artículo de Wikipedia geolocalizado, y `leisure=park` no está en
+los tiers curados de Overpass — mientras POIs menores sí narran.
+Registrado en la fila de DT-61: decidir si los parques con nombre
+entran a la curaduría OSM es parte de la definición pendiente (tocarla
+implica `POI_CACHE_VERSION++`, deliberadamente fuera de esta tanda de
+interfaz).
+
+sw.js v43→v44. Archivos tocados esta ronda: `gps.js` (BUG-053),
+`explore.css` (blindaje BUG-058), docs. Pendiente de campo: reproducir
+el escenario del secuestro con v44; validar el seguimiento del mapa en
+movimiento real; tercera muerte silenciosa de voz consecutiva confirma
+que el keep-alive iOS necesita revisión propia (candidato a ticket si
+persiste).
 
 ---
 

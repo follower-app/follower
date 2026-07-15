@@ -648,9 +648,18 @@ body.phase-diastole .heart-compass {
   opacity: 0;
   transition: opacity 0.6s ease;   /* espeja FADE_MS en walkmode.js */
   cursor: pointer;
+  /* BUG-058: blindaje — el overlay NUNCA captura taps salvo cuando es
+     plenamente visible. Sin esto, cualquier carrera que lo deje presente
+     pero transparente (p.ej. la ventana de 600ms del fade de salida)
+     intercepta TODOS los taps de la app a z-index 9999 — pantalla
+     "secuestrada" sin nada visible que lo explique. */
+  pointer-events: none;
 }
 
-#walkmodeOverlay.visible { opacity: 1; }
+#walkmodeOverlay.visible {
+  opacity: 1;
+  pointer-events: auto;   /* solo el overlay visible es interactivo */
+}
 #walkmodeOverlay.hidden  { display: none !important; }
 
 .walkmode-heart {

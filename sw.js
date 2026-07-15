@@ -8,7 +8,7 @@
 
 // Incrementar CACHE_VERSION fuerza descarga de todos los archivos
 // en el proximo arranque — incluso si el navegador tiene version cacheada.
-const CACHE_VERSION = 'follower-v43';  // BUG-057: recuperacion visibilitychange + techo safety timer en voice.js, cierre de panel historias en app.js (BUG-054), reintento wake lock por gesto en walkmode.js
+const CACHE_VERSION = 'follower-v44';  // BUG-053: auto-seguimiento del mapa con margen 30% y gracia de arrastre; BUG-058: blindaje pointer-events del overlay modo caminata
 
 const STATIC_ASSETS = [
   './',

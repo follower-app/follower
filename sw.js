@@ -8,7 +8,7 @@
 
 // Incrementar CACHE_VERSION fuerza descarga de todos los archivos
 // en el proximo arranque — incluso si el navegador tiene version cacheada.
-const CACHE_VERSION = 'follower-v45';  // BUG-059 strip preambulo verificacion, BUG-051 audio automatico title card, BUG-056 care strip solo clima, BUG-055 POI expandido sin relictos v1
+const CACHE_VERSION = 'follower-v46';  // BUG-051 cerrado decision B umbral toca-para-comenzar; BUG-058 causa real: rebuild de lista congelado con panel abierto
 
 const STATIC_ASSETS = [
   './',

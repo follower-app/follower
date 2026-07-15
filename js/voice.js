@@ -15,12 +15,22 @@ const Voice = (() => {
   let _safetyTimer = null;    // timer de seguridad — dispara callback si onend no llega
   let _keepAlive   = null;    // interval iOS — evita que Safari congele la síntesis durante speak
   let _speakDone   = false;   // flag — evita que el callback se ejecute dos veces
+  let _forceFinish = null;    // BUG-057: referencia al _finish del speak activo — permite
+                              // recuperacion externa (visibilitychange) sin duplicar cierre
 
   /* ── CONFIGURACIÓN ── */
   const CONFIG = {
     RATE:   0.92,    // velocidad — ligeramente más lento que normal
     PITCH:  1.0,     // tono natural
-    VOLUME: 1.0      // volumen máximo (música lo controla music.js)
+    VOLUME: 1.0,     // volumen máximo (música lo controla music.js)
+    SAFETY_MAX_MS: 120000  // BUG-057: techo ABSOLUTO del safety timer. Antes era
+                           // proporcional al texto sin limite — una narracion de
+                           // 1118 chars produjo un timer de 262s = 4+ min de fase
+                           // diastole clavada cuando onend murio en silencio.
+                           // 120s y no 90s: una narracion legitima de ~1100 chars
+                           // tarda ~93s reales — 90s la cortaria a mitad de frase.
+                           // Cuando DT-62 corrija la longitud (90-130 palabras),
+                           // este techo puede bajar.
   };
 
   /* ── MAPA DE IDIOMAS → código BCP-47 ── */
@@ -158,6 +168,7 @@ const Voice = (() => {
       _isSpeaking  = false;
       _isPaused    = false;
       _utterance   = null;
+      _forceFinish = null;      // BUG-057: este speak ya cerro — nada que recuperar
 
       if (source !== 'onend' && typeof Debug !== 'undefined') {
         Debug.log('warn', `Voice: callback por ${source} · ${text.length} chars · lang=${lang}`);
@@ -165,6 +176,7 @@ const Voice = (() => {
 
       if (onEnd) onEnd();
     };
+    _forceFinish = _finish;     // BUG-057: visible para la recuperacion por visibilitychange
 
     // ── Métricas ──
     const lagId = (typeof Debug !== 'undefined')
@@ -174,7 +186,11 @@ const Voice = (() => {
 
     // ── Estimación de duración para el safety timer ──
     // ~12 chars/segundo en español a rate 0.92 + 5s de buffer
-    const estimatedMs = Math.max(8000, Math.ceil(text.length / 12) * 1000 + 5000);
+    // BUG-057: techo absoluto — nunca más un timer de 262s (caso Parroquia, 1118 chars)
+    const estimatedMs = Math.min(
+      CONFIG.SAFETY_MAX_MS,
+      Math.max(8000, Math.ceil(text.length / 12) * 1000 + 5000)
+    );
 
     // ── Eventos ──
     _utterance.onstart = () => {
@@ -250,6 +266,42 @@ const Voice = (() => {
     _isSpeaking = true;
   }
 
+  /* ── BUG-057: RECUPERACION AL VOLVER DEL BACKGROUND ──
+     iOS suspende JS y mata speechSynthesis al minimizar la app. El onend
+     de la utterance nunca llega, el safety timer (setTimeout) queda
+     congelado, y la fase diastole se clava — bloqueando el tab de
+     narracion, ignorando triggers futuros y dejando la app "muerta"
+     (evidencia de campo 15-jul: 262s de bloqueo, voz zombie con lag de
+     43s y errores canceled en cadena).
+
+     Al volver a ser visible: si habia una narracion activa, primero
+     intentar resume() (iOS a veces solo la pauso); si tras un margen
+     corto la sintesis no esta hablando de verdad, forzar el cierre por
+     el camino unico _finish → onEnd → fase vuelve a sistole → la app
+     revive. La narracion interrumpida no se repite: el POI no quedo
+     marcado como visitado, puede re-dispararse naturalmente. ── */
+  if (typeof document !== 'undefined') {
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState !== 'visible') return;
+      if (!_isSpeaking || !_forceFinish) return;   // no habia narracion — nada que reparar
+
+      // Intento suave primero: quiza iOS solo pauso la sintesis
+      try {
+        if (window.speechSynthesis.paused) window.speechSynthesis.resume();
+      } catch (e) { /* silencioso */ }
+
+      // Margen corto y verificacion real: ¿esta hablando de verdad?
+      setTimeout(() => {
+        if (_isSpeaking && _forceFinish && !window.speechSynthesis.speaking) {
+          if (typeof Debug !== 'undefined') {
+            Debug.log('warn', 'Voice: recuperacion por visibilitychange — sintesis muerta tras volver del background');
+          }
+          _forceFinish('visibility-recovery');
+        }
+      }, 1500);
+    });
+  }
+
   /* ── STOP ── */
   function stop() {
     clearTimeout(_safetyTimer);
@@ -269,6 +321,7 @@ const Voice = (() => {
     _isSpeaking = false;
     _isPaused   = false;
     _utterance  = null;
+    _forceFinish = null;   // BUG-057: speak cancelado — no hay nada que recuperar
   }
 
   /* ── PAUSE ── */

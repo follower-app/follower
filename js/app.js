@@ -842,6 +842,18 @@ function initExploreListeners() {
     nearbySelect?.classList.add('hidden');
   });
 
+  // BUG-054: cerrar tambien con tap en el propio panel. Con el panel
+  // abierto la franja de mapa visible es minima (evidencia de campo
+  // 15-jul: panel cubre ~80% de pantalla y no habia donde tocar para
+  // salir). Un tap en un item primero activa el POI (su onclick inline
+  // corre antes en la fase de burbujeo) y luego esto cierra — sin
+  // conflicto. Un tap en cualquier otra zona del panel solo cierra.
+  if (nearbySelect) {
+    nearbySelect.addEventListener('click', () => {
+      nearbySelect.classList.add('hidden');
+    });
+  }
+
   // Corazón-brújula — centrar mapa
   document.getElementById('btnCenter')?.addEventListener('click', () => {
     if (AppState.gps && typeof GPS !== 'undefined') GPS.centerMap();

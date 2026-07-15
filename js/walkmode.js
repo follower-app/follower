@@ -41,6 +41,9 @@ const WalkMode = (() => {
   let _recentMoves     = [];      // metros entre lecturas recientes (ventana deslizante)
   let _lastPos         = null;    // ultima posicion recibida via onMove
   let _checkTimer      = null;
+  let _retryOnGesture  = false;   // BUG-057/campo 15-jul: iOS rechazo el wake lock
+                                  // (NotAllowedError) justo tras cargar la pagina —
+                                  // reintentar en el primer gesto real del usuario
 
   /* ══════════════ 1. WAKE LOCK ══════════════ */
 
@@ -54,6 +57,7 @@ const WalkMode = (() => {
     }
     try {
       _wakeLock = await navigator.wakeLock.request('screen');
+      _retryOnGesture = false;   // adquirido — no hace falta reintentar
       if (typeof Debug !== 'undefined') {
         Debug.log('info', 'WalkMode: wake lock adquirido — pantalla no se apagara sola');
       }
@@ -64,9 +68,13 @@ const WalkMode = (() => {
         }
       });
     } catch (e) {
-      // Bateria baja, politica del navegador, etc. Nunca mostrar error.
+      // Bateria baja, Modo de Bajo Consumo, politica del navegador, o
+      // peticion sin activacion de usuario reciente (iOS tras cargar la
+      // pagina — evidencia de campo 15-jul). Nunca mostrar error.
+      // Programar reintento en el primer gesto real del usuario.
+      _retryOnGesture = true;
       if (typeof Debug !== 'undefined') {
-        Debug.log('warn', `WalkMode: wake lock rechazado (${e.name}) — sin cambio de comportamiento`);
+        Debug.log('warn', `WalkMode: wake lock rechazado (${e.name}) · visibility=${document.visibilityState} · msg=${e.message || 'n/a'} — reintento programado al primer gesto`);
       }
       _wakeLock = null;
     }
@@ -106,6 +114,12 @@ const WalkMode = (() => {
 
   function _registerInteraction() {
     _lastInteraction = Date.now();
+    // BUG-057/campo 15-jul: si iOS rechazo el wake lock al cargar,
+    // este gesto real es la oportunidad de reintentarlo
+    if (_retryOnGesture) {
+      _retryOnGesture = false;
+      _acquireWakeLock();
+    }
   }
 
   function _check() {

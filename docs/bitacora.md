@@ -4834,6 +4834,90 @@ Ningún archivo `.js`/`.html`/`.css` tocado — `sw.js` se mantiene en v41.
 El fix queda diseñado y documentado, no aplicado, a la espera de resolver
 la pregunta abierta sobre el gesto trusted en iOS.
 
+### Continuación Sesión 31 — Primera prueba de campo de DT-54: deadlock BUG-057, wake lock rechazado, y evidencia de producción para DT-62
+
+DT-54 se desplegó (sw.js v42; deploy verificado vía `walkmode.js` como
+testigo — archivo nuevo que no existía antes, HTTP 200 en Pages) y Jaime
+salió a probar de inmediato con el simulador en modo ruta (Barcelona)
+desde su ubicación real (Palmira). La prueba destapó un bug crítico
+preexistente, un problema del propio DT-54, y — el hallazgo más valioso —
+evidencia de producción para DT-62. Todo con log de debug exportado y
+foto real del bloqueo.
+
+**BUG-057 (nuevo, crítico) — deadlock de diástole al volver del
+background.** Anatomía completa, con timestamps del log:
+
+- 10:00:43 — arranca la narración de Parroquia San Carlos Borromeo
+  (1118 chars). `onstart` llega… y después silencio total: ni `onend`,
+  ni `onerror`. El congelamiento silencioso de iOS que el keep-alive
+  (pause/resume cada 10s) intentaba prevenir, ocurriendo igual.
+- 10:00:43 → 10:05:05 — el safety timer tarda **262 segundos** en
+  rescatar, porque estaba calibrado proporcional al texto **sin techo**
+  (~12 chars/s + 5s de buffer → 1118 chars = 262s). Durante esos 4+
+  minutos: fase diástole clavada, tab de narración bloqueado, triggers
+  futuros ignorados (guard `_isNarrating`), voz zombie — lag texto→voz
+  de 43.7s y dos `error=canceled` en cadena en los speaks siguientes.
+- La foto de campo mostró además que el panel HISTORIAS CERCA cubría
+  ~80% de la pantalla y su único cierre era tocar el mapa — cuya franja
+  visible era mínima. Jaime no podía ni llegar al debug: tuvo que matar
+  la app. Esto redefine **BUG-054** con causa entendida: no era un
+  toggle roto, era que no había dónde tocar.
+
+**Wake lock (DT-54) rechazado en iOS.** Tras reabrir la app:
+`NotAllowedError` dos veces (10:07:30 en `initExplore`, 10:07:41 en
+`visibilitychange`) — aunque en la sesión anterior sí se había adquirido
+(el log muestra "liberado por el sistema" al cerrar). Hipótesis: iOS
+rechaza la petición sin activación de usuario reciente tras cargar la
+página, o Modo de Bajo Consumo activo. Pendiente de confirmar cuál.
+
+**Evidencia de producción para DT-62 (hallazgo mayor).** Las 4
+narraciones reales de la sesión midieron 1008, 1047, 1097 y 1118
+caracteres (~170-190 palabras) contra el objetivo de 90-130. La
+violación de longitud ya no es hipótesis de artefacto metodológico de
+S28: **está pasando en producción con el Worker real.** Además conecta
+los problemas: sobre-longitud → safety timers más largos → ventanas de
+bloqueo más largas cuando la voz muere. Corregir DT-62 ahora tiene
+urgencia de campo, no solo de calidad narrativa.
+
+**Hallazgos menores del mismo log:** `userName` guardado como "Jaimr"
+(typo en el wizard, sin pantalla de configuración para corregirlo —
+argumento vivo para DT-58); Overpass caído en cadena (504 + Load failed
+en los 3 mirrors — la cascada DT-52 degradó correctamente a cache
+IndexedDB con 40 POIs); Worker 400 en el warm-up (ya conocido de S25d,
+inofensivo).
+
+**Paquete de fixes A-E, ratificado en bloque y aplicado (sw.js v43):**
+
+- **A — `voice.js`, recuperación por `visibilitychange`:** referencia a
+  nivel de módulo `_forceFinish` al `_finish` del speak activo (limpiada
+  en `_finish` y en `stop()`); al volver a visible, `resume()` suave
+  primero y, si tras 1.5s la síntesis no está hablando de verdad, cierre
+  forzado por el camino único → `onEnd` → fase vuelve a sístole → la app
+  revive. La narración interrumpida no se repite (el POI no quedó
+  visitado; puede re-dispararse naturalmente).
+- **B — `voice.js`, techo absoluto del safety timer:**
+  `SAFETY_MAX_MS = 120000`. Se eligió 120s y no 90s deliberadamente: una
+  narración legítima de ~1100 chars tarda ~93s reales — 90s la cortaría a
+  mitad de frase. Cuando DT-62 corrija la longitud, el techo puede bajar.
+- **C — `app.js`, cierre del panel de historias (BUG-054):** tap en
+  cualquier zona del propio panel cierra; un tap en un ítem primero
+  activa el POI (su onclick inline corre antes en el burbujeo) y luego
+  cierra — sin conflicto.
+- **D — `walkmode.js`, reintento del wake lock por gesto:** si la
+  adquisición falla, `_retryOnGesture` programa un reintento en el
+  siguiente gesto real del usuario (reutilizando `_registerInteraction`,
+  que ya escucha `touchend`/`click`); el log del rechazo ahora incluye
+  `visibilityState` y el mensaje del error para diagnóstico.
+- **E — documentación:** BUG-057 registrado con causa confirmada y fix;
+  BUG-054 actualizado a causa entendida + fix aplicado; DT-62 actualizada
+  con la evidencia de producción.
+
+`node --check` OK en los tres JS. sw.js v42→v43, commit final aparte.
+Pendiente de validación de campo: repetir el escenario (minimizar a
+mitad de narración, volver) y verificar que la app revive sola en ~1.5s;
+verificar si el wake lock se adquiere en el primer tap; verificar cierre
+del panel con tap directo.
+
 ---
 
 *Follower — Bitácora v0.9 | Sesión 31 | 14 Julio 2026*

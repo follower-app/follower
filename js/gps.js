@@ -302,6 +302,9 @@ const GPS = (() => {
     // Actualizar marcador en el mapa
     updateUserPosition(lat, lng);
 
+    // DT-54: alimentar deteccion de movimiento sostenido del modo caminata
+    if (typeof WalkMode !== 'undefined') WalkMode.onMove(lat, lng);
+
     // Actualizar distancia recorrida
     if (_lastPos) {
       updateDistance(lat, lng);

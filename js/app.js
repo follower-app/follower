@@ -435,6 +435,10 @@ function initExplore() {
   // Iniciar cuidado contextual
   if (typeof Care !== 'undefined') Care.start();
 
+  // DT-54: wake lock + modo caminata — la pantalla no se apaga sola;
+  // el overlay negro entra solo con movimiento sostenido sin interaccion
+  if (typeof WalkMode !== 'undefined') WalkMode.start();
+
   // Fallback: si Nominatim no responde en 10s, mostrar bienvenida genérica
   _scheduleWelcomeFallback();
 

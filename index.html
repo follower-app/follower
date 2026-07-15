@@ -321,6 +321,18 @@
   </div>
 
   <!-- ══════════════════════════════════════ -->
+  <!-- MODO CAMINATA — DT-54 (version minima) -->
+  <!-- Overlay casi negro, solo el corazon    -->
+  <!-- latiendo en fase. Tap para salir.      -->
+  <!-- ══════════════════════════════════════ -->
+  <div id="walkmodeOverlay" class="hidden">
+    <svg class="walkmode-heart" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+      <path d="M50,68 C50,68 28,55 28,41 C28,31 35,25 43,27 C47,28 49,32 50,35 C51,32 53,28 57,27 C65,25 72,31 72,41 C72,55 50,68 50,68 Z"
+        fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+    </svg>
+  </div>
+
+  <!-- ══════════════════════════════════════ -->
   <!-- PANTALLA 3 — POI EXPANDIDO            -->
   <!-- ══════════════════════════════════════ -->
   <div id="screen-poi" class="screen hidden">
@@ -404,6 +416,7 @@
   <!-- music.js eliminado DA-50 — ciudad sonora es narrativa, no audio -->
   <script src="js/weather.js"></script>
   <script src="js/care.js"></script>
+  <script src="js/walkmode.js"></script>
   <script src="js/routes.js"></script>
 
   <script src="js/debug.js"></script>

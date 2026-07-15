@@ -629,3 +629,46 @@ body.phase-diastole .heart-compass {
   font-weight: var(--weight-light);
   color: var(--color-smoke-3);
 }
+
+/* ══════════════════════════════════════
+   MODO CAMINATA — DT-54 (version minima)
+   Negro puro = negro OLED ~ pantalla
+   apagada en consumo. Solo el corazon,
+   coloreado por la fase del body.
+   ══════════════════════════════════════ */
+
+#walkmodeOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;              /* por encima de todo — es la pantalla entera */
+  background: #000;           /* negro puro, no navy: OLED apaga pixeles */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.6s ease;   /* espeja FADE_MS en walkmode.js */
+  cursor: pointer;
+}
+
+#walkmodeOverlay.visible { opacity: 1; }
+#walkmodeOverlay.hidden  { display: none !important; }
+
+.walkmode-heart {
+  width: 72px;
+  height: 72px;
+  color: var(--color-systole);     /* default: caminando */
+  opacity: 0.55;                   /* tenue — dormida, no protagonista */
+  animation: walkmodeBeat 2.4s ease-in-out infinite;
+}
+
+body.phase-diastole #walkmodeOverlay .walkmode-heart {
+  color: var(--color-diastole);    /* narrando — nunca invertir */
+  opacity: 0.8;                    /* la voz esta viva: late mas presente */
+  animation-duration: 1.6s;
+}
+
+@keyframes walkmodeBeat {
+  0%, 100% { transform: scale(1); }
+  12%      { transform: scale(1.07); }
+  24%      { transform: scale(1); }
+}

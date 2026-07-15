@@ -308,6 +308,23 @@ Help first to see the place. Then to understand why it is the way it is. Finally
   // Claude puede responder con **negrita**, # títulos, - listas aunque el prompt
   // diga "narración continua". La voz lee esos caracteres literalmente.
   function sanitizeNarration(text) {
+    // BUG-059 (S31): el modelo a veces ejecuta EN VOZ ALTA la "VERIFICACION
+    // OBLIGATORIA PRIMERO" del bloque de grounding — preambulo meta tipo
+    // "Verificación obligatoria: El extracto menciona..." + separador ---
+    // antes del capitulo real. La voz lo leia completo, inflaba los conteos
+    // de longitud y contaminaba el detector DT-51 (podia dar "cumple" por
+    // el autor mencionado en el preambulo, no en el capitulo). Hallazgo
+    // colateral valioso: hacer la verificacion en voz alta fue la primera
+    // vez que autor/fecha entraron al capitulo (chain-of-thought accidental)
+    // — candidato a tecnica deliberada en v3.7. Aqui solo se corta el
+    // preambulo de forma determinista; si no hay separador, no se toca nada.
+    const meta = text.match(/^\s*(verificaci[óo]n|verification|mandatory first check)[\s\S]{0,1200}?(?:-{3,}|—{2,})\s*/i);
+    if (meta) {
+      text = text.slice(meta[0].length);
+      if (typeof Debug !== 'undefined') {
+        Debug.log('warn', `BUG-059: preámbulo de verificación filtrado — ${meta[0].length} chars eliminados antes de entregar`);
+      }
+    }
     return text
       // Encabezados markdown
       .replace(/^#{1,6}\s+/gm, '')

@@ -132,15 +132,10 @@ function updateCareStrip() {
     }
   }
 
-  const stepsEl = document.getElementById('csStepsVal');
-  if (stepsEl) {
-    stepsEl.textContent = AppState.steps > 0
-      ? `${AppState.steps.toLocaleString()} pasos`
-      : '0 pasos';
-  }
-
-  const kmEl = document.getElementById('csKmVal');
-  if (kmEl) kmEl.textContent = `${AppState.kmWalked.toFixed(1)} km`;
+  // BUG-056 (S31): pasos y km eliminados del care strip — "no es una app
+  // fitness" (manifiesto_care_strip.md). Solo queda el clima, que si es
+  // contexto de cuidado. AppState.steps/kmWalked se siguen calculando:
+  // los usa el debug (metricas de caminata), solo dejaron de mostrarse.
 }
 
 /* ── ACTUALIZAR FASE EN BOTTOM BAR ── */
@@ -287,6 +282,15 @@ function _showTitleCard(onDone) {
     if (done) return;
     done = true;
     if (iv) clearInterval(iv);
+    // BUG-051 (S31, validado en campo): si el usuario NO toca el title card
+    // y este termina solo por el timer, el audio quedaba bloqueado y el
+    // saludo esperaba un tap extra en explore (la "red de seguridad").
+    // Desbloquear aqui cubre ambos caminos — el gesto reciente existe
+    // (tap de apertura de la app o del wizard); la funcion es idempotente
+    // por bandera de carga de pagina (DA-77). Si iOS igual lo rechaza por
+    // falta de gesto directo, la red de seguridad de initExplore sigue
+    // exactamente donde estaba — comportamiento nunca peor que el actual.
+    _unlockAudioOnFirstTap();
     if (cardId) Debug.metricEnd(cardId, isFirst ? 'first-time' : 'returning-user');
     onDone();
   };

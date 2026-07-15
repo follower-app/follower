@@ -167,20 +167,12 @@
   <div id="screen-explore" class="screen hidden">
 
     <!-- Care strip — contexto siempre visible arriba -->
+    <!-- BUG-056 (S31): pasos y km eliminados — "no es una app fitness"
+         (manifiesto_care_strip.md). Solo clima: contexto de cuidado real. -->
     <div class="care-strip" id="careStrip">
       <div class="cs-item" id="csWeather">
         <span class="cs-icon" id="csWeatherIcon">🌤️</span>
         <span class="cs-val" id="csWeatherVal">--°</span>
-      </div>
-      <span class="cs-sep"></span>
-      <div class="cs-item" id="csSteps">
-        <span class="cs-icon">👣</span>
-        <span class="cs-val" id="csStepsVal">0 pasos</span>
-      </div>
-      <span class="cs-sep"></span>
-      <div class="cs-item" id="csKm">
-        <span class="cs-icon">📍</span>
-        <span class="cs-val" id="csKmVal">0.0 km</span>
       </div>
     </div>
 
@@ -379,13 +371,9 @@
       <p class="narration-label">narración en curso</p>
       <p class="narration-text" id="narrationText"></p>
 
-      <!-- Datos rápidos -->
-      <p class="narration-label">datos del lugar</p>
-      <div class="quick-facts" id="quickFacts"></div>
-
-      <!-- Profundidad -->
-      <p class="narration-label">explorar más</p>
-      <div class="depth-pills" id="depthPills"></div>
+      <!-- BUG-055 (S31): "datos del lugar" y "explorar más" eliminados —
+           relictos pre-DA-50 que quedaban vacios o con pills muertas bajo
+           la narracion. Rediseno completo de esta pantalla: DT-16. -->
 
     </div>
 

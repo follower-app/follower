@@ -4977,12 +4977,76 @@ entran a la curaduría OSM es parte de la definición pendiente (tocarla
 implica `POI_CACHE_VERSION++`, deliberadamente fuera de esta tanda de
 interfaz).
 
-sw.js v43→v44. Archivos tocados esta ronda: `gps.js` (BUG-053),
-`explore.css` (blindaje BUG-058), docs. Pendiente de campo: reproducir
-el escenario del secuestro con v44; validar el seguimiento del mapa en
-movimiento real; tercera muerte silenciosa de voz consecutiva confirma
-que el keep-alive iOS necesita revisión propia (candidato a ticket si
-persiste).
+sw.js v43→v44. Archivos tocados en esa ronda: `gps.js` (BUG-053),
+`explore.css` (blindaje BUG-058), docs.
+
+### Continuación Sesión 31 — Tanda v45: BUG-059 (preámbulo hablado), BUG-051, BUG-056, BUG-055 + log de 4 horas
+
+**BUG-059 (nuevo, el hallazgo de la sesión).** Jaime compartió una
+narración real de Igreja de São Lourenço (Lisboa, simulador) que
+empezaba: *"Verificación obligatoria: El extracto menciona: autor (João
+Peres Nogueira), fecha (1258 o 1271)... DEBO incluir... --- No será
+fácil verla desde la calle..."*. Diagnóstico contra código vivo: el
+modelo ejecuta EN VOZ ALTA la "VERIFICACIÓN OBLIGATORIA PRIMERO" del
+bloque de grounding — que nunca le pidió hacerla en silencio (el "No
+muestres esta verificación" del system prompt aplica solo a la
+VERIFICACIÓN FINAL) — y `sanitizeNarration()` solo limpiaba markdown.
+El log de 4 horas confirmó producción: 1207 chars en `onstart` = la voz
+leyó el preámbulo completo. Doble contaminación adicional: el detector
+DT-51 corre sobre ese texto (posible "cumple" por el autor citado en el
+preámbulo, no en el capítulo — falsos positivos en la instrumentación) y
+los conteos de longitud quedaban inflados ~15-20% (matiz registrado en
+DT-62).
+
+**La cara buena de BUG-059 — hallazgo colateral mayor:** el capítulo
+tras el preámbulo incluyó autor, fecha y motivo tejidos con naturalidad
+en la prosa — **primera vez tras seis versiones de prompt fallando
+0/n**. Enumerar los datos en voz alta antes de escribir (chain-of-thought
+accidental) parece ser la técnica que funciona. Registrada como
+candidata a técnica deliberada para v3.7: pedir explícitamente el
+scratchpad de verificación + capítulo, y entregar solo el capítulo.
+
+**Fix BUG-059 (estructural, cero cambio de prompt, cero
+PROMPT_VERSION++):** en `sanitizeNarration()`, patrón determinista —
+inicio con "Verificación/Verification/Mandatory first check" + separador
+`---` dentro de los primeros 1200 chars → corte del preámbulo + log
+`Debug.log`. Sin separador, no toca nada (fallo seguro: se habla el
+preámbulo, como hoy). Un solo punto de inserción cubre voz, detector
+DT-51, cache (sanitize corre también al leer de cache, línea 512) y
+mediciones.
+
+**Resto de la tanda (plan de impresión, ratificado):**
+
+- **BUG-051 (fix aplicado):** `_unlockAudioOnFirstTap()` agregado a
+  `finish()` del title card — cubre el camino automático del timer, no
+  solo el tap. Si iOS rechaza el desbloqueo sin gesto directo, la red de
+  seguridad de `initExplore()` queda intacta: nunca peor que antes.
+- **BUG-056 (fix aplicado):** `csSteps`/`csKm` eliminados de
+  `index.html` y `updateCareStrip()`. El care strip queda solo con
+  clima. `AppState.steps`/`kmWalked` se siguen calculando (los usa el
+  debug), solo dejaron de mostrarse. La app deja de violar su propio
+  manifiesto.
+- **BUG-055 (fix aplicado):** `renderExpanded()` limpiada — fuera
+  `renderQuickFacts()`, `renderDepthPills()`, `onDepthPill()` (y sus
+  contenedores en `index.html`), y las dos referencias a
+  `Config.getNarratorLabel()`, función que NO existe desde DA-50 y
+  sobrevivía como bomba latente solo porque los elementos que la
+  invocaban ya no están en el HTML. El rediseño de la pantalla sigue
+  siendo DT-16.
+
+**Análisis del log de 4 horas (Barcelona → Sintra → Lisboa → Cali):**
+wake lock ya rutinario (rechazo→gesto→adquirido + re-adquisiciones
+automáticas); primer cache hit de narración registrado (Parque Güell,
+13ms vs ~5000ms de API — el cache por huella funcionando); el
+safety-timer de 792s del Palácio de Sintra NO es regresión — el timer
+estuvo congelado en background (JS suspendido; nada corre ahí), y lo que
+importa es que al volver la app se destrancó sola y siguió narrando;
+rescates en primer plano dentro del techo (87-94s). Ruido de `canceled`
+al saltar rápido entre POIs en simulador — esperable, a vigilar en
+caminata real.
+
+sw.js v44→v45. `node --check` OK en narration.js, app.js, poi.js.
+Archivos: narration.js, app.js, poi.js, index.html, sw.js.
 
 ---
 

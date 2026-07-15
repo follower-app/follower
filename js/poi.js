@@ -1138,7 +1138,10 @@ const POI = (() => {
     const badge   = document.getElementById('poiMoodBadge');
 
     if (title)   title.textContent   = poi.name;
-    if (badge)   badge.textContent   = `${Config.getNarratorLabel()} · diástole`;
+    // BUG-055 (S31): Config.getNarratorLabel() no existe desde DA-50
+    // (narrador unico) — bomba latente que sobrevivia solo porque el
+    // elemento #poiMoodBadge ya no esta en el HTML y el guard la esquivaba
+    if (badge)   badge.textContent   = 'diástole';
 
     if (metaRow) {
       const year = poi.tags?.['start_date']
@@ -1152,76 +1155,16 @@ const POI = (() => {
       `;
     }
 
-    // Player music — intro por narrador (sin mood)
-    const musicName = document.getElementById('playerMusicName');
-    const musicMood = document.getElementById('playerMusicMood');
-    if (musicName) musicName.textContent = Config.getNarratorLabel();
-    if (musicMood) musicMood.textContent = '';
-
     // Narración en curso
     const narText = document.getElementById('narrationText');
     if (narText && typeof Narration !== 'undefined') {
       narText.innerHTML = Narration.getCurrentText() || 'Generando narración...';
     }
 
-    // Datos rápidos desde tags OSM
-    renderQuickFacts(poi);
-
-    // Pills de profundidad
-    renderDepthPills(poi);
-  }
-
-  /* ── DATOS RÁPIDOS desde OSM tags ── */
-  function renderQuickFacts(poi) {
-    const container = document.getElementById('quickFacts');
-    if (!container) return;
-
-    const facts = [];
-    const tags  = poi.tags || {};
-
-    if (tags['capacity'])    facts.push({ value: tags['capacity'],    label: 'capacidad' });
-    if (tags['start_date'])  facts.push({ value: tags['start_date'],  label: 'año' });
-    if (tags['height'])      facts.push({ value: tags['height'] + 'm',label: 'altura' });
-    if (tags['wikipedia'])   facts.push({ value: 'Wikipedia', label: 'fuente' });
-
-    // Siempre mostrar al menos distancia y tipo
-    facts.unshift({ value: `${poi._distanceMeters || '?'}m`, label: 'distancia' });
-    facts.unshift({ value: poi.type || 'lugar', label: 'tipo' });
-
-    container.innerHTML = facts
-      .slice(0, 4)
-      .map(f => `
-        <div class="fact">
-          <div class="fact-value">${f.value}</div>
-          <div class="fact-label">${f.label}</div>
-        </div>
-      `).join('');
-  }
-
-  /* ── PILLS DE PROFUNDIDAD ── */
-  function renderDepthPills(poi) {
-    const container = document.getElementById('depthPills');
-    if (!container) return;
-
-    const pills = ['historia', 'arquitectura', 'curiosidades', 'hoy en día'];
-
-    container.innerHTML = pills.map((p, i) => `
-      <div class="depth-pill ${i === 0 ? 'active' : ''}"
-           onclick="POI.onDepthPill('${p}', this)">
-        ${p}
-      </div>
-    `).join('');
-  }
-
-  /* ── TAP EN PILL DE PROFUNDIDAD ── */
-  function onDepthPill(topic, el) {
-    document.querySelectorAll('.depth-pill')
-      .forEach(p => p.classList.remove('active'));
-    el.classList.add('active');
-
-    if (typeof Narration !== 'undefined' && AppState.activePOI) {
-      Narration.trigger(AppState.activePOI, Config.get('mood'), Config.get('lang'), topic);
-    }
+    // BUG-055 (S31): renderQuickFacts() y renderDepthPills() eliminadas —
+    // relictos del sistema de narradores multiples pre-DA-50 que seguian
+    // mostrando ficha tecnica y pills muertas bajo la narracion. El
+    // rediseno completo de esta pantalla es DT-16.
   }
 
   /* ── TAP EN MARCADOR DEL MAPA ── */
@@ -1300,7 +1243,6 @@ const POI = (() => {
     },
     renderExpanded,
     onMarkerTap,
-    onDepthPill,
     activateFromBar,
     resetPOIs,
     getPOIs: () => _pois

@@ -187,6 +187,18 @@ function updateHistCount() {
   const listEl = document.getElementById('nearbySelectorList');
   if (!listEl) return;
 
+  // BUG-058 CAUSA REAL (S31): este innerHTML se reescribia en CADA tick de
+  // stats. En iOS un tap tarda ~200ms entre touchstart y click; si el
+  // elemento tocado es destruido y recreado a mitad del gesto (simulador en
+  // movimiento => distancias cambian => rebuild constante), Safari CANCELA
+  // el click por completo — no burbujea, no llega ni al contenedor. Todos
+  // los taps dentro del panel morian contra un DOM que ya no existia:
+  // pantalla "secuestrada". Fix: con el panel ABIERTO, congelar el rebuild
+  // (contenido levemente desactualizado mientras esta abierto — aceptable);
+  // se reconstruye en el siguiente tick tras cerrarse.
+  const selectorEl = document.getElementById('nearbySelector');
+  if (selectorEl && !selectorEl.classList.contains('hidden')) return;
+
   if (sorted.length === 0) {
     listEl.innerHTML = `<div class="style-card" style="justify-content:center;">
       <span style="font-size:11px;color:var(--color-smoke-2);">Sin historias cercanas por ahora</span>
@@ -282,15 +294,13 @@ function _showTitleCard(onDone) {
     if (done) return;
     done = true;
     if (iv) clearInterval(iv);
-    // BUG-051 (S31, validado en campo): si el usuario NO toca el title card
-    // y este termina solo por el timer, el audio quedaba bloqueado y el
-    // saludo esperaba un tap extra en explore (la "red de seguridad").
-    // Desbloquear aqui cubre ambos caminos — el gesto reciente existe
-    // (tap de apertura de la app o del wizard); la funcion es idempotente
-    // por bandera de carga de pagina (DA-77). Si iOS igual lo rechaza por
-    // falta de gesto directo, la red de seguridad de initExplore sigue
-    // exactamente donde estaba — comportamiento nunca peor que el actual.
-    _unlockAudioOnFirstTap();
+    // BUG-051 CERRADO con veredicto de plataforma (S31, campo 15-jul noche):
+    // el desbloqueo automatico desde el timer NO funciona — iOS acepta la
+    // llamada sin error pero sin efecto, la bandera queda en true falsamente,
+    // _pendingWelcome no retiene nada y TODA la sesion de audio muere en
+    // silencio (peor que el sintoma original). El desbloqueo de audio en iOS
+    // exige gesto directo del usuario; no existe camino automatico. La
+    // respuesta de diseño es el umbral "toca para comenzar" de abajo.
     if (cardId) Debug.metricEnd(cardId, isFirst ? 'first-time' : 'returning-user');
     onDone();
   };
@@ -321,12 +331,23 @@ function _showTitleCard(onDone) {
       );
     }
     if (fill)  fill.style.width = '100%';
-    if (label) label.textContent = ok ? 'listo ✓' : 'continuando sin GPS...';
 
-    // Piso de permanencia — que el title card no sea un flash aunque los
-    // datos ya estuvieran listos (p.ej. primera vez, prefetch del paso 1)
     const elapsed   = performance.now() - startTs;
     const remaining = Math.max(TITLECARD_MIN_MS - elapsed, 0);
+
+    // BUG-051, decision B (S31): si el audio sigue bloqueado al completar la
+    // carga, el title card NO avanza solo — se convierte en umbral
+    // intencional: "toca para comenzar". Ese tap es gesto real garantizado
+    // (tapFinish ya desbloquea y avanza), el saludo suena al entrar, y el
+    // tap deja de ser un misterio para volverse la puerta de entrada.
+    // Si el audio ya esta desbloqueado (wizard primera vez, o tap temprano
+    // en el title card), avanza solo como siempre.
+    if (!_audioUnlocked) {
+      if (label) label.textContent = 'toca para comenzar';
+      return; // tapFinish (registrado abajo) es el unico camino de salida
+    }
+
+    if (label) label.textContent = ok ? 'listo ✓' : 'continuando sin GPS...';
     setTimeout(finish, remaining);
   });
 

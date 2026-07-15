@@ -5048,6 +5048,76 @@ caminata real.
 sw.js v44→v45. `node --check` OK en narration.js, app.js, poi.js.
 Archivos: narration.js, app.js, poi.js, index.html, sw.js.
 
+### Continuación Sesión 31 — Ronda v46: BUG-051 cerrado con veredicto de plataforma (decisión B) y BUG-058 con causa real encontrada
+
+**BUG-051 — el fix v45 resultó PEOR que el síntoma, y eso cerró la
+pregunta abierta.** Log de campo (18:22-18:28): primera apertura con tap
+real → todo sonó. Segunda apertura sin tocar → `finish()` llamó el
+unlock desde el timer → iOS lo aceptó **sin error y sin efecto** → la
+bandera `_audioUnlocked` quedó en `true` falsamente → `_pendingWelcome`
+no retuvo nada y la red de seguridad no tenía qué rescatar → cero
+`onstart` en toda la sesión: bienvenida y DOS narraciones completas
+mudas (892 y 992 chars hablados a la nada). Veredicto de plataforma,
+documentado y cerrado: **el desbloqueo de audio en iOS exige gesto
+directo del usuario; no existe camino automático.**
+
+**Decisión B ratificada por Jaime — el tap se vuelve diseño:** si al
+completar la carga el audio sigue bloqueado, el title card no avanza
+solo — la etiqueta cambia a **"toca para comenzar"** y espera. Ese tap
+es gesto real garantizado (`tapFinish` ya desbloquea y avanza), el
+saludo suena al entrar a explore, y el tap deja de ser un misterio para
+volverse umbral intencional — el "presiona start" de la experiencia. Si
+el audio ya está desbloqueado (corazón del wizard en primera vez, o tap
+temprano sobre el title card), avanza solo como siempre. Se eliminó el
+unlock falso de `finish()`.
+
+**Victoria del mismo log: la recuperación por `visibilitychange`
+(BUG-057) se ejercitó DOS veces y funcionó perfecta** — síntesis muerta
+tras volver del background → rescate en ~1.5s → POI marcado → siguiente
+narración normal. Y el detector DT-51 dio su primera "falla" honesta
+(Gaudí ausente del capítulo de la Sagrada Familia) — con BUG-059
+limpiando el texto, la instrumentación ya mide de verdad.
+
+**BUG-058 — hipótesis del overlay DESCARTADA, causa real encontrada.**
+El secuestro se repitió con v45 (blindaje pointer-events activo), lo que
+descartó la hipótesis por el criterio que dejamos escrito. Causa real:
+`updateHistCount()` reescribía `listEl.innerHTML` con la lista completa
+en **cada tick de stats**. En iOS un tap tarda ~200ms entre `touchstart`
+y `click`; si el elemento tocado es destruido y recreado a mitad del
+gesto — y el simulador en movimiento cambia las distancias en cada tick,
+forzando rebuild constante — Safari **cancela el click por completo**,
+sin burbujeo: no llega ni al contenedor. Todos los taps dentro del panel
+morían contra un DOM que ya no existía. Los taps al mapa en modo
+"Dibujar ruta" los consume además el handler de waypoints del simulador
+— por eso tampoco el mapa cerraba. Fix: con el panel abierto, el rebuild
+se congela (contenido levemente desactualizado mientras está abierto —
+aceptable); se reconstruye en el siguiente tick tras cerrarse. El
+blindaje pointer-events del overlay (v44) se conserva como defensa
+válida en sí misma.
+
+**Hallazgos de escritorio de la misma ronda (sin código):**
+- **Narración-regaño (simulador):** el modelo rompió el personaje ante
+  la contradicción ciudad-extracto ("dices estar en Cali pero el
+  extracto es de Barcelona...") producida por la carrera del
+  teletransporte: trigger a las 12:47:57, `fetchCityName` de Barcelona
+  recién a las 12:51:04 — el prompt salió con la ciudad vieja. En
+  caminata real es casi imposible, pero la cola de producción existe
+  (abrir la app en ciudad nueva → POI activado antes de que resuelva la
+  ciudad) — refuerza DT-60 como prioridad. Regla de blindaje anotada
+  para v3.7: nunca romper el personaje; ante contradicción, confiar en
+  el extracto. El regaño quedó cacheado para ese POI; el
+  `PROMPT_VERSION++` de v3.7 lo purgará.
+- **Media DT-62 resuelta leyendo código:** `callClaude()` envía
+  `body.system = systemPrompt` como campo `system` REAL de la API,
+  separado de `messages`. En producción el Prompt Maestro viaja por el
+  canal correcto — la duda metodológica de S28 era sobre las pruebas de
+  escritorio, no sobre producción. Falta solo confirmar que el Worker
+  reenvía sin tocar. Consecuencia: las violaciones de longitud en
+  producción ya no tienen excusa metodológica — el problema queda
+  oficialmente en la cancha del prompt v3.7.
+
+sw.js v45→v46. Archivos: app.js, sw.js.
+
 ---
 
 *Follower — Bitácora v0.9 | Sesión 31 | 14 Julio 2026*

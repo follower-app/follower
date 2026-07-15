@@ -8,7 +8,7 @@
 
 // Incrementar CACHE_VERSION fuerza descarga de todos los archivos
 // en el proximo arranque — incluso si el navegador tiene version cacheada.
-const CACHE_VERSION = 'follower-v41';  // icono PWA: sin ticks cardinales, aguja rombo liso (sin muesca concava), corazon+aguja agrandados 0.78->1.0, fondo oscuro #0d1420
+const CACHE_VERSION = 'follower-v42';  // DT-54: nuevo js/walkmode.js (wake lock + modo caminata), hooks en gps/app, overlay en index, estilos en explore.css
 
 const STATIC_ASSETS = [
   './',
@@ -22,6 +22,7 @@ const STATIC_ASSETS = [
   './js/voice.js',
   './js/weather.js',
   './js/care.js',
+  './js/walkmode.js',
   './js/routes.js',
   './js/debug.js',
   './js/debug-sim.js',

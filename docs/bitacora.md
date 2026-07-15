@@ -4620,4 +4620,220 @@ primera vez y recurrente) — sin cambios esta sesión, no se tocó
 
 ---
 
-*Follower — Bitácora v0.9 | Sesión 30 | 14 Julio 2026*
+## Sesión 31 — 14 Julio 2026 — Auditoría de deuda técnica/interfaz/Care + 6 bugs de campo + DA-84 (brújula)
+
+**Tipo de sesión: revisión + diseño puro. Cero código tocado.**
+
+Sesión de escritorio dividida en dos partes: (1) auditoría cruzada de
+deuda técnica, deuda de interfaz, bugs generales, manifiesto de Care vs.
+implementación real, y narración/voz robótica — pedida por Jaime para
+tener panorama antes de seguir con DT-62; (2) seis bugs de interfaz que
+Jaime traía anotados de uso real, más una pregunta técnica sobre la
+brújula que terminó en decisión de arquitectura (DA-84).
+
+### Parte 1 — Auditoría cruzada
+
+Sin cambios de código ni de tickets nuevos — solo síntesis de lo ya
+registrado, para ubicar a Jaime antes de la próxima sesión de escritorio
+(DT-62):
+
+- **Deuda técnica activa:** DT-51/62/61 siguen siendo la cadena
+  bloqueante principal (DT-62 es prerequisito lógico de DT-61 y de
+  cualquier ajuste de prompt por longitud/personificación). DT-63 y
+  DT-54 (wake lock) siguen como las de mayor riesgo práctico sin caminata
+  de campo todavía.
+- **Deuda de interfaz (`deuda_tecnica_interfaz.md`):** confirmado que la
+  mayoría de sus ítems de S19 ya fueron absorbidos por DA-77/81 y
+  DT-45/47 — candidato real a archivar como histórico, dejando DT-16
+  como el único ítem de interfaz genuinamente vivo.
+- **Manifiesto Care vs. código:** la brecha grande de S19 (lluvia como
+  "segundo sistema separado", prohibido explícitamente por el
+  manifiesto) fue cerrada por DA-65/DT-42. Pendiente suelto encontrado
+  de nuevo en esta revisión: `Care.resetWalk()` sigue existiendo en
+  `care.js` sin cablear en `app.js` (deuda ya anotada en su momento,
+  S19, nunca resuelta) — `_thirstShownThisWalk` posiblemente no se
+  resetea entre caminatas reales.
+- **Narración vs. voz robótica:** dos problemas distintos que no deben
+  confundirse. Narración (DT-51/61/62) es un problema de *contenido*
+  del modelo. Voz robótica (DT-59, sin ratificar) es un problema de
+  *selección de voz* en `voice.js` — prioriza locales para español y
+  online para el resto de idiomas; en iOS las locales de español suelen
+  ser las "compact" del sistema. Nunca confirmado con el log real qué
+  voz se usa en campo antes de decidir tocar código.
+
+### Parte 2 — Seis bugs de campo (BUG-051 a BUG-056)
+
+Revisados contra el código en vivo (`raw.githubusercontent.com`, Regla
+de Oro) antes de registrar cualquier hipótesis. Ninguno tiene fix
+aplicado — quedan documentados en `producto.md` §19 como hipótesis a
+confirmar en campo, no como causas cerradas:
+
+1. **BUG-051** — tap extra necesario tras configurar por primera vez
+   para que suene el saludo. Hipótesis: falta auto-avance en
+   `_showTitleCard()` cuando los datos resuelven antes del techo de 8s.
+2. **BUG-052** — saludo dice "tu ciudad tiene historias que contarte"
+   en vez del nombre real. Confirmado: es literalmente
+   `getCityIntroFallback()` en `narration.js`, el camino de emergencia
+   de Nominatim, disparándose más de lo esperado. Se recomienda
+   fusionar con DT-63 en vez de abrir ticket propio — misma causa raíz
+   que el hallazgo sin instrumentar de `fetchCityName()` (S25d).
+3. **BUG-053** — el mapa no sigue al caminante. Confirmado en código:
+   `updateUserPosition()` (`gps.js`) solo mueve el marcador, nunca el
+   mapa; `centerMap()` solo se dispara manualmente desde `btnCenter`.
+   Pendiente ratificar si el comportamiento deseado es auto-centrado
+   continuo o manual — hoy no es ninguno de los dos de forma útil.
+4. **BUG-054** — el pill de "siguiente POI" no se cierra con un segundo
+   tap. El código de `btnNearbyStories` en `app.js` usa
+   `classList.toggle('hidden')`, que en teoría sí debería cerrar.
+   Pendiente descartar solapamiento visual o reapertura periódica antes
+   de tener causa confirmada.
+5. **BUG-055** — pantalla de POI expandido con información sobrante de
+   v1. Confirmado: `renderExpanded()` (`poi.js`) sigue llamando
+   `renderQuickFacts()` y `renderDepthPills()`, relictos pre-DA-50, más
+   una referencia a `Config.getNarratorLabel()` probablemente muerta.
+   No es un bug nuevo — es la ejecución pendiente de **DT-16**.
+6. **BUG-056** — el care strip superior sigue mostrando pasos y km.
+   Confirmado en `index.html`: `#careStrip` conserva `csSteps`/`csKm`
+   de DA-19 (S9, v0.6), anterior al manifiesto de Care vigente. Viola
+   textualmente "no es una app fitness". DT-42 nunca tocó esta barra
+   persistente, solo el contenido de las care cards. Requiere decisión
+   de diseño (eliminar / ocultar salvo alerta / rediseñar con DT-16).
+
+### DA-84 — Brújula: permiso silencioso, sin ícono; cono solo con POI activo
+
+Pregunta de Jaime: ¿se puede tener la brújula "siempre activa" para
+eliminar el ícono y el permiso? Respuesta técnica: el **permiso** no se
+puede evitar ni pedir una sola vez para siempre — iOS 13+ exige gesto
+directo (`requestPermission()`) y, a diferencia de GPS, no lo persiste
+entre recargas de página. Pero el **ícono/botón sí es eliminable**: nada
+obliga a que el gesto que dispara el permiso sea un botón dedicado.
+
+Decisión: pedir el permiso dentro del mismo tap ya usado para
+`_unlockAudioOnFirstTap()` (DA-77) — wizard paso 4 o primer tap del
+title card. Una vez concedido, el heading se lee en silencio de fondo
+toda la sesión, sin estados reposo/latido/activo ni botón propio. El
+cono visual en el mapa deja de ser manual y pasa a mostrarse **solo
+cuando hay un POI activo** (fase diástole) — refuerza "el compañero te
+ayuda a encontrar la historia", no "herramienta de navegación
+permanente". Se elimina `#btnCompass` y las funciones de activación
+manual; se conserva el cono SVG combinado (BUG-027) y el listener de
+`DeviceOrientationEvent`. Diseño cerrado, sin código tocado esta sesión
+— ver DA-84 (`arquitectura.md`) para el detalle completo y DT-64
+(`producto.md`) para el ticket de implementación. Redefine el alcance
+de DT-20.
+
+### Pendiente
+
+Ningún archivo `.js`/`.html`/`.css` tocado esta sesión — sw.js se
+mantiene en v41. Los seis bugs y DT-64 quedan como diseño/hipótesis
+registrados, a la espera de definición punto por punto y/o validación
+de campo antes de escribir cualquier fix.
+
+---
+
+### Continuación Sesión 31 — Verificación en código real de DA-81/DT-60
+
+Jaime pidió confirmar contra código, no contra este documento, si DT-60
+estaba realmente cerrada como decía la bitácora de S29. Se releyó
+`_showTitleCard()` completa en `app.js` (vivo, GitHub raw) en vez de
+confiar en el resumen de DA-81.
+
+**Resultado: DA-81 estaba incompleta en un punto central.** Es cierto
+que el splash se eliminó del todo (`#screen-splash` no existe,
+`runSplash()`/`expandHeart()` no existen — confirmado). Pero la frase
+"el title card absorbe la carga real de GPS/ciudad/POIs" no es exacta:
+`dataPromise` en `_showTitleCard()` solo espera
+`requestGPSPermission()` — ni `fetchCityName()` ni la carga de POIs
+están adentro de esa promesa. Ambas arrancan recién en `initExplore()`,
+después de que el title card ya navegó a explore. La barra de progreso
+es puramente cosmética (`Math.random()` por tick).
+
+**Esto resultó ser la causa exacta de dos de los seis bugs reportados
+antes en la misma sesión — no había que especular más:**
+
+- **BUG-051** (tap extra tras configurar): el tap sobre el title card
+  llama `_unlockAudioOnFirstTap()` antes de `finish()`; si el usuario no
+  toca y el title card termina solo por el timer de piso/techo,
+  `_audioUnlocked` queda en `false`. `initExplore()` ya tiene, con
+  comentario explícito en el código, una "red de seguridad" — un
+  listener global de `touchend`/`click` de una sola vez para desbloquear
+  audio en el primer tap de exploración si nadie tocó wizard ni title
+  card. Ese es, literalmente, el tap extra que describía Jaime.
+- **BUG-052** (saludo genérico): `_scheduleWelcomeFallback()` corre su
+  ventana de 10s desde que arranca `initExplore()`, no desde el arranque
+  de la app. Como `fetchCityName()` ni siquiera empieza hasta ese punto,
+  el margen real antes de caer a `getCityIntroFallback()` es más corto
+  de lo que el diseño original (DA-77/S25c) asumía.
+
+**Decisiones tomadas, sin tocar código todavía:**
+- **DT-60 reabierta** en `producto.md`, con alcance corregido: extender
+  `dataPromise` para esperar también `fetchCityName()` y el primer batch
+  de POIs (mismo techo de 8s).
+- **BUG-051 y BUG-052 pasan de "hipótesis" a "confirmado en código"** en
+  la tabla de bugs, y se fusionan con DT-60 en vez de quedar sueltos —
+  comparten la misma causa raíz.
+- **DA-81 (`arquitectura.md`) recibe una corrección**, no una reescritura
+  — se preserva el diseño original documentado en S29 y se agrega el
+  hallazgo de S31 debajo, con la cita exacta de código que lo sostiene.
+
+**Lección de proceso:** la bitácora de S29 daba el ticket por cerrado
+basándose en la intención de diseño acordada, no en una lectura línea por
+línea del archivo final entregado — el mismo patrón de desfase ya visto
+en S27b (mensajes de commit desalineados) y en el propio DA-81 (íconos y
+textos acordados en chat que no llegaron al archivo). Refuerza la Regla
+de Oro: ante cualquier duda sobre si algo "ya quedó hecho", el árbitro es
+el código en `raw.githubusercontent.com`, no el resumen que quedó escrito
+sobre él.
+
+### Validación de campo — BUG-051 confirmado en dispositivo real (no solo en código)
+
+Tras el análisis de código de la sección anterior, Jaime reprodujo el
+síntoma en su iPhone real, cerrando y reabriendo la app en Cali: el
+saludo *"Cali. Un capítulo te espera en cada esquina, Jaime."* — plantilla
+`CITY_WELCOME` de `narration.js` (DA-75, nombre correctamente insertado al
+final de la frase, confirmando que ese punto específico sí funciona bien
+— no es parte del bug) — **solo sonó al tocar la pantalla**, no al abrir
+la app. Confirma exactamente el mecanismo ya identificado por lectura de
+código: el camino automático de `_showTitleCard()` (`finish()` disparado
+por el timer de piso/techo) no llama `_unlockAudioOnFirstTap()` — solo lo
+hace el camino de tap manual (`tapFinish`). El saludo quedó correctamente
+resuelto y guardado en `_pendingWelcome`, pero bloqueado hasta el primer
+tap de la "red de seguridad" en `initExplore()`.
+
+**Descripción correcta del síntoma, en palabras de Jaime:** el saludo se
+activa al hacer tap, no automáticamente al abrir la app — la app debería
+hablar sola con solo abrirla.
+
+**Fix propuesto, sin aplicar todavía (pendiente de ratificación):** que
+`finish()` en `_showTitleCard()` llame `_unlockAudioOnFirstTap()` en
+ambos caminos (automático y por tap), no solo en `tapFinish`:
+
+```js
+const finish = () => {
+  if (done) return;
+  done = true;
+  if (iv) clearInterval(iv);
+  _unlockAudioOnFirstTap();   // nuevo — cubre también el cierre automático
+  if (cardId) Debug.metricEnd(cardId, isFirst ? 'first-time' : 'returning-user');
+  onDone();
+};
+```
+
+**Pregunta abierta antes de escribir el fix:** iOS exige que
+`speechSynthesis.speak()` cuelgue de un gesto de usuario *reciente*, no
+de cualquier tap en el historial de la sesión. Si el title card corre los
+8 segundos completos sin que el usuario toque nada, no queda claro si
+llamar `_unlockAudioOnFirstTap()` desde el timer automático (sin gesto
+trusted directo en ese instante) sigue siendo válido para
+`speechSynthesis` en iOS Safari, o si WebKit lo descarta igual que
+descarta llamadas fuera de un trusted event (mismo linaje que BUG-036).
+Esto solo se puede confirmar probando en el dispositivo real, no leyendo
+el código — queda como paso previo a aplicar el fix.
+
+Ningún archivo `.js`/`.html`/`.css` tocado — `sw.js` se mantiene en v41.
+El fix queda diseñado y documentado, no aplicado, a la espera de resolver
+la pregunta abierta sobre el gesto trusted en iOS.
+
+---
+
+*Follower — Bitácora v0.9 | Sesión 31 | 14 Julio 2026*

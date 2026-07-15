@@ -2497,6 +2497,33 @@ riesgo estructural, no un accidente aislado — vale la pena que Jaime siga
 verificando con screenshots reales antes de dar por cerrada una sesión de
 código.
 
+**Corrección (Sesión 31) — la carga real NO quedó absorbida como se
+describió arriba.** Al leer `_showTitleCard()` línea por línea contra el
+código en vivo (no contra este documento), `dataPromise` resultó ser
+`isFirst ? Promise.resolve(true) : requestGPSPermission()` — únicamente
+espera el permiso/posición GPS. **No espera `fetchCityName()` ni la carga
+de POIs.** Ambas arrancan recién dentro de `initExplore()`, es decir,
+después de que el title card ya cerró y navegó a explore. La barra de
+progreso es cosmética (`Math.random()` por tick), no refleja ninguna
+carga real de ciudad o POIs.
+
+Consecuencia práctica, reportada por Jaime como dos bugs de campo
+(BUG-051, BUG-052 en `producto.md`) antes de que esta lectura de código
+confirmara la causa: si el usuario no toca el title card y este termina
+solo por el timer, el audio queda bloqueado hasta un tap adicional en
+explore (el propio `initExplore()` ya anticipa este hueco con un listener
+de "red de seguridad" — ver línea ~441 de `app.js`); y el saludo de
+ciudad puede caer al fallback genérico (`getCityIntroFallback()`) más
+seguido de lo esperado, porque el margen de 10s de
+`_scheduleWelcomeFallback()` corre desde que arranca `initExplore()`, no
+desde que arranca la app — y `fetchCityName()` ni siquiera empezó a
+correr para entonces.
+
+**DT-60 vuelve a quedar abierta** (`producto.md`) con alcance corregido:
+extender `dataPromise` para que también espere `fetchCityName()` y el
+primer batch de POIs, con el mismo techo de 8s, antes de decidir si hace
+falta rediseño o solo ajuste de código.
+
 ---
 
 ## DA-82 (cierra DT-1) — Logo e iconos PWA finales
@@ -2589,4 +2616,58 @@ propia evaluación estética.
 
 ---
 
-*Follower — Arquitectura v0.9 | Sesión 30 | 14 Julio 2026*
+## DA-84 — Brújula: permiso silencioso siempre activo, sin ícono propio; cono condicional a POI activo
+
+**Contexto (Sesión 31).** Jaime preguntó si el permiso de orientación
+(`DeviceOrientationEvent.requestPermission()`, hoy detrás de `#btnCompass`
+con sus 3 estados reposo/latido/activo — DA-22, Sesión 9) podía quedar
+"siempre activo" para eliminar el ícono y la fricción del permiso, dado
+que su utilidad real es orientar al caminante hacia el POI, no ofrecer
+una brújula manipulable.
+
+**Restricción técnica confirmada, no evitable.** iOS 13+ exige que
+`requestPermission()` se dispare desde un gesto directo del usuario
+(trusted event) — no existe forma de solicitarlo sin tap, y a diferencia
+de GPS o notificaciones, **iOS no persiste esta decisión entre recargas
+de página**: hay que volver a pedirlo en cada apertura de la app. Android/
+Chrome es más laxo y no siempre lo gatea detrás de un tap.
+
+**Decisión — separar permiso de UI.** El botón/ícono de brújula no es lo
+mismo que el permiso, y solo el permiso tiene la restricción real:
+
+1. **Permiso:** se solicita una sola vez por apertura de app, dentro del
+   mismo gesto ya usado para `_unlockAudioOnFirstTap()` (DA-77) — wizard
+   paso 4 en primera vez, o el primer tap del title card en usuario
+   recurrente. Mismo patrón de "restricción técnica disfrazada de gesto
+   ya necesario" que DT-47 aplicó a la voz. Una vez concedido, el heading
+   se lee en silencio de fondo durante toda la sesión — sin estado
+   reposo/latido/activo, sin botón propio.
+2. **Cono visual en el mapa:** deja de estar atado a un estado "activo"
+   disparado por tap. Pasa a mostrarse **solo cuando hay un POI activo**
+   (`AppState.activePOI` con fase diástole) — el cono ayuda a orientar al
+   caminante hacia el lugar que se le está narrando, no funciona como
+   herramienta de navegación permanente. Coherente con la pregunta
+   rectora: un cono siempre visible se siente a herramienta de mapa
+   (audioguía/navegador); un cono que aparece solo cuando hay una historia
+   activa se siente a "el compañero te ayuda a encontrar lo que está por
+   contarte".
+
+**Se elimina de la UI:** `#btnCompass`, los 3 estados visuales
+(`compass-pulse-ring`, transición de `#compassNeedle` por tap), y
+`_activateCompass()`/`_deactivateCompass()` como acciones manuales del
+usuario.
+
+**Se conserva de DA-22:** el cono SVG combinado dentro del mismo `divIcon`
+del usuario (fix de BUG-027, alineación perfecta), `updateHeadingCone()`,
+y el listener de `DeviceOrientationEvent` en sí — solo cambia cuándo se
+pide el permiso y cuándo se muestra el resultado.
+
+**Diseño cerrado, sin código tocado esta sesión** (mismo patrón que S24 —
+define primero, implementa después). Ver DT-64 (`producto.md`) para el
+ticket de implementación. Relacionado con DT-20 (test de campo de la
+brújula con `DeviceOrientation` real en iOS) — DT-20 pasa a validar este
+diseño nuevo, no el botón de 3 estados original.
+
+---
+
+*Follower — Arquitectura v0.9 | Sesión 31 | 14 Julio 2026*

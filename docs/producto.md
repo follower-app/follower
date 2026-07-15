@@ -280,12 +280,12 @@ El Prompt Maestro v2.7 (narrador único) tiene versiones en español e inglés. 
 
 ---
 
-## 19. Deuda Técnica Activa *(actualizada a Sesión 30 — 14 julio 2026)*
+## 19. Deuda Técnica Activa *(actualizada a Sesión 31 — 14 julio 2026)*
 
 | ID | Descripción | Prioridad |
 |----|-------------|-----------|
 | DT-1 | Logo SVG final + iconos PWA | **CERRADA** (S29) — assets/logo.svg, assets/icon-master.svg, assets/icons/*.png |
-| DT-60 | Mover carga real de GPS/ciudad/POIs al wizard (paso 2 idioma) + title card; splash pasa a ser estático (sin latido, sin mensajes, sin nombre — corazón+brújula quietos y anónimos). Personalización (nombre, ciudad, "Soy Follower") concentrada en el gesto del corazón al final del wizard. Refinamiento clave: el mecanismo ya existe (DA-77 pendiente+TTL) — si `fetchCityName()` arranca en paso 2 y resuelve antes del corazón, el saludo suena en ese tap sin código nuevo, vía `_unlockAudioOnFirstTap()` vaciando `_pendingWelcome`. Piedra técnica: Leaflet necesita contenedor visible — separar adquisición de datos de construcción del mapa. Diseño co-creado con Jaime en S25d/g, sesión propia con ratificación punto por punto | Alta |
+| DT-60 | **REABIERTA (S31)** — splash eliminado (confirmado), pero `_showTitleCard()` solo espera GPS, no `fetchCityName()` ni POIs; esas cargas arrancan recién en `initExplore()`, después del title card. Ver sección propia más abajo. Fusiona con BUG-051/052 | Alta |
 | DT-4 | Pantalla resumen del paseo | Media |
 | DT-5 | Más ciudades en routes.js | Baja |
 | DT-8 | debug.js + debug-sim.js deshabilitados antes de v1.0 | Media |
@@ -310,6 +310,26 @@ El Prompt Maestro v2.7 (narrador único) tiene versiones en español e inglés. 
 | DT-51 | Grounding de narración — **implementado, instrumentado (S28), NO cerrado.** S27b: prueba n=4 confirmó autor/fecha 0/4 tras cuatro enfoques de redacción — se descartó seguir ajustando texto del prompt. S28 ejecutó el enfoque estructural recomendado: detector determinista (regex, patrón de atribución + ventana ±1 oración + veredicto OR) validado 3/3 contra narraciones REALES de Claude Haiku 4.5 para Maceta/Pasto/Sagrada Familia (metodología exploratoria, sin confirmar `system` real vs. concatenado — ver DT-62). Implementado en producción como **solo instrumentación/logging** (`Debug.log`, no altera ni bloquea la narración) — decisión explícita de no regenerar ni insertar todavía, a la espera de evidencia real de campo. `PROMPT_VERSION` se mantiene v3.6 (sin cambios de prompt esta sesión). `sw.js` v34 | Alta |
 | DT-62 | Revalidar metodología de prueba de prompt — campo `system` real de la API vs. concatenado en un mensaje. Motivado por hallazgo colateral de S28: las 3 narraciones reales usadas para validar DT-51 (generadas sin confirmar cuál de las dos formas se usó) mostraron longitud excedida 3/3 (153-198 palabras vs. objetivo 90-130/150) y personificación de la ciudad 2/3 — ambas prohibidas por el Prompt Maestro v3.6. Repetir el experimento confirmando `system` real determina si son fallas genuinas del prompt o artefacto metodológico de esta sesión. Registrada, pendiente de definición punto por punto | Alta |
 | DT-61 | Criterio de narrabilidad de POI — evaluar si TODO POI detectado merece capítulo completo, o si los que no tienen sustancia real (sin extracto útil, sin nada observable distintivo) deberían anunciarse simple ("Aquí está la Iglesia San Felipe") en vez de forzar 90-130 palabras y arriesgar inventar contenido para llenar el hueco. Propuesto por Jaime al cierre de Sesión 27, pendiente de definición punto por punto | Alta |
+| DT-63 | Validar en campo el flujo sin splash (DA-81) — primera vez y usuario recurrente. Ver detalle en sección propia más abajo | Alta |
+| DT-64 | Brújula (DA-84, S31, diseño cerrado sin código): permiso de orientación silencioso dentro del gesto ya existente (`_unlockAudioOnFirstTap`/wizard paso 4 o primer tap del title card) — sin ícono ni estados reposo/latido/activo. Cono visual en el mapa condicionado a `AppState.activePOI` (solo con POI activo en diástole), no a un botón manual. Elimina `#btnCompass` y `_activateCompass()`/`_deactivateCompass()` manuales; conserva el cono SVG combinado del marcador de usuario (BUG-027) y el listener de `DeviceOrientationEvent`. Retoma y redefine el alcance de DT-20 | Alta |
+
+### Bugs de interfaz — reportados Sesión 31
+
+Los seis reportados por Jaime, revisados contra el código en vivo (no
+contra memoria) antes de registrarlos. **BUG-051 y BUG-052 quedaron
+confirmados en código** en la misma sesión (leyendo `_showTitleCard()` y
+`_scheduleWelcomeFallback()` línea por línea) y se fusionan con DT-60
+reabierta. Los otros cuatro siguen como hipótesis sin fix aplicado — a la
+espera de confirmación en campo antes de tocar código.
+
+| ID | Descripción | Causa | Prioridad |
+|----|-------------|-------|-----------|
+| BUG-051 | Tras configurar por primera vez, reabrir la app requiere un tap extra para que suene el saludo | **CONFIRMADO en código Y en campo (S31).** El tap sobre el title card llama `_unlockAudioOnFirstTap()` antes de `finish()` — pero si el usuario no toca y el title card termina solo (timer de piso/techo), `finish()` corre sin desbloquear audio. Reproducido en iPhone real: "Cali. Un capítulo te espera en cada esquina, Jaime." solo sonó al tocar la pantalla, no al abrir la app. Fix diseñado (mover `_unlockAudioOnFirstTap()` a `finish()`, ambos caminos) — sin aplicar, pendiente confirmar si un gesto no-trusted del timer automático es válido para `speechSynthesis` en iOS. Ver `bitacora.md` S31 | Alta |
+| BUG-052 | El saludo dice "tu ciudad tiene historias que contarte" en vez del nombre real de la ciudad | **CONFIRMADO en código (S31).** `_scheduleWelcomeFallback()` espera 10s desde que arranca `initExplore()` (no desde el arranque de la app) y si `fetchCityName()` no resolvió en ese margen, dispara `getCityIntroFallback()`. Como `fetchCityName()` ni siquiera empieza hasta entrar a explore (el title card no la espera — ver DT-60 reabierta), el margen real es más corto de lo que el diseño asumía. Fusionar con DT-60 reabierta | Alta |
+| BUG-053 | El mapa no sigue al caminante — el marcador se mueve, el mapa queda fijo | Confirmado en código: `updateUserPosition()` en `gps.js` solo mueve el marcador (`setLatLng`), nunca reposiciona el mapa. `centerMap()` existe pero solo se dispara manualmente desde `btnCenter`. No hay auto-follow atado a `onPosition()`. Pendiente ratificar el comportamiento deseado (auto-centrado continuo vs. centrado manual) | Alta |
+| BUG-054 | El pill de "siguiente POI" abre con un tap pero no se cierra con un segundo tap — hay que tocar el mapa | El listener de `btnNearbyStories` en `app.js` usa `classList.toggle('hidden')`, que en teoría sí cierra al segundo tap. Pendiente descartar solapamiento de z-index/overlay sobre el botón una vez abierto, o algún proceso periódico reabriendo la clase | Media |
+| BUG-055 | Pantalla de POI expandido muestra información sobrante de v1 bajo la narración | Confirmado en código: `renderExpanded()` en `poi.js` sigue llamando `renderQuickFacts()` (capacidad/año/altura/fuente) y `renderDepthPills()`, relictos del sistema de narradores múltiples pre-DA-50; también referencia `Config.getNarratorLabel()`, probablemente ya inexistente. Mismo ítem que DT-16 (pantalla POI: rediseñar con nuevo sistema visual) — no es un bug nuevo, es la ejecución pendiente de DT-16 | Media |
+| BUG-056 | El care strip superior sigue mostrando pasos y km caminados | Confirmado en `index.html`: `#careStrip` conserva `csSteps`/`csKm` de DA-19 (S9, v0.6), anterior al manifiesto de Care actual. Viola directamente `manifiesto_care_strip.md` ("no es una app fitness"). DT-42 corrigió el contenido generativo de las care *cards*, pero nunca tocó la barra persistente de arriba. Requiere decisión de diseño: eliminar, ocultar salvo alerta de clima, o rediseñar junto con DT-16 | Alta |
 
 ### Resueltas recientemente
 
@@ -378,16 +398,36 @@ puerta de entrada accesible: la app se presenta hablando, no mostrando.
 
 ---
 
-## DT-60 — CERRADA (revisada, S29)
+## DT-60 — REABIERTA (S31): splash eliminado, pero la carga real NO está completa
 
-Ver `arquitectura.md` DA-81 para el detalle completo. Resumen: en vez de
-"splash pasa a ser estático", el splash se **elimina del todo** —
-`#screen-splash` desaparece de `index.html`, `runSplash()`/`expandHeart()`
-desaparecen de `app.js`. El title card (DT-45) absorbe la función de
-carga real (GPS/ciudad/POIs) tanto para primera vez como para usuario
-recurrente, con una barra de progreso propia.
+Ver `arquitectura.md` DA-81 para el diseño original y su corrección en
+Sesión 31. Lo que SÍ está confirmado en código en vivo: el splash se
+**eliminó del todo** — `#screen-splash` no existe en `index.html`,
+`runSplash()`/`expandHeart()` no existen en `app.js`. `_showTitleCard()`
+es real y funciona como única pantalla de entrada.
 
-## DT-63 (nueva, S29) — Validar en campo el flujo sin splash
+**Lo que la bitácora daba por cerrado en S29 y que Sesión 31 encontró
+incompleto al leer `_showTitleCard()` línea por línea:** la promesa de
+datos que controla la barra (`dataPromise`) solo espera el **permiso/
+posición GPS** (`requestGPSPermission()`). No espera `fetchCityName()`
+(nombre de ciudad) ni la carga de POIs — ambas arrancan recién dentro de
+`initExplore()`, es decir, **después** de que el title card ya cerró y
+navegó a explore. La barra de progreso misma es cosmética
+(`Math.random()` por tick), no refleja el estado real de ninguna carga.
+
+Consecuencia directa, confirmada en código (ver BUG-051 y BUG-052 más
+abajo): el saludo de ciudad puede no estar listo cuando el title card
+termina, y si el usuario no tocó el title card (dejó que terminara solo
+por el timer), el audio queda bloqueado hasta un tap adicional en
+explore — la "red de seguridad" que el propio código ya anticipa en un
+comentario (`initExplore()`, línea ~441).
+
+DT-60 vuelve a quedar activa con alcance corregido: extender
+`dataPromise` para que también espere (con el mismo timeout de 8s)
+`fetchCityName()` y al menos el primer batch de POIs, antes de decidir
+si eso amerita nuevo diseño o solo ajuste de código. Prioridad: Alta.
+
+## DT-63 (S29) — Validar en campo el flujo sin splash
 
 Confirmar en iPhone real ambos caminos del nuevo flujo (post DA-81):
 
@@ -400,9 +440,14 @@ Confirmar en iPhone real ambos caminos del nuevo flujo (post DA-81):
    ciudad de un día a otro (p.ej. Barcelona → Lisboa) la detección
    efectivamente se refresca y no queda pegada a la ciudad anterior.
 
+**Nota S31:** este ticket y DT-60 reabierta comparten la misma raíz —
+validar DT-63 en campo antes de tocar `dataPromise` probablemente
+mostrará el mismo síntoma que ya se encontró leyendo el código. BUG-051
+y BUG-052 se fusionan aquí en vez de mantenerse como bugs sueltos.
+
 Prioridad: Alta — es el único camino de entrada a la app para ambos tipos
 de usuario; cualquier regresión aquí bloquea el uso completo.
 
 ---
 
-*Follower — Documento de Producto v0.9 | Sesión 30 | 14 Julio 2026*
+*Follower — Documento de Producto v0.9 | Sesión 31 | 14 Julio 2026*

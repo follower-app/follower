@@ -10,17 +10,17 @@ Stack: HTML + CSS + JS Vanilla · Leaflet.js · Claude Haiku (vía Cloudflare Wo
 
 Antes de modificar cualquier archivo SIEMPRE preguntar: "¿El archivo [nombre] está actualizado?" — nunca trabajar sobre versiones desactualizadas.
 
-**Contexto crítico:** el panel es la fuente de verdad, pero cada chat recibe una *fotografía estática* al iniciar. Ante sospecha de desfase, el árbitro es GitHub (`raw.githubusercontent.com/follower-app/follower/main/...`). La regresión DA-68 (7 features perdidas) nació de saltarse esta regla.
+**Contexto crítico:** el panel es la fuente de verdad, pero cada chat recibe una *fotografía estática* al iniciar. Ante sospecha de desfase, el árbitro es GitHub (`raw.githubusercontent.com/follower-app/follower/main/...`). La regresión DA-68 (7 features perdidas) nació de saltarse esta regla. La reapertura de DT-60 en S31 (la bitácora la daba por cerrada; el código decía otra cosa) la confirmó otra vez: ante cualquier "ya quedó hecho", el árbitro es el código, no el resumen escrito sobre él.
 
 **Protocolo de cierre:** commit → actualizar panel → actualizar estas instrucciones → chat nuevo. En ese orden.
 
 ## Documentos del proyecto
 
-README · REGLAS_IA · docs/: contexto_maestro (alma, pregunta rectora) · producto (DTs activas, visión v2.0 accesibilidad) · arquitectura (DA-1 a DA-83) · bitacora (hasta S30) · manifiesto_narrativo (voz v3.0) · manifiesto_care_strip · prompt_maestro_follower (oficial, v3.6) · dt42_care_miniprompt · dt45_bienvenida_animada (enmendada S24) · dt47_wizard_mockup_final.html (mockup ratificado) · registro_sesion24_interfaz · restauracion_poi_js (histórico)
+README · REGLAS_IA · docs/: contexto_maestro (alma, pregunta rectora) · producto (DTs activas + tabla de bugs S31, visión v2.0 accesibilidad) · arquitectura (DA-1 a DA-84) · bitacora (hasta S31) · manifiesto_narrativo (voz v3.0) · manifiesto_care_strip · prompt_maestro_follower (oficial, v3.6) · dt42_care_miniprompt · dt45_bienvenida_animada (enmendada S24) · dt47_wizard_mockup_final.html (mockup ratificado) · registro_sesion24_interfaz · restauracion_poi_js (histórico)
 
 ## Arquitectura de archivos
 
-index.html (shell mínimo) · sw.js v41 (siempre último en commits) · manifest.json · css/ (main, splash, explore, poi, modal, components, wizard) · js/ (app, config, gps, poi, narration, voice, weather, care, routes, debug, debug-sim; music.js stubbed) · assets/ (logo.svg, icon-master.svg, icons/ — DT-1 cerrada) · docs/
+index.html (shell mínimo) · sw.js **v46** (siempre último en commits) · manifest.json · css/ (main, splash, explore, poi, modal, components, wizard) · js/ (app, config, gps, poi, narration, voice, weather, care, **walkmode** ←nuevo S31, routes, debug, debug-sim; music.js stubbed) · assets/ (logo.svg, icon-master.svg, icons/ — DT-1 cerrada) · docs/
 
 ## Reglas críticas
 
@@ -32,100 +32,79 @@ index.html (shell mínimo) · sw.js v41 (siempre último en commits) · manifest
 - POIs: **cascada compuesta DA-72** — wiki local+es → si neto < COMPOSITE_THRESHOLD (8) → Overpass nwr curado (Tier 1 siempre; Tier 2 solo si sigue el hambre; fusión wiki-gana) → si neto < EMERGENCY_MIN (3) → en.wikipedia → IndexedDB
 - Curaduría OSM: compuerta 0 (sin nombre → fuera) + blacklist. **Curar antes de exponer (DA-73)**
 - Dedup DT-49: título normalizado + <25m intra-OSM / 60m inter-fuente; wiki gana; el perdedor lega inscription/wikidata
-- Contrato DT-51: `_source: 'wiki'|'osm'` + `_osmType` — wiki narra con hechos (extract real vía `exintro`), osm narra lo observable. Implementado + instrumentado con verificación programática de autor/fecha (S28, DA-80, solo logging vía `Debug.log`, no altera ni bloquea la narración) — ver Pendientes críticos
+- Contrato DT-51: `_source: 'wiki'|'osm'` + `_osmType` — wiki narra con hechos (extract real vía `exintro`), osm narra lo observable. Detector programático de autor/fecha activo (DA-80, solo logging) — con BUG-059 corregido, ya mide texto limpio
 - Wikipedia: cadena [local → es] ACUMULA; en.wikipedia es emergencia FINAL — DA-69/72. Filtro `gsprop=type` — DA-70
 - **DA-71:** cambio en query/filtros/normalización POIs → `POI_CACHE_VERSION++` MISMO commit (actual: **v4**)
-- **DT-50:** cambio al Prompt Maestro → `PROMPT_VERSION++` MISMO commit (actual: **v3.6**). Clave: `${PROMPT_VERSION}_${poiId}_${lang}_${topic}_${extractFingerprint}` — el componente de huella (DT-51, Sesión 27) autoinvalida el cache cuando cambia el extract, sin depender de subir versión
+- **DT-50:** cambio al Prompt Maestro → `PROMPT_VERSION++` MISMO commit (actual: **v3.6**). Clave: `${PROMPT_VERSION}_${poiId}_${lang}_${topic}_${extractFingerprint}`
 - ¿Archivo servido cambió? → sw.js bump, commit final aparte
 - Care y cola narrativa independientes: la cola guarda historias, Care es presente — nunca se encola
 - Nunca mostrar errores al usuario — siempre hay fallback
 - Narración: 90–130 palabras, excepcional 150 (`max_tokens: 380`)
 - **DA-75:** userName en Config (localStorage), solo welcome/farewell. NUNCA en capítulos ni Care. NUNCA viaja al Worker. Fallback sin nombre siempre funcional
-- **DA-77:** saludo de ciudad 100% voz. Voz bloqueada al llegar → pendiente, suena en primer gesto; TTL ~90s → descarte silencioso. `_audioUnlocked` es POR CARGA DE PÁGINA — initExplore no la resetea; `_unlockAudioOnFirstTap()` es la puerta ÚNICA (wizard, title card y explore convergen ahí)
-- **DA-78:** "Soy Follower" es presentación, no bienvenida recurrente. Suena fusionado con el saludo de ciudad SOLO la primera vez que efectivamente se pronuncia (`introHeard` en Config, marcada solo en `onEnd` de `Voice.speak` — un intento fallido no gasta la oportunidad). Wizard paso 4 ya no habla frase de muestra; el desbloqueo de `Voice.unlockFromGesture()` siempre fue silencioso internamente
-- **Hook de campo `?reset=1`:** limpia localStorage y simula primera vez — vía práctica para iPhone sin Web Inspector/consola. No toca IndexedDB. Destino a decidir junto con DT-8 antes de v1.0
+- **DA-77:** saludo de ciudad 100% voz. Voz bloqueada al llegar → pendiente, suena en primer gesto; TTL ~90s → descarte silencioso. `_audioUnlocked` es POR CARGA DE PÁGINA; `_unlockAudioOnFirstTap()` es la puerta ÚNICA
+- **VEREDICTO DE PLATAFORMA (S31, BUG-051 cerrado):** el desbloqueo de audio en iOS exige gesto DIRECTO del usuario — no existe camino automático. Llamar el unlock desde un timer lo acepta sin error y sin efecto, la bandera queda true falsamente y TODA la sesión de audio muere en silencio. NUNCA desbloquear audio fuera de un gesto real. Respuesta de diseño: umbral "toca para comenzar" en el title card (decisión B)
+- **DA-78:** "Soy Follower" es presentación, no bienvenida recurrente. Suena fusionado con el saludo de ciudad SOLO la primera vez efectiva (`introHeard` en Config, marcada solo en `onEnd`)
+- **DA-84 (S31, diseño ratificado — implementación DT-64 pendiente):** brújula sin ícono ni estados; permiso de orientación dentro del gesto ya existente (patrón DA-77); cono visual SOLO con POI activo en diástole. iOS no persiste el permiso entre recargas — pedirlo cada apertura
+- **DT-54 implementado (S31):** wake lock (walkmode.js) — reintento en primer gesto si iOS rechaza (`NotAllowedError` al cargar es normal) + modo caminata: overlay negro OLED con corazón en fase, entrada C = movimiento GPS sostenido (≥25m/4 lecturas) Y ≥15s sin interacción; tap sale. Overlay con `pointer-events:none` salvo `.visible`
+- **Patrón freeze-while-open (S31, BUG-058):** NUNCA reescribir con `innerHTML` una lista mientras su panel está abierto y tocable — en iOS, destruir el elemento a mitad del gesto (~200ms touchstart→click) cancela el click sin burbujeo: pantalla "secuestrada". Congelar el rebuild con el panel abierto
+- **BUG-059 (S31):** `sanitizeNarration()` corta preámbulos meta de verificación ("Verificación obligatoria... ---") antes de voz/detector/cache. NO quitar ese strip
+- **Hook de campo `?reset=1`:** limpia localStorage y simula primera vez. No toca IndexedDB. Destino a decidir junto con DT-8 antes de v1.0
 - Pregunta rectora: ¿Esto nos acerca a una experiencia cinematográfica o a una audioguía tradicional?
 
 ## Funciones únicas — nunca duplicar
 
-poi.js: detectNearby · enqueuePOI · processQueue · fetchWikipediaPOIs · fetchPOIsFromOSM · classifyOSMElement · dedupOSMPOIs · fuseWithWikipedia · markVisited · resetVisited
-narration.js: trigger(poi,lang,topic) · getCareMessage · getLocalLang (única fuente de idioma — DT-41) · cleanPOIName · getCityWelcome(city,name,lang,includeIntro) · getCityIntroFallback(name,lang)
+poi.js: detectNearby · enqueuePOI · processQueue · fetchWikipediaPOIs · fetchPOIsFromOSM · classifyOSMElement · dedupOSMPOIs · fuseWithWikipedia · markVisited · resetVisited (S31: renderQuickFacts/renderDepthPills/onDepthPill ELIMINADAS — BUG-055)
+narration.js: trigger(poi,lang,topic) · getCareMessage · getLocalLang (única fuente de idioma — DT-41) · cleanPOIName · getCityWelcome(city,name,lang,includeIntro) · getCityIntroFallback(name,lang) · sanitizeNarration (con strip BUG-059) · buildGroundingBlock · _dt51VerifyAutorFecha
 care.js: checkCareContext · checkSpecialZone
-gps.js: distanceMeters · getRadiusConfig · fetchCityName (instrumentada S25d — puente a DT-60)
-app.js: setPhase · navigateTo · welcomeCity (habla, no muestra) · _unlockAudioOnFirstTap · _startWizard · _showTitleCard
+gps.js: distanceMeters · getRadiusConfig · fetchCityName · updateUserPosition (S31: con auto-seguimiento BUG-053)
+walkmode.js (nuevo S31): start · stop · onMove · isActive
+app.js: setPhase · navigateTo · welcomeCity · _unlockAudioOnFirstTap · _startWizard · _showTitleCard (S31: umbral "toca para comenzar")
+voice.js: speak · stop · unlockFromGesture · recuperación por visibilitychange (BUG-057) · SAFETY_MAX_MS=120s
 (getFarewell() nunca existió — ver DT-53)
 
 ## Estado actual
 
-v0.9 — Sesión 30 completada: segunda pasada del ícono PWA (**DA-83**) —
-S29/DA-82 había dado DT-1 por cerrado, pero capturas reales de iPhone
-mostraron que el ícono se perdía en el home screen. Iteración validada en
-el dispositivo real en cada paso (sw.js v38→v41): se descartó un intento
-de aguja+ticks rotados 40° (rompe la convención de brújula en reposo);
-versión definitiva v41 elimina los ticks del ícono, rediseña la aguja de
-4 puntos con muesca cóncava a 3 puntos (rombo liso), y agranda
-corazón+aguja con el espacio liberado. `logo.svg` actualizado para quedar
-sincronizado (mismo grosor, misma aguja, hub corregido a la proporción
-real, wordmark a mayúsculas `FOLLOWER`) — a diferencia del ícono,
-`logo.svg` sí conserva los ticks. Exploraciones descartadas con evidencia
-real: fondo blanco, corazón relleno, anillo de dial, clipart alternativo.
-Experimento sin éxito: wordmark en "single line art" (verificado
-matemáticamente que un font cursivo real no produce una sola línea sin
-cruces). Ver DA-83 en arquitectura.md y bitacora.md S30 para el detalle
-completo. Ningún archivo de app.js/index.html/wizard tocado esta sesión —
-DT-63 sigue exactamente como quedó en S29.
+v0.9 — **Sesión 31 completada (15 julio 2026): la sesión más productiva del proyecto.** Maratón de campo + fixes con validación real en iPhone entre cada ronda. sw.js v41→**v46** en un día. Resumen:
 
-Sesión 29 (previa): **DT-1 CERRADA** (icono PWA + logo.svg finales) y **DT-60 CERRADA, revisada** (DA-81: splash eliminado del todo, no solo estático — el title card absorbe la carga real de GPS/ciudad/POIs tanto para primera vez como para usuario recurrente, con barra de progreso propia). Paso 4 del wizard pierde su badge especial y pasa a usar el mismo `.wizard-icon` que los demás pasos. Fix post-entrega: ícono 👋 faltante en paso 3 y texto explicativo faltante en paso 4 (detectado por Jaime con screenshots reales, no en el chat). sw.js v34→v35→v36. **DT-63 registrada** — validación de campo pendiente de ambos caminos del nuevo flujo. Ver DA-81/82 en arquitectura.md y bitacora.md S29 para el detalle completo.
+**Implementado y desplegado:**
+- **DT-54** (wake lock + modo caminata mínimo, entrada C ratificada) — walkmode.js nuevo. Wake lock validado en campo: rechazo al cargar → adquirido en primer gesto → re-adquisiciones automáticas. Modo caminata debutó limpio
+- **BUG-051 CERRADO (decisión B):** title card con umbral "toca para comenzar" cuando el audio sigue bloqueado — veredicto de plataforma documentado arriba
+- **BUG-053** (mapa sigue al caminante): panTo suave solo al salir del 70% central; arrastre manual pausa 10s
+- **BUG-054/058** (panel historias): tap en el panel cierra + rebuild congelado con panel abierto (causa real: churn de innerHTML matando taps en vuelo)
+- **BUG-055** (POI expandido sin relictos v1; `Config.getNarratorLabel()` era bomba latente — no existe desde DA-50)
+- **BUG-056** (care strip solo clima — pasos/km eliminados; alineado con manifiesto)
+- **BUG-057** (deadlock de diástole): recuperación por visibilitychange + techo 120s al safety timer — validada 2x en campo
+- **BUG-059** (preámbulo de verificación hablado): strip determinista en sanitizeNarration
 
-Sesión 28 (previa): **DT-51 (grounding) implementado + instrumentado, NO cerrada.** S27b había confirmado autor/fecha 0/4 tras cuatro enfoques de redacción — se descartó seguir ajustando texto del prompt. S28 ejecutó el enfoque estructural recomendado: detector determinista (regex, patrón de atribución verbo+conector+nombre + ventana ±1 oración + veredicto OR entre candidatos) diseñado y validado en 5 iteraciones, con 3 bugs de implementación encontrados y corregidos en el camino (ver DA-80). Validado 3/3 contra narraciones REALES de Claude Haiku 4.5 (Maceta, Catedral de Pasto, Sagrada Familia) — metodología exploratoria, sin confirmar si se usó el campo `system` real de la API o concatenado (ver DT-62). Implementado en producción como **solo instrumentación/logging** (`Debug.log`, no altera ni bloquea la narración entregada) — decisión explícita de no regenerar ni insertar todavía. `PROMPT_VERSION` se mantiene v3.6 (sin cambios de prompt esta sesión). sw.js v34. POI_CACHE_VERSION v4.
+**Hallazgos mayores de S31 (leer bitacora.md S31 completa antes de trabajar en narración):**
+1. **DT-62 medio resuelta:** `callClaude()` envía `system` REAL a la API — producción usa el canal correcto. La sobre-longitud (4/4 narraciones en ~170-190 palabras vs 90-130) ya NO tiene excusa metodológica: es falla del prompt v3.6 en producción. Falta solo confirmar que el Worker reenvía sin tocar
+2. **Técnica del scratchpad (BUG-059, cara buena):** hacer la verificación EN VOZ ALTA fue la primera vez en 6+ versiones que autor/fecha entraron al capítulo (chain-of-thought accidental). Candidata a técnica deliberada en v3.7: pedir scratchpad + capítulo, entregar solo el capítulo
+3. **Narración-regaño (simulador):** contradicción ciudad-extracto por carrera de teletransporte → el modelo rompió el personaje e interrogó al usuario. Regla anti-regaño anotada para v3.7. Cola real de producción: POI activado antes de que fetchCityName resuelva en ciudad nueva → refuerza DT-60
+4. **DT-60 REABIERTA:** `dataPromise` del title card solo espera GPS — NO espera fetchCityName ni POIs (la barra es cosmética, Math.random). Causa raíz compartida de BUG-052 y de la carrera de ciudad
+5. **DA-84 ratificada** (brújula sin ícono) — implementación es DT-64
 
-Flujo actual (DA-81, S29): SIN splash. Wizard 4 pasos (GPS priming → idioma autodetect → nombre opcional → corazón desbloquea en silencio), los 4 con el mismo `.wizard-icon` (📍 🗣️ 👋 💗, sin badges especiales) → title card (mark+anillos con latido propio, barra de progreso que pide GPS/ciudad/POIs — único disparo para usuario recurrente, se repite cada apertura de la app — piso 1.8s / techo 8s, tap salta y desbloquea sin esperar datos) → explore → saludo de ciudad hablado; primerísima vez incluye "Soy Follower" (DA-78).
+**Contexto de urgencia:** familia de Jaime viaja a Europa la próxima semana — prueba de campo multi-ciudad (Barcelona/Sintra/Lisboa ya simuladas). Los fixes de impresión de S31 son para ese viaje.
 
-**DT-51 — resumen de la calibración (detalle completo en bitacora.md S27/S27b/S28):** caso base Monumento a la Maceta (autoría/fecha/significado inventados) → extract real vía `exintro` + bloque de grounding en el prompt → v3.1: no inventa, pero omite autor/fecha por corte de `EXTRACT_MAX_CHARS` (1000→2500) → fix de cache por huella del extract (`_fingerprint`, no solo `PROMPT_VERSION`) → v3.2: autor/fecha obligatorios + no generalizar conjunto→individuo + idea central anclada a identidad local → v3.3: refuerzo de posición + verificación final → v3.4: ejemplo de integración natural + resuelve conflicto con regla "no lista de datos" → v3.5: nueva categoría — prohibido inventar biografía de figuras homónimas (caso Parroquia San Alfonso María de Ligorio, "jesuita italiano" falso) → **prueba probabilística n=4: autor/fecha 0/4 (confirma problema estructural), duración inventada 2/4 → v3.6 corrige duración** → **hipótesis 3 (presupuesto de palabras, v3.7-test) probada y descartada — autor/fecha sigue en 0/n tras CUATRO enfoques de prompt distintos** → **S28: enfoque estructural — detector programático validado 3/3 contra Haiku real, instrumentado como solo-logging en producción (DA-80). Hallazgo colateral sin resolver: longitud y personificación excedidas 3/3 y 2/3 en las mismas narraciones reales — ver DT-62.**
+## Pendientes críticos (orden sugerido)
 
-**Timing en mano (fijar en caminata):** title card piso 1.8s / techo 8s (DA-81, ya no 4s fijo — depende de cuándo resuelvan GPS/ciudad) · TTL saludo 90s.
-
-## Completado en Sesiones 21-29
-
-- S21: causa raíz POIs Pasto · gsprop · DA-69/70/71 · sw.js v13
-- S22: fuente compuesta DT-52 (DA-72/73) · dedup+fusión · contrato _source · sw.js v15
-- S23: Prompt Maestro v3.0 (DA-74) · DT-50 cerrada · BUG-047 cerrada · sw.js v16
-- S24: diseño interfaz — DT-47 · DT-45 title card · DA-75 · DT-54/55 · visión accesibilidad · cero código
-- S25: implementación entrada — DT-45/47 CERRADAS · DA-75 implementada · DA-76/77 · DT-9 CERRADA (key revocada) · DT-56/57 registradas · fix _audioUnlocked · poi.css al precache · sw.js v17
-- S25b: hook de campo `?reset=1` (iPhone sin Web Inspector) · sw.js v18
-- S25c: fusión de saludos — DA-78, bandera `introHeard`, wizard sin frase de muestra, fix de bug propio (WIZ_PHRASE) · sw.js v19
-- S25d: diagnóstico de campo con log real (Worker 400 descartado, causa de fetchCityName aislada) · instrumentación puente en gps.js · **DT-60 registrada** (mover carga real al wizard, splash estático) · sw.js v20
-- S25e: **BUG-048 CERRADO** — `updateTopPill()` huérfana desde refactor de v0.6 (arqueología de git confirmó causa raíz), 5 llamadas corregidas a `updateCareStrip()` en app.js/gps.js. El saludo de ciudad real ya suena · sw.js v21
-- S25f: **BUG-049 CERRADO** — `?reset=1` no reseteaba `Config` en memoria (orden de carga de scripts: config.js antes que app.js); `introHeard` sobrevivía stale. Fix: `Config.reset()` explícito en el hook. Nunca afectó producción, solo la herramienta de prueba · sw.js v22
-- S25g: refinamiento de diseño DT-60 (sin código) — splash 100% anónimo, personalización concentrada en el corazón del wizard, mecanismo DA-77 reutilizado sin código nuevo
-- S26: **BUG-046 CERRADO** — causa raíz real distinta a la asumida (`activatePOI()` marcaba visited de inmediato, sin guard de re-entrada; dejaba BUG-044 muerto en la práctica). Fix: histéresis `DEACTIVATE_CONFIRM_COUNT=3` (~15s) + visited devuelto a narration.js. Validado con log real de campo. Hallazgo de método: modo teletransportar no sirve para probar histéresis de GPS (resetea POIs en cada clic) — usar modo ruta. Falso positivo descartado en saludo de ciudad (DA-78 funcionando bien). Nuevo hallazgo registrado para DT-51: narración con hechos inventados · sw.js v23
-- S27: **DT-51 (grounding) implementado, NO cerrada** — extract real vía `exintro` en `poi.js` (DA-79), bloque de grounding wiki/osm en `narration.js`, fix de cache por huella del extract. Cinco versiones de prompt (v3.1→v3.5) sobre el mismo síntoma en cinco rondas de campo — ver bitacora.md para el detalle completo. **DT-61 registrada** (criterio de narrabilidad de POI — no todo POI merece capítulo completo). sw.js v24→v29
-- S27b: **DT-51, prueba probabilística n=4** — mismo POI (Maceta), mismo prompt v3.5, 4 navegadores para forzar cache miss real. Autor/fecha 0/4 (confirma problema estructural, no de redacción — tres rondas previas de refuerzo de texto no lo movieron). Duración temporal inventada ("durante siglos") 2/4 → corregida en v3.6. Hallazgo metodológico: ninguna regla es 100% fiable con muestra n=1, ni siquiera reglas preexistentes y probadas (personificación falló 1/4). **Hipótesis 3 (presupuesto de palabras) probada y descartada** — subir MAX_TOKENS/rango de palabras (v3.7-test) tampoco trajo autor/fecha, revertido a v3.6. **BUG-050 CERRADO** — sanitización de nombre de ciudad (Nominatim devolvía "Cali ciudad"). Lección de proceso: desfase entre archivos entregados y commits reales causó mensajes de commit duplicados/desalineados (contenido final verificado correcto). sw.js v30→v33
-- S28: **DT-51, enfoque estructural (DA-80)** — detector programático de autor/fecha diseñado en 5 iteraciones (A-E) sobre 3 POIs reales (Maceta, Catedral de Pasto, Sagrada Familia), 3 bugs de implementación encontrados y corregidos (IGNORECASE sobre grupo de nombre, verificación por substring, conector no anclado al verbo). Validado 3/3 contra narraciones REALES de Claude Haiku 4.5 (metodología exploratoria, sin confirmar `system` real — ver DT-62). Implementado en producción como solo instrumentación/logging (`Debug.log`), sin alterar ni bloquear la narración — decisión explícita de posponer regenerar/insertar hasta tener evidencia de campo real. Prompt Maestro sin cambios (`PROMPT_VERSION` v3.6). **DT-62 registrada** (revalidar longitud/personificación con metodología correcta — hallazgo colateral 3/3 y 2/3 respectivamente en las mismas narraciones de prueba). sw.js v33→v34
-- S29: **DT-1 CERRADA** (icono PWA + logo.svg) · **DT-60 CERRADA, revisada** (DA-81: splash eliminado del todo, title card absorbe carga real para primera vez y recurrente) · paso 4 wizard sin badge especial · fix post-entrega (ícono 👋 paso 3, texto paso 4) · **DT-63 registrada** (validación de campo) · sw.js v34→v35→v36
-
-## Pendientes críticos
-
-- **DT-51 (grounding, Sesión 27+27b+28) — implementado + instrumentado, NO cerrada:** cuatro enfoques de prompt consecutivos fallaron en el mismo punto (autor/fecha 0/n) → S28 implementó verificación programática (solo logging, no altera narración) para juntar evidencia real de campo. Punto 2 (¿regenerar? ¿insertar?) deliberadamente sin decidir hasta tener esos datos. Detalle completo en bitacora.md S27/S27b/S28, diseño en arquitectura.md DA-80
-- **DT-62 (nueva, sin ratificar):** revalidar si longitud excedida (3/3, 153-198 palabras vs. objetivo 90-130/150) y personificación de la ciudad (2/3) son fallas reales del Prompt Maestro v3.6 o un artefacto de la metodología exploratoria de S28 (no se confirmó si el prompt se envió en el campo `system` real de la API o concatenado en un mensaje). Repetir el experimento con `system` confirmado antes de decidir si ameritan trabajo de prompt
-- **DT-61 (nueva, sin ratificar):** criterio de narrabilidad de POI — ¿todo POI detectado merece capítulo completo, o los que no tienen sustancia real deberían anunciarse simple ("Aquí está la Iglesia San Felipe") en vez de forzar narración y arriesgar invención? Propuesto por Jaime al cierre de S27, pendiente de definición punto por punto
-- **DT-63 (nueva, S29):** validar en iPhone real ambos caminos del flujo sin splash (DA-81) — primera vez (`?reset=1`) y usuario recurrente — confirmar que la barra del title card no se sienta como un "segundo splash" y que el cambio de ciudad de una sesión a otra se refleje de verdad
-- **Validación pendiente en modo ruta del simulador:** BUG-046 se cerró con evidencia parcial de campo (histéresis contando bien, sin llegar a desactivar en esa sesión); la prueba dedicada de parpadeo cerca del borde del radio, en modo "🛤️ Dibujar ruta" (no teletransportar — resetea POIs en cada clic), sigue pendiente como confirmación adicional no bloqueante
-- **Caminata de campo** — observar voz v3.5, Overpass-iPhone, SPECIAL_ZONE_MIN: 3, histéresis BUG-046 en movimiento real, y ahora también grounding DT-51 con lote de POIs variados
-- **DT-58 (propuesta, SIN ratificar):** acceso a configuración post-wizard desde explore — idioma, nombre, volVoice, posible casa de DT-56. Pendiente de tu sí/no explícito
-- **DT-59 (propuesta, SIN ratificar):** calidad de voz en iOS — asimetría local/online en voice.js. Pendiente de evidencia real antes de tocar código. Trade-off con "offline obligatorio"
-- DT-53: getFarewell() — usa nombre DA-75 · pareja natural: DT-46
-- DT-56: entrada a Recorrido desde explore · DT-57: i18n wizard (baja)
-- DT-54 wake lock · DT-55 prefetch — después; DT-44 puede volverse irrelevante
-- DT-19: MP3s de intro no existen — funciona en silencio
+1. ~~Validar v46 en campo~~ **HECHO (cierre S31): umbral, panel, narraciones y mapa OK — todo validado por Jaime**
+1b. **Fix pequeño a ratificar (propuesto al cierre de S31):** cuando la recuperación por `visibility-recovery` cierra una narración interrumpida, NO marcar el POI como `visited` — hoy el capítulo se pierde para siempre si el usuario saca el teléfono a mitad de narración (foto, WhatsApp). Sin marcar, si sigue cerca al volver, el capítulo se re-dispara (con cache: instantáneo y gratis). Escenario exacto del viaje: familia turisteando
+1c. **Limitación de plataforma aceptada (documentar como DA en próxima sesión):** en PWA iOS, `speechSynthesis` y `watchPosition` mueren en background — sin remedio JS. El caso diseñado (bolsillo + pantalla encendida vía wake lock + modo caminata) NO es background y funciona. Soluciones reales del background = v2.0: (a) TTS de servidor + `<audio>` + Media Session (audio sí continúa en background; pelea con offline-obligatorio), o (b) envoltorio nativo Capacitor (solución completa). Registrar como decisión consciente, no sorpresa.
+   **Análisis Capacitor (cierre S31, insumo para la DA):** NO es migración — envoltorio WebView; el código vanilla entra tal cual (npm solo para empaquetar). React Native descartado (reescritura total, Leaflet muere). Trabajo real: cascarón 1-2 días; luego cambiar tripas de voice.js (plugin TTS nativo con background audio) y gps.js (background geolocation) ~1-2 semanas — la arquitectura de módulos únicos lo permite sin tocar el resto. Por fases, cada una usable. Costos: Apple Developer 99 USD/año + revisión de tiendas. **Builds:** el Mac 10.13 de Jaime NO sirve (Xcode moderno exige macOS 14+; la App Store rechaza builds de Xcode viejo). Plan viable sin comprar Mac: Android local en Windows (Android Studio) para desarrollar el envoltorio + **GitHub Actions con runners macOS (gratis en repo público) para el build de iOS** — encaja con el flujo git actual. Alternativas: Codemagic/Appflow, o Mac mini M1 usado (~300-400 USD) si se quiere simulador local. El iPhone de pruebas sirve tal cual — el problema es dónde se compila, no dónde se prueba. Todo POST-viaje
+2. **Paquete narrativo v3.7 (sesión de escritorio, sábado):** DT-62 cierre (vistazo al Worker) + longitud + sección continuidad de Jaime CORREGIDA (sin promesas hacia adelante — el narrador no conoce el siguiente POI; ejemplos anclados a la ciudad) + técnica scratchpad + regla anti-regaño. UN solo PROMPT_VERSION++ (purga de paso el regaño cacheado de Sagrada Familia) + prueba probabilística n≥4
+3. **DT-60 reabierta:** extender dataPromise a fetchCityName (POIs opcional) — mata BUG-052 y la carrera de ciudad. Encaja con el umbral B ya implementado
+4. **DT-64** (brújula DA-84) · **DT-63** (validación de campo flujo completo)
+5. **DT-61** + parques (observación S31: parque grande invisible; `leisure=park` no está en tiers curados — implica POI_CACHE_VERSION++)
+6. Panel historias: rediseño altura máx + ✕ (con DT-16) · DT-53 getFarewell · DT-58/59 sin ratificar · DT-56/57 baja
+7. Vigilar: voz muere en silencio con app en primer plano (2-3x por sesión; el safety-timer la rescata) — si persiste en caminata real, ticket propio para el keep-alive iOS
 
 ## El Narrador
 
-Una sola voz, sin selector. Prompt Maestro v3.6 define la voz completa — implementado en narration.js (es + en, espejo fiel). Bloque de grounding dinámico (DT-51) inyectado por POI según `_source`. Ver docs/prompt_maestro_follower.md.
+Una sola voz, sin selector. Prompt Maestro v3.6 define la voz completa — implementado en narration.js (es + en, espejo fiel). Bloque de grounding dinámico (DT-51) inyectado por POI según `_source`. Ver docs/prompt_maestro_follower.md. **v3.7 en diseño — ver Pendientes punto 2.**
 
 ## Identidad
 
-Logo: Corazón C2 con brújula — DT-1 CERRADA (S29): assets/logo.svg + assets/icon-master.svg + assets/icons/*.png · Slogan: "your city soundtrack"
+Logo: Corazón C2 con brújula — DT-1 CERRADA: assets/logo.svg + assets/icon-master.svg + assets/icons/*.png · Slogan: "your city soundtrack"
 Fuentes: DM Serif Display (display + itálica en title card) + Inter (UI)
 App: https://follower-app.github.io/follower/
 Worker: https://followernarration.jaimeand.workers.dev

@@ -8,7 +8,7 @@
 
 // Incrementar CACHE_VERSION fuerza descarga de todos los archivos
 // en el proximo arranque — incluso si el navegador tiene version cacheada.
-const CACHE_VERSION = 'follower-v47';  // v3.7 (S32): scratchpad en grounding wiki + regla CIERRE + anti-regano + MAX_TOKENS 550 — narration.js es archivo servido; DT-62 cerrada
+const CACHE_VERSION = 'follower-v48';  // BUG-060 (S32): exchars eliminado en poi.js — extractos completos hasta 2500 chars; POI_CACHE_VERSION v5
 
 const STATIC_ASSETS = [
   './',

@@ -38,7 +38,14 @@ const POI = (() => {
      subtitulos, exintro devuelve casi el cuerpo completo) — el modelo no
      alucino, pero tampoco tuvo la oportunidad de respetar la regla de "no
      inventar lo que falta" porque el dato nunca llego. Subido a 2500 para
-     que articulos de ese tamaño lleguen completos. */
+     que articulos de ese tamaño lleguen completos.
+     BUG-060 (S32): la subida a 2500 NUNCA funciono — la API TextExtracts
+     acepta exchars entre 1 y 1200 y recorta valores mayores EN SILENCIO.
+     El extracto real siempre fue <=1200 chars (evidencia: n=4 Maceta —
+     'tangara multicolor' en pos 1166 entro, Diego Pombo en 1849 jamas).
+     Fix: exchars eliminado del request; el truncado a este tope se hace
+     en cliente, retrocediendo al ultimo punto para no entregar frases
+     cortadas al modelo. */
   const EXTRACT_MAX_CHARS = 2500;
 
   /* ── COLA NARRATIVA (S2-A2) ── */
@@ -50,7 +57,7 @@ const POI = (() => {
   const CONFIG = {
     FETCH_RADIUS_KM:    2,      // radio de fetch de POIs desde OSM
     REFETCH_KM:         2,      // refetch si nos movemos más de 2km
-    POI_CACHE_VERSION:  4,      // v4: extract de Wikipedia (DT-51 — grounding) agregado a POIs wiki
+    POI_CACHE_VERSION:  5,      // v5 (BUG-060, S32): exchars eliminado del request — extractos ahora llegan completos hasta 2500 chars reales (antes la API recortaba a 1200 en silencio); purga POIs con extractos truncados
                                 // REGLA: incrementar en el MISMO commit que cambie
                                 // query, filtros o normalización de POIs (Sesión 21)
     DB_NAME:            'follower_db',
@@ -374,7 +381,6 @@ const POI = (() => {
           prop:        'extracts',
           exintro:     'true',
           explaintext: 'true',
-          exchars:     String(EXTRACT_MAX_CHARS),
           exlimit:     'max',
           pageids,
           format:      'json',
@@ -398,7 +404,19 @@ const POI = (() => {
           const pages = data?.query?.pages || {};
           for (const p of chunk) {
             const page = pages[p.pageid];
-            if (page && typeof page.extract === 'string') p.extract = page.extract;
+            if (page && typeof page.extract === 'string') {
+              // BUG-060: truncado en cliente (exchars de la API tope 1200,
+              // insuficiente). Retrocede al ultimo punto para no entregar
+              // una frase cortada al modelo — salvo que eso sacrifique mas
+              // del 40% del tope, caso raro de frases kilometricas.
+              let ext = page.extract;
+              if (ext.length > EXTRACT_MAX_CHARS) {
+                ext = ext.slice(0, EXTRACT_MAX_CHARS);
+                const lastDot = ext.lastIndexOf('.');
+                if (lastDot > EXTRACT_MAX_CHARS * 0.6) ext = ext.slice(0, lastDot + 1);
+              }
+              p.extract = ext;
+            }
           }
         } catch (err) {
           if (typeof Debug !== 'undefined') {

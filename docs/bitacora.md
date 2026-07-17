@@ -5120,4 +5120,181 @@ sw.js v45→v46. Archivos: app.js, sw.js.
 
 ---
 
-*Follower — Bitácora v0.9 | Sesión 31 | 14 Julio 2026*
+## Sesión 32 — 17 Julio 2026 — Paquete narrativo v3.7: el scratchpad gana su guerra (DT-62 cerrada, DT-51 a cierre parcial, BUG-060)
+
+**La sesión que destronó a S31 como la más productiva del proyecto.** Sesión
+de escritorio + tres tandas de validación probabilística en el día (once
+corridas totales entre cuatro navegadores, iPhone incluido), con un fix de
+campo intermedio. El resultado central: el problema de autor/fecha — 0/n a
+lo largo de cinco sesiones y cuatro enfoques de redacción — quedó resuelto
+por la técnica del scratchpad, con estadística perfecta 4/4 y el primer
+"cumple" del detector DT-51 en la historia de Follower.
+
+### Cierre de DT-62 — el canal quedó verificado punta a punta
+
+Prueba directa al Worker desplegado con curl: `system` de control
+("Responde únicamente con la palabra: PASSTHROUGH") → el modelo respondió
+literal. Combinado con la lectura de código de S31 (`callClaude()` envía
+`system` como campo real de la API) y la lectura de `cloudflare/worker.js`
+en el repo (passthrough puro: `await request.json()` →
+`JSON.stringify(body)` sin tocar nada), la cadena cliente → Worker → API
+usa el canal correcto de punta a punta. **DT-62 CERRADA.** Consecuencia
+formal: las violaciones de longitud de producción (4/4 en S31) quedaron
+sin excusa metodológica — eran falla del prompt v3.6, y esta sesión las
+atacó.
+
+### El material de ChatGPT — triaje en tres destinos
+
+Jaime trajo trabajo paralelo hecho con ChatGPT: un replanteamiento
+narrativo completo (tesis de ciudad, actos, epílogo), un Manifiesto
+Narrativo v3.1 y un Manifiesto de POIs v1.0. Triaje ratificado:
+
+1. **Ruta de tres fases:** Fase 1 = v3.7 (validar el instrumento de
+   cumplimiento); Fase 2 = curaduría cinematográfica (DT-65); Fase 3 =
+   Arquitectura Narrativa (tesis/actos/epílogo, candidata a DA, sesión de
+   diseño propia). Razón del orden: la Fase 3 le pide a Haiku sostener
+   estructuras complejas y la evidencia decía que no cumplía ni
+   instrucciones simples — primero validar el vehículo (scratchpad).
+2. **Manifiesto Narrativo v3.1 adoptado** (reemplaza v3.0) con sección
+   obligatoria "Estado de implementación" (lección DT-60: los documentos
+   no dicen "hecho" sobre lo que el código no hace). Su sección Puente
+   Narrativo resolvió el Punto 4 de v3.7 tal cual estaba escrita.
+3. **Manifiesto de POIs v1.0 adoptado** (documento nuevo): POI Detectado ≠
+   Visible ≠ Narrable; Niveles A/B/C como criterio editorial (primera
+   aplicación: DT-61/parques); Nivel D (infraestructura funcional) como
+   alcance computable de DT-65; tensión Escasez vs. DA-72 registrada como
+   pregunta abierta.
+
+**La sesión de diseño de Fase 3 (tesis/actos/epílogo + las 6 preguntas del
+resumen de ChatGPT) queda como agenda de apertura de un chat futuro
+dedicado, con los dos manifiestos como documentos base.** Prerequisitos ya
+definidos: scratchpad validado (cumplido esta misma sesión), DT-60, DT-53.
+
+### El paquete v3.7 — decisiones ratificadas punto por punto
+
+1. **Scratchpad deliberado, solo grounding wiki (2a=A):** la cara buena de
+   BUG-059 convertida en técnica. Respuesta en dos partes: borrador de
+   verificación con formato fijo (línea literal "Verificación
+   obligatoria:" / "Mandatory first check:", enumeración autor/fecha/
+   motivo o "no aparece", línea de presupuesto, cierre `---`) + capítulo
+   directo. Alcance limitado al caso con evidencia (una variable a la
+   vez); extensión a OSM = v3.8 con datos.
+2. **El prompt dicta el formato que el strip ya reconoce (2b=A):** cero
+   cambio a `sanitizeNarration()` — código validado en campo no se toca
+   por hipótesis.
+3. **`MAX_TOKENS` 380→550 (2c=A):** capacidad para el andamiaje que se
+   descarta, NO permiso de longitud — distinción explícita contra la
+   hipótesis 3 fallida de S27b, documentada en el comentario.
+4. **Longitud por presupuesto en el scratchpad (3=A):** una línea más en
+   el borrador; la sección LONGITUD del system prompt no se tocó (habría
+   sido el séptimo intento del enfoque con seis fracasos). Plan B si
+   fallaba: enforcement programático (no hizo falta).
+5. **Regla 8: PUENTE NARRATIVO → CIERRE (4=A):** redacción derivada del
+   Manifiesto v3.1. Elimina la promesa estructuralmente imposible ("el
+   siguiente POI debe poder responderla" — el narrador no lo conoce) y la
+   pregunta filosófica genérica (evidencia v3.2).
+6. **Regla anti-regaño en LÍMITES ESTRICTOS (5=A):** evidencia S31
+   (narración-regaño por contradicción ciudad-extracto). Nunca romper el
+   personaje; ante conflicto, confiar en el extracto (dato verificado
+   gana sobre string de ciudad). Cinturón mientras DT-60 mata la causa.
+7. **Aclaración anti-conflicto en VERIFICACIÓN FINAL (detectada en
+   implementación, lección v3.4):** "No muestres esta verificación"
+   chocaba frontalmente con el scratchpad — aclarada su jurisdicción.
+
+Un solo `PROMPT_VERSION v3.6→v3.7` (purgó de paso el regaño cacheado de
+Sagrada Familia). Template validado contra el regex del strip antes de
+entregar. Commits ①narration.js ②prompt maestro ③manifiestos ④sw.js v47.
+
+### Tanda 1 (Maceta, n=4): v3.7 valida todo lo medible — y desentierra BUG-060
+
+Firefox 128 / Chrome 150 / Edge 137 / Safari-EN 125 palabras — **cero
+violaciones** contra 4/4 en 170-190 de S31. Formato 4/4 (strip 143/377/
+308/390 chars). Cierres 4/4 sin promesa ni pregunta genérica. Safari
+validó de regalo el espejo inglés completo. La bandera de "aves
+inventadas" se disolvió: las 12 especies están nombradas en el extracto y
+cada corrida muestreó un subconjunto legítimo.
+
+Pero autor/fecha salió **vacuo**: ningún capítulo traía a Pombo ni 2015, y
+la investigación (artículo real de Wikipedia + mapa de posiciones) reveló
+el porqué — **BUG-060**: `poi.js` pedía `exchars=2500` pero la API
+TextExtracts acepta máximo 1200 y recorta EN SILENCIO. La subida 1000→2500
+de la sesión DT-51 nunca funcionó: "tángara multicolor" (pos. 1166)
+entraba por un pelo; Pombo (1849), jamás. El scratchpad de Firefox (143
+chars = todo "no aparece") era honestidad, no fallo — incluso leyó con
+precisión que 2013 es la declaratoria del dulce, no fecha de creación.
+
+**Fix ratificado (opción A):** `exchars` fuera del request + truncado en
+cliente a 2500 con retroceso al último punto. `POI_CACHE_VERSION v4→v5`
+mismo commit (DA-71); el cache de narraciones se auto-invalidó gratis vía
+`extractFingerprint` — la decisión de diseño de S28 pagó exactamente para
+lo que fue creada. sw.js v48.
+
+### Tanda 2 (Maceta post-fix): falsa alarma resuelta con evidencia, no con pánico
+
+Los tres capítulos nuevos siguieron sin Pombo → sospecha de fallo del
+scratchpad en su prueba real. La disciplina de logs la desarmó: cache
+purgado v0→v5 en los tres (poi.js nuevo al mando), 34/34 extractos, y el
+desempate definitivo por consola en los tres navegadores: **extracto de
+1332 chars, idéntico byte a byte, terminando en "...se encuentran 7
+iconos."** — el artículo SÍ tiene sección (la lectura del render la había
+aplanado) y Pombo/2015 viven tras el encabezado, donde `exintro` no llega
+POR DEFINICIÓN. Nadie falló: BUG-060 quedó bien cerrado (+132 chars
+reales recuperados — la "alegoría al 7" apareció en los capítulos nuevos
+y en ninguno de los viejos), los scratchpads eran honestos, y la Maceta
+es estructuralmente incapaz de ser la prueba reina. El hueco pasa a
+**DT-66** (candidatas: fetch completo del POI activado vs. Wikidata
+claims P170/P84/P571 — instinto: Wikidata es la definitiva).
+
+### Tanda 3 (Sagrada Família, n=4): LA PRUEBA REINA — 16/16
+
+| Corrida | Strip | Detector DT-51 | Palabras | Cierre |
+|---------|-------|----------------|----------|--------|
+| Safari iPhone | 355 | **cumple** [Antoni Gaudí] | 121 | anclado |
+| Edge | 341 | **cumple** [Antoni Gaudí] | 130 | anclado |
+| Chrome | 237 | **cumple** [Antoni Gaudí] | 119 | anclado |
+| Firefox | 276 | **cumple** [Antoni Gaudí] | 113 | anclado |
+
+"Antoni Gaudí empezó aquí en 1882" / "iniciada en 1882 por Antoni Gaudí"
+— la frase imposible durante cinco sesiones, cuatro veces seguidas, tejida
+con naturalidad. Primer "cumple" del detector en la historia del proyecto
+(Safari, 07:06:55 del 17-jul). **DT-51 pasa a CIERRE PARCIAL:** misión
+original cumplida; DT-66 hereda el caso fuera-de-intro.
+
+Acumulado del día: 11 corridas, 11 scratchpads limpios, 0/11 violaciones
+de longitud, 0/11 promesas hacia adelante. La única regla que siguió
+fallando: personificación de la ciudad (2/3 en tanda-2 Maceta: "Cali
+recordándose a sí misma", "Cali decidió"; 0/4 en Sagrada Família) — y la
+regla de una-metáfora tomó un golpe en Edge/Sagrada (tres imágenes).
+Ambas candidatas a líneas de scratchpad en v3.8, que es ahora la
+herramienta probada para hacer cumplir lo que la redacción sola no logra.
+
+### Hallazgos colaterales de los logs (tickets nuevos)
+
+- **BUG-061:** re-narración de POI visitado tras salir del modo caminata
+  por tap (2/2 Edge+Chrome, correlación perfecta con el tap de salida).
+  Confirmar en código antes de tocar; si fue tap intencional al marcador,
+  reclasificar como feature.
+- **BUG-062:** visibility-recovery marca `visited=true` sobre narración
+  interrumpida — capítulo perdido para siempre. Es el "fix 1b" de S31,
+  hoy con TRES ocurrencias documentadas. Fix propuesto (sin ratificar):
+  no marcar visited en ese camino de cierre; con cache el re-disparo es
+  instantáneo.
+- **Observaciones sin ticket:** voz tardía también en escritorio (43-48s
+  de lag, rescatada por safety); bienvenida en idioma cruzado en Safari
+  (wizard `lang=en`, bienvenida en español — posible fuga de DT-41);
+  rendimiento de voz iOS notable (114-141ms de lag constante).
+
+### Estado al cierre
+
+sw.js **v48** · `PROMPT_VERSION` **v3.7** · `POI_CACHE_VERSION` **v5** ·
+`MAX_TOKENS` **550**. Cerradas: DT-62, BUG-060. Cierre parcial: DT-51.
+Nuevas: DT-65 (curaduría wiki Nivel D), DT-66 (autor/fecha fuera del
+intro), BUG-061, BUG-062. Adoptados: `manifiesto_narrativo.md` v3.1,
+`manifiesto_pois.md` v1.0. **Próximo chat dedicado: sesión de diseño de
+Arquitectura Narrativa (Fase 3)** — tesis inicial de ciudad, tema/actos,
+epílogo (absorbe DT-53), con las 6 preguntas del replanteamiento como
+agenda y los manifiestos como base.
+
+---
+
+*Follower — Bitácora v0.9 | Sesión 32 | 17 Julio 2026*

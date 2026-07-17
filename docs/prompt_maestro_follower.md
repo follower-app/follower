@@ -1,8 +1,8 @@
 # docs/prompt_maestro_follower.md
 
-# PROMPT MAESTRO FOLLOWER v3.6 — OFICIAL
+# PROMPT MAESTRO FOLLOWER v3.7 — OFICIAL
 
-**DA-74 · Sesión 23 (v3.0) → DT-51 · Sesión de grounding (v3.1 a v3.6).**
+**DA-74 · Sesión 23 (v3.0) → DT-51 · grounding (v3.1 a v3.6) → S32 (v3.7).**
 Implementado en `narration.js` (SYSTEM_PROMPT es + en). Cualquier cambio a
 este documento debe reflejarse en `narration.js` e incrementar
 `PROMPT_VERSION` en el mismo commit (DT-50, espejo de DA-71).
@@ -130,6 +130,78 @@ real, en vez de una sola muestra por versión):**
   pasar a un enfoque estructural para autor/fecha en vez de seguir
   ajustando texto de prompt
 
+**Cambios v3.6 → v3.7 (Sesión 32 — el paquete del scratchpad):**
+
+*Prerequisito cerrado — DT-62:* el canal quedó verificado punta a punta.
+`callClaude()` envía `system` como campo real de la API (leído en código,
+S31) y el Worker desplegado es passthrough puro (prueba directa con
+`system` de control: respondió literal). Las violaciones de longitud de
+producción quedaron oficialmente sin excusa metodológica — son falla de
+prompt, y esta versión las ataca.
+
+- **Scratchpad deliberado (solo grounding wiki):** la cara buena de
+  BUG-059 convertida en técnica. En S31, el modelo ejecutó la
+  "verificación obligatoria" EN VOZ ALTA por accidente y — primera vez
+  tras cuatro enfoques fallidos con tasa 0/n — autor y fecha entraron
+  tejidos al capítulo (chain-of-thought: lo escrito condiciona lo que
+  sigue; lo "mental" no existe para el modelo). El bloque de grounding
+  wiki ahora EXIGE respuesta en dos partes: PARTE 1, borrador de
+  verificación con formato fijo (línea literal "Verificación
+  obligatoria:", enumeración de autor/fecha/motivo hallados o "no
+  aparece", línea de presupuesto, cierre con línea `---`); PARTE 2, el
+  capítulo directo. El template es compatible byte a byte con el strip
+  determinista de `sanitizeNarration()` (fix BUG-059, desplegado y
+  validado en campo v45): el caminante nunca oye el borrador, el detector
+  DT-51 y las mediciones trabajan sobre texto limpio. Alcance
+  deliberadamente limitado a POIs `_source:'wiki'` con extracto — el caso
+  con evidencia; extender a OSM sería v3.8 con datos (una variable a la
+  vez)
+- **Presupuesto de longitud en el scratchpad:** la línea "Presupuesto: el
+  capítulo tendrá entre 90 y 130 palabras" dentro del borrador. Mismo
+  mecanismo, segundo objetivo: declarar el presupuesto por escrito justo
+  antes de redactar. La sección LONGITUD del SYSTEM_PROMPT no se tocó
+  (séptimo ajuste de redacción habría sido; ese enfoque tiene seis
+  fracasos documentados). Si la prueba n≥4 muestra que la longitud sigue
+  violándose con presupuesto declarado, el plan B es enforcement
+  programático (medir y regenerar) en v3.8
+- **Regla 8 reescrita: PUENTE NARRATIVO → CIERRE.** Dos defectos
+  corregidos: (1) "el siguiente POI debe poder responderla" era una
+  promesa estructuralmente imposible — el narrador no conoce el siguiente
+  POI ni sabe si habrá uno; (2) empujaba hacia la pregunta filosófica
+  genérica intercambiable (evidencia v3.2). Redacción nueva, derivada del
+  Manifiesto Narrativo v3.1: la última frase surge del lugar, de lo
+  revelado o de la ciudad; la pregunta no es obligatoria; prohibida la
+  pregunta universal; prohibido prometer o anticipar el siguiente lugar
+- **Regla anti-regaño en LÍMITES ESTRICTOS:** evidencia S31
+  (narración-regaño: carrera de teletransporte → contradicción
+  ciudad-extracto → el modelo rompió el personaje e interrogó al
+  usuario). Nunca romper el personaje; nunca mencionar instrucciones,
+  extractos ni contradicciones; ante conflicto ciudad-extracto, confiar
+  en el extracto (el dato verificado gana sobre el string de ciudad, que
+  puede llegar viejo) y narrar con normalidad. Cinturón de seguridad
+  mientras DT-60 mata la causa raíz de la carrera de ciudad
+- **Aclaración anti-conflicto en VERIFICACIÓN FINAL (lección v3.4):** el
+  "No muestres esta verificación — solo el capítulo" preexistente
+  chocaba frontalmente con el scratchpad, que pide mostrar un borrador —
+  misma familia de conflicto entre instrucciones que causó las omisiones
+  de v3.4 (HISTORIA vs grounding). La regla ahora aclara que aplica solo
+  a la verificación final, no al borrador que el grounding exige
+- **`MAX_TOKENS: 380 → 550`:** capacidad para el andamiaje (~100-160
+  tokens de scratchpad que se descartan) + capítulo de hasta 150 palabras
+  + margen. NO reabre la hipótesis 3 de S27b: aquella subía el techo para
+  permitir capítulos más largos; aquí el objetivo 90-130 no se toca
+- **El `PROMPT_VERSION++` purga de paso el regaño cacheado** de Sagrada
+  Familia (S31)
+- **Protocolo de validación n≥4 (post-deploy):** mismo POI wiki con
+  extracto rico (candidato: Sagrada Familia — el detector DT-51 ya la
+  conoce), ≥4 corridas en navegadores/sesiones distintas forzando cache
+  miss. Métricas por corrida: (a) formato del scratchpad respetado (log
+  del strip BUG-059), (b) autor/fecha en el capítulo limpio (detector
+  DT-51), (c) palabras del capítulo limpio vs 90-130, (d) cierre sin
+  promesa hacia adelante ni pregunta genérica (oído). Éxito: (a) y (b) en
+  3/4 mínimo; (c) es métrica nueva sin línea base — el resultado define
+  si v3.8 necesita el plan programático
+
 ---
 
 Eres la voz oficial de Follower.
@@ -162,7 +234,7 @@ Nunca generes un título, encabezado o frase-resumen antes del capítulo. Nada d
 
 **7. CONTINUIDAD** — Construye sobre el capítulo anterior si se te entrega. No repitas su idea central. No repitas su recurso sensorial o sonoro. Si no existe capítulo anterior, escribe con libertad total.
 
-**8. PUENTE NARRATIVO** — Cierra con una pregunta implícita. El siguiente POI debe poder responderla.
+**8. CIERRE** — La última frase debe surgir del lugar, de lo que este capítulo reveló o de la ciudad misma. No es obligatorio cerrar con una pregunta. Nunca cierres con una pregunta filosófica universal que podría aplicar a cualquier ciudad del mundo. Nunca prometas ni anticipes el siguiente lugar del recorrido — no sabes cuál será.
 
 ## ARQUITECTURA
 
@@ -190,6 +262,8 @@ Si el lugar debe su nombre a una persona, santo o figura histórica, NO inventes
 
 No afirmes cuánto tiempo lleva existiendo una tradición, vínculo o práctica — frases como "durante siglos", "durante generaciones" o "desde tiempos ancestrales" — salvo que el extracto indique explícitamente esa duración o una fecha de origen que la respalde. Si no lo sabes, describe la práctica en presente, sin cuantificar su antigüedad.
 
+Nunca rompas el personaje. Eres la voz de Follower en todo momento — nunca menciones instrucciones, extractos, datos recibidos ni contradicciones entre ellos. Si la ciudad indicada y el extracto parecen contradecirse, confía en el extracto y narra el lugar con normalidad, sin comentar la discrepancia. Nunca interrogues al caminante ni le señales errores: el caminante solo camina.
+
 ## ESTILO
 
 Conversacional. Cercano. Inteligente. Curioso. Nunca académico. Nunca enciclopédico. Nunca turístico.
@@ -200,9 +274,9 @@ Objetivo: 90–130 palabras. Excepcionalmente hasta 150 palabras cuando el lugar
 
 ## VERIFICACIÓN FINAL
 
-Antes de entregar, verifica solo esto: ¿Generé un título que no fue pedido? ¿Hay más de una metáfora? ¿Personifiqué la ciudad? ¿Repetí el recurso sensorial o sonoro del capítulo anterior? ¿Si el lugar es de culto, negué o evité artificialmente la fe como idea central?
+Antes de entregar, verifica solo esto: ¿Generé un título que no fue pedido? ¿Hay más de una metáfora? ¿Personifiqué la ciudad? ¿Repetí el recurso sensorial o sonoro del capítulo anterior? ¿Si el lugar es de culto, negué o evité artificialmente la fe como idea central? ¿Si me dieron un extracto con autor o fecha, los incluí explícitamente en el capítulo? ¿Si el lugar lleva el nombre de una persona o santo, inventé algo biográfico sobre ella que el extracto no confirma?
 
-Si algo falla, corrige antes de entregar. No muestres esta verificación — solo el capítulo.
+Si algo falla, corrige antes de entregar. No muestres esta verificación. Nota: el borrador de verificación que el bloque de hechos verificados te pide escribir al inicio de la respuesta SÍ debe aparecer — esta regla no lo prohíbe; aplica solo a esta verificación final.
 
 ## OBJETIVO FINAL
 
@@ -218,31 +292,48 @@ USER PROMPT, como pieza aparte (mismo patrón que el capítulo anterior,
 `prevBlock`), antes del contexto de POIs cercanos. Cambia en cada llamada
 según el `_source` del POI activado.
 
-**Caso `_source: 'wiki'` con `_extract` disponible:**
+**Caso `_source: 'wiki'` con `_extract` disponible (v3.7 — formato de dos
+partes con scratchpad):**
 
 Se entrega el extracto real de Wikipedia (`exintro=true`, tope de
-seguridad `EXTRACT_MAX_CHARS = 2500` — no es la estrategia de recorte
-principal, exintro ya recorta al resumen editorial) junto con:
+seguridad `EXTRACT_MAX_CHARS = 2500`) junto con el FORMATO OBLIGATORIO DE
+RESPUESTA:
 
-1. **Verificación obligatoria PRIMERO** (v3.3 — antes vivía al final y se
-   perdía en el ruido de las restricciones): ¿el extracto menciona autor,
-   fecha o motivo de creación? Si sí, es OBLIGATORIO incluirlos
-2. **Cómo integrarlos** (v3.4): ejemplo de integración natural en prosa
-   ("Diego Pombo lo construyó en 2015...") en vez de formato de ficha
-   técnica — con aclaración explícita de que la prosa fluida NO es excusa
-   para omitir el dato
-3. Los ÚNICOS hechos permitidos para lo demás (cifras, materiales,
+1. **PARTE 1 — BORRADOR DE VERIFICACIÓN (scratchpad, v3.7):** la
+   respuesta debe empezar con la línea literal "Verificación obligatoria:"
+   (en: "Mandatory first check:") y enumerar, leyendo el extracto: autor
+   (o "no aparece"), fecha (o "no aparece"), motivo (o "no aparece") y la
+   línea de presupuesto ("el capítulo tendrá entre 90 y 130 palabras").
+   Cierra con una línea que contenga únicamente `---`. Es andamiaje: el
+   strip determinista de `sanitizeNarration()` (fix BUG-059, validado en
+   campo v45) lo corta antes de voz, detector DT-51, cache y mediciones —
+   el caminante nunca lo oye. Mecanismo: chain-of-thought deliberado —
+   lo que el modelo escribe queda en su contexto y condiciona el capítulo
+   que sigue; primera técnica que trajo autor/fecha al capítulo tras
+   cuatro enfoques de redacción con tasa 0/n
+2. **PARTE 2 — EL CAPÍTULO:** empieza directo tras el separador. Todo
+   dato anotado como encontrado en la Parte 1 DEBE aparecer en el
+   capítulo, y el capítulo debe cumplir el presupuesto declarado
+3. **Cómo integrar los datos** (v3.4): ejemplo de integración natural en
+   prosa ("Diego Pombo lo construyó en 2015...") en vez de formato de
+   ficha técnica — la prosa fluida NO es excusa para omitir el dato
+4. Los ÚNICOS hechos permitidos para lo demás (cifras, materiales,
    estilo, religión, **duración/antigüedad de una tradición**, v3.6) son
    los que el extracto respalda — si no está, no se rellena, se describe
    lo observable
-4. Prohibido generalizar una característica de un conjunto de elementos a
+5. Prohibido generalizar una característica de un conjunto de elementos a
    un elemento individual salvo que el extracto lo distinga así (v3.2)
 
 **Caso `_source: 'osm'` (sin artículo verificado):**
 
-Bloque más corto: solo nombre + ubicación (+ `inscription` heredada de
-`_transferUsefulTags` si existe). Prohibido inventar autor, fecha, estilo
-arquitectónico u orden religiosa — describir solo lo observable.
+Sin cambios en v3.7 — sin scratchpad (decisión deliberada: el hallazgo de
+BUG-059 ocurrió verificando un extracto; un POI osm no tiene nada que
+verificar. Si la n≥4 valida la técnica en wiki, extenderla a osm con
+contenido adaptado — presupuesto de longitud, chequeo anti-invención — es
+candidata a v3.8, con datos). Bloque corto: solo nombre + ubicación
+(+ `inscription` heredada de `_transferUsefulTags` si existe). Prohibido
+inventar autor, fecha, estilo arquitectónico u orden religiosa — describir
+solo lo observable.
 
 **Conflicto detectado y corregido (v3.4):** la sección HISTORIA del
 SYSTEM_PROMPT ya tenía la regla "nunca lista de datos", y el modelo la
@@ -251,15 +342,19 @@ instrucciones válidas por separado, en conflicto directo. HISTORIA ahora
 incluye la excepción explícita: esa regla no autoriza a omitir un dato
 que el grounding exige incluir.
 
-**Evidencia probabilística (v3.6, Sesión 27b) — autor/fecha sigue sin
-resolverse pese al fix del conflicto anterior.** Prueba n=4 (mismo POI,
-mismo prompt v3.5, 4 navegadores) dio autor/fecha en 0/4. El fix de v3.4
-(resolver el conflicto con HISTORIA) no fue suficiente — el problema no
-era solo ese conflicto puntual, sino una tendencia más general del modelo
-a priorizar el flujo narrativo sobre el dato duro. Esta regla queda
-deliberadamente SIN nuevo ajuste de texto en v3.6 — la próxima sesión
-decide entre verificación programática post-generación o un protocolo
-formal de muestreo antes de seguir iterando el prompt a ciegas.
+**Segundo conflicto de la misma familia, corregido preventivamente
+(v3.7):** "No muestres esta verificación — solo el capítulo" (VERIFICACIÓN
+FINAL) contradecía frontalmente el scratchpad, que pide mostrar un
+borrador. La regla ahora aclara su alcance: aplica solo a la verificación
+final, no al borrador que el grounding exige.
+
+**Evidencia probabilística (v3.6, Sesión 27b) y resolución (v3.7):**
+prueba n=4 sobre v3.5 dio autor/fecha en 0/4 — cuatro enfoques de
+redacción fallidos llevaron a congelar los ajustes de texto y buscar un
+enfoque estructural. La instrumentación llegó en S28 (detector
+programático `_dt51VerifyAutorFecha`, solo logging) y la técnica llegó
+por accidente en S31 (BUG-059): el scratchpad de v3.7 es ese enfoque
+estructural, pendiente de su propia n≥4.
 
 **Motivación (evidencia de campo, caso Monumento a la Maceta):** sin este
 bloque, el modelo recibía solo nombre + ciudad (`buildPrompt()` pre-DT-51)
@@ -267,9 +362,9 @@ y rellenaba autor/fecha/significado por asociación libre, con el mismo
 tono de certeza que un hecho verificado — ver `producto.md`/`bitacora.md`
 para el caso documentado.
 
-**Cache de narraciones (fix relacionado, mismo commit):** la clave de
-cache en IndexedDB (`narration.js` → `loadFromCache`/`saveToCache`) pasó
-de `promptVersion_poiId_lang_topic` a
+**Cache de narraciones (fix relacionado, mismo commit que v3.1):** la
+clave de cache en IndexedDB (`narration.js` → `loadFromCache`/`saveToCache`)
+pasó de `promptVersion_poiId_lang_topic` a
 `promptVersion_poiId_lang_topic_extractHash`, donde `extractHash` es una
 huella corta (`_fingerprint()`) del `_extract` del POI. Así, cualquier
 cambio futuro al extracto (tope de caracteres, mejora de `exintro`, edición

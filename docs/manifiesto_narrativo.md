@@ -1,11 +1,14 @@
 # docs/manifiesto_narrativo.md
 
-# MANIFIESTO NARRATIVO — FOLLOWER v3.0
+# 🎬 MANIFIESTO NARRATIVO — FOLLOWER v3.1
 
-**Sesión 23 (DA-74).** Fusión: estructura del manifiesto v3.0 + secciones
-de producto conservadas del manifiesto anterior (Los Silencios, Memoria
-Narrativa, El Lenguaje, Care). La voz operativa vive en
-`docs/prompt_maestro_follower.md` v3.0.
+**Sesión 32.** Reemplaza al manifiesto v3.0 (Sesión 23, DA-74). Este
+documento es el norte narrativo del proyecto: describe la obra que
+Follower quiere ser. No todo lo que describe existe ya en código — ver la
+sección "Estado de implementación" al final, que es parte obligatoria de
+este documento (lección DT-60/S31: un documento nunca debe decir "hecho"
+sobre algo que el código no hace). La voz operativa vive en
+`docs/prompt_maestro_follower.md` v3.7.
 
 ---
 
@@ -19,273 +22,182 @@ Si la respuesta es audioguía, debemos replantearlo.
 
 ## Qué es Follower
 
-Follower es un compañero invisible que ayuda al caminante a descubrir el alma de una ciudad.
+Follower no es una audioguía.
 
-No es una audioguía.
+Follower es un compañero invisible que transforma una caminata en una obra narrativa.
+
+El teléfono debe desaparecer.
+
+La ciudad debe aparecer.
+
+---
+
+## La Obra
+
+Follower no narra lugares.
+
+Follower construye una obra sobre una ciudad.
+
+La caminata completa es la obra.
+
+Cada capítulo aporta una nueva pieza para comprender mejor esa ciudad.
+
+---
+
+## Los Personajes
+
+### El Caminante
+
+Es el protagonista.
+
+Debe sentirse acompañado.
+
+No guiado.
+
+### La Ciudad
+
+Es el gran personaje de la historia.
+
+No es un escenario.
+
+Es aquello que intentamos comprender.
+
+### Follower
+
+Es un compañero invisible.
 
 No es un profesor.
 
 No es un guía turístico.
 
-Es alguien que ama esta ciudad y disfruta compartiéndola.
+Es alguien que ama la ciudad y ayuda a descubrirla.
 
 ---
 
-## Quién es el protagonista
+## Estructura Narrativa
 
-El protagonista es siempre el caminante.
+### Prólogo
 
-La ciudad es el escenario.
+La ciudad se presenta.
 
-Follower es la banda sonora.
+Follower ofrece una primera intuición sobre ella.
 
----
+No presenta datos.
 
-## Qué es la historia
+Presenta una promesa narrativa.
 
-La historia no es el objetivo.
+### Actos
 
-Es el hilo conductor.
+Toda caminata desarrolla uno o varios temas.
 
-Su función es ayudar a comprender mejor la ciudad.
+El tema puede surgir de:
 
----
+- un barrio significativo
+- varios POIs relacionados
+- una época histórica
+- una tensión propia de la ciudad
 
-## Your City Soundtrack
+### Escenas
 
-La verdadera banda sonora no la produce Follower.
+Cada POI es una escena.
 
-La produce la ciudad.
+La escena debe revelar algo sobre el tema actual.
 
-Tranvías. Campanas. Conversaciones. Mercados. Viento. Pasos.
+Y el tema actual debe revelar algo sobre la ciudad.
 
-Follower ayuda a escucharlos.
+### Epílogo
 
----
+Toda caminata merece un cierre.
 
-## La misión de cada capítulo
+La despedida no resume lugares.
 
-Cada capítulo debe ayudar al caminante a descubrir una verdad sobre la ciudad.
-
-No sobre el monumento.
-
-No sobre una fecha.
-
-No sobre un personaje.
-
-Sobre la ciudad.
+La despedida resume descubrimientos.
 
 ---
 
-## Una sola idea central
-
-Cada capítulo responde una única pregunta:
-
-¿Qué nos enseña este lugar sobre esta ciudad?
-
-Todo lo demás es secundario.
-
----
-
-## Ver primero. Comprender después.
-
-Follower ayuda primero a ver el lugar.
-
-Después a entenderlo.
-
-Después a descubrir qué revela sobre la ciudad.
-
-La observación precede a la interpretación.
-
----
-
-## El lugar debe estar presente
-
-La narración debe nacer de aquello que el caminante tiene delante.
-
-Arquitectura. Paisaje. Urbanismo. Sonidos. Personas. Costumbres.
-
-La ciudad debe sentirse viva.
-
----
-
-## Las preguntas del caminante importan
-
-Cada lugar provoca preguntas naturales.
-
-El narrador debe detectarlas y responderlas.
-
-¿Por qué parece una fortaleza?
-
-¿Por qué esta fachada es diferente?
-
-¿Por qué esta plaza tiene esta forma?
-
-Las respuestas deben surgir del lugar.
-
----
-
-## Historia al servicio de la comprensión
-
-Las fechas no son el protagonista.
-
-Los datos históricos deben ayudar a explicar aquello que el caminante está viendo.
-
-La historia es evidencia.
-
-No decoración.
-
----
-
-## Arquitectura al servicio de la comprensión
-
-La arquitectura no debe describirse.
-
-Debe interpretarse.
-
-El narrador explica:
-
-* qué está viendo el caminante
-* quién lo construyó
-* por qué fue construido así
-* qué revela sobre la ciudad
-
----
-
-## Enseñar sin dar clases
-
-Follower no simplifica la ciudad.
-
-La hace accesible.
-
-Puede utilizar conceptos históricos, arquitectónicos o culturales propios del lugar.
-
-Cuando lo haga, debe explicarlos de forma natural.
-
-Aprender algo nuevo forma parte de la experiencia.
-
----
-
-## Las personas importan
-
-Las ciudades se entienden mejor a través de las personas que las construyeron, transformaron o habitaron.
-
-Cuando una persona ayude a comprender el lugar, debe aparecer.
-
----
-
-## El Lenguaje
-
-Culto y accesible.
-
-Natural. Cercano. Humano.
-
-Las palabras deben servir a la comprensión y a la emoción.
-
-Nunca al ego del narrador.
-
----
-
-## Continuidad narrativa
-
-Los capítulos forman una historia continua.
-
-Cada capítulo aporta una pieza nueva al rompecabezas de la ciudad.
-
-No se repiten ideas.
-
-No se repiten conclusiones.
-
----
-
-## Puentes narrativos
-
-Cada capítulo deja una pregunta implícita.
-
-El siguiente lugar ayuda a responderla.
-
-La continuidad depende de las ideas y también de la secuencia de POIs.
-
----
-
-## Ciudad sonora
-
-Los sonidos son patrimonio cultural.
-
-Cuando aporten valor, deben formar parte de la narración.
-
-No como decoración.
-
-Como evidencia de la identidad de la ciudad.
-
----
-
-## Care
-
-El Care Strip forma parte de la narrativa.
-
-Es la hospitalidad de la ciudad.
-
-No es una interrupción.
-
-Es una forma de cuidar al caminante.
-
-La voz completa del cuidado vive en `docs/manifiesto_care_strip.md`.
-
----
-
-## Los Silencios
-
-Los silencios son parte de la experiencia.
-
-Follower debe saber cuándo desaparecer.
-
-Después de ciertos capítulos, vistas o momentos especiales, debe dejar espacio para la observación y el descubrimiento.
-
-Follower propone.
-
-El caminante decide.
-
----
-
-## Memoria Narrativa
-
-Los capítulos son memorables.
+## Continuidad
 
 La caminata es la historia.
 
-Follower debe recordar los temas y descubrimientos compartidos durante la sesión.
+Los capítulos forman una historia continua.
 
-La despedida debe reflejar el recorrido vivido.
+Cada capítulo debe:
 
----
-
-## Veracidad
-
-Todo hecho histórico debe ser verificable.
-
-Nunca inventar datos.
-
-Nunca exagerar hechos.
-
-Nunca sacrificar veracidad por dramatismo.
-
-Follower dramatiza la experiencia.
-
-Nunca los hechos.
+- recordar lo descubierto
+- aportar algo nuevo
+- avanzar la comprensión de la ciudad
+- abrir naturalmente el siguiente capítulo
 
 ---
 
-## El objetivo final
+## Puente Narrativo
 
-Al terminar una caminata, el usuario debería pensar:
+No es obligatorio terminar con una pregunta.
 
-"Ahora entiendo mejor esta ciudad."
+Evitar preguntas filosóficas universales.
 
-Y preferiblemente:
+La última frase debe surgir del lugar, del tema actual o de la ciudad.
 
-"No quiero que termine."
+---
 
-o
+## Verdad Narrativa
 
-"Quiero volver a vivir esto."
+Los hechos verificables son materiales narrativos.
+
+Nunca son el objetivo principal.
+
+La historia principal siempre es la ciudad.
+
+---
+
+## Frase Fundacional
+
+Follower no narra monumentos.
+
+Follower construye una obra sobre una ciudad.
+
+Cada POI es una escena.
+
+Cada caminata es una película.
+
+---
+
+## Estado de implementación
+
+*Esta sección separa lo que existe en código de lo que es visión
+ratificada. Se actualiza cada vez que una pieza cambia de columna.*
+
+**Vigente en producción (Prompt Maestro v3.7 / `narration.js`):**
+
+- **Escenas** — cada POI genera un capítulo (mecánica completa de las
+  reglas 1-6 del Prompt Maestro).
+- **Continuidad hacia atrás** — el capítulo anterior se inyecta en el
+  prompt (DT-39/DA-52); el modelo construye sobre él sin repetir idea
+  central ni recurso sensorial. La continuidad de *temas* (actos) NO
+  existe todavía — hoy la continuidad es capítulo-a-capítulo, no de arco.
+- **Puente Narrativo** — la sección de este manifiesto se tradujo tal
+  cual a la regla 8 (CIERRE) del Prompt Maestro v3.7: cierre anclado en
+  lugar/tema/ciudad, pregunta no obligatoria, prohibida la pregunta
+  universal, prohibida la promesa hacia adelante.
+- **Verdad Narrativa** — bloque de grounding DT-51 (hechos del extracto
+  como material, nunca como ficha) + detector programático + scratchpad
+  v3.7.
+
+**Visión ratificada, implementación PENDIENTE (Fase 3 — sesión de diseño
+de Arquitectura Narrativa, candidata a DA):**
+
+- **Prólogo** — la tesis inicial de ciudad no existe. Prerequisito
+  técnico: DT-60 (el title card debe esperar `fetchCityName`; hoy la
+  ciudad puede no estar resuelta cuando arrancaría el prólogo).
+- **Actos / tema actual** — no existe el concepto en código; ninguna
+  estructura de datos modela "tema". Prerequisito: scratchpad validado
+  (n≥4 de v3.7) como vehículo de cumplimiento antes de pedirle a Haiku
+  sostener estructuras de arco.
+- **Epílogo** — `getFarewell()` nunca fue implementada (DT-53). La Fase 3
+  la absorbe: la despedida resume descubrimientos, no lugares.
+
+**Prerequisitos de la Fase 3, en orden:** (1) scratchpad validado con
+n≥4 (v3.7), (2) DT-60 resuelta, (3) sesión de diseño con las preguntas
+abiertas: cómo modelar el tema actual, qué información recibe cada
+capítulo, cómo se genera la tesis (GPS → ciudad → Wikipedia ciudad → IA),
+cómo se implementa el epílogo.

@@ -8,7 +8,7 @@
 
 // Incrementar CACHE_VERSION fuerza descarga de todos los archivos
 // en el proximo arranque — incluso si el navegador tiene version cacheada.
-const CACHE_VERSION = 'follower-v49';  // BUG-062: visibility-recovery no marca visited (voice.js/narration.js) — BUG-061: deteccion automatica no reactiva POI ya visitado (poi.js)
+const CACHE_VERSION = 'follower-v50';  // DT-60: dataPromise espera GPS+ciudad, barra de compuertas reales, fallback generico silenciado (app.js, gps.js)
 
 const STATIC_ASSETS = [
   './',

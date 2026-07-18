@@ -18,7 +18,7 @@ README · REGLAS_IA · docs/: contexto_maestro · producto (a S33) · **arquitec
 
 ## Arquitectura de archivos
 
-index.html · sw.js **v48** (siempre último en commits) · manifest.json · css/ · js/ (app, config, gps, poi, narration, voice, weather, care, walkmode, routes, debug, debug-sim; music.js stubbed) · assets/ · docs/ · cloudflare/worker.js
+index.html · sw.js **v49** (siempre último en commits) · manifest.json · css/ · js/ (app, config, gps, poi, narration, voice, weather, care, walkmode, routes, debug, debug-sim; music.js stubbed) · assets/ · docs/ · cloudflare/worker.js
 
 ## Reglas críticas
 
@@ -27,6 +27,8 @@ index.html · sw.js **v48** (siempre último en commits) · manifest.json · css
 - DA-76: Modo Libre default (DT-56 pendiente; modal-mode sin llamador, NO eliminar)
 - POIs: cascada DA-72 — wiki local+es → neto<8 → Overpass curado → <3 → en.wiki → IndexedDB. Curar antes de exponer (DA-73). Dedup DT-49: wiki gana, perdedor lega inscription/wikidata
 - BUG-060 (cerrado): TextExtracts recorta `exchars`>1200 EN SILENCIO → sin `exchars`, truncado cliente `EXTRACT_MAX_CHARS=2500` al último punto. `exintro` nunca cruza encabezados de sección → DT-66
+- BUG-062 (cerrado S34): `voice._finish` no distinguía el motivo de cierre → `narration.js` marcaba `visited=true` también en `visibility-recovery`. Fix: `_finish(source)` pasa el motivo a `onEnd(source)`; `visited` se excluye si `source==='visibility-recovery'`
+- BUG-061 (cerrado S34): rama principal de `detectPOI()` en poi.js no chequeaba `poi.visited` antes de `activatePOI()` (a diferencia de `enqueuePOI`) → reactivaba POIs ya narrados cuando `activePOI` volvía a `null`. Fix: `!closestPOI.visited` agregado a la condición. `activateFromBar()` queda SIN chequeo a propósito — re-escuchar manual es feature, no bug
 - **DA-71:** cambio en query/filtros/normalización POIs → `POI_CACHE_VERSION++` MISMO commit (actual: **v5**)
 - **DT-50:** cambio al Prompt Maestro → `PROMPT_VERSION++` MISMO commit (actual: **v3.7**). Clave narración: `${PROMPT_VERSION}_${poiId}_${lang}_${topic}_${extractFingerprint}`
 - **v3.7 (VALIDADA 16/16 S32):** scratchpad en grounding wiki — "Verificación obligatoria:"/"Mandatory first check:" + autor/fecha/motivo + presupuesto 90-130 + `---` + capítulo. `sanitizeNarration()` corta el borrador (strip BUG-059 — NO quitar). `MAX_TOKENS=550` (andamiaje, NO longitud). Regla 8 = CIERRE (sin promesa adelante ni pregunta genérica). Anti-regaño en LÍMITES ESTRICTOS. Espejo es/en
@@ -57,19 +59,17 @@ care.js: checkCareContext · checkSpecialZone · gps.js: distanceMeters · getRa
 
 ## Estado actual
 
-v0.9 — **Sesión 33 (17 julio 2026): sesión 100% de diseño, nace DA-85** (Arquitectura Narrativa v1). Las 6 preguntas respondidas formalmente (bitácora S33). Propuesta UX de Jaime integrada: tesis fija + POIs variables, "la ciudad propone, el caminante decide". DT-53 absorbida. Nacen DT-67 y DT-68. Manifiesto narrativo actualizado (Fase 3 = diseño cerrado). Cero código, sw.js sigue v48.
+v0.9 — **Sesión 34 (18 julio 2026): sesión de bugs.** BUG-062 y BUG-061 cerrados con causa confirmada en código y fix aplicado (voice.js, narration.js, poi.js). sw.js v48→v49. README.md actualizado (estaba desactualizado: sw v4, prompt v2.7, narración 130-160 palabras — reflejaba v0.6-v0.7). Próximo paso: **DT-60** (commit 1 de la implementación de DA-85, sesión anterior — Sesión 33, 17 julio: sesión 100% de diseño, nace DA-85 / Arquitectura Narrativa v1, ver sección propia abajo).
 
 ## Pendientes críticos (orden sugerido)
 
-1. **BUG-062 (fix 1b, TRES ocurrencias):** visibility-recovery marca `visited=true` sobre narración interrumpida — capítulo perdido. Fix propuesto sin ratificar: no marcar visited en ese camino (cache hace re-disparo gratis). Ratificar y aplicar — es pequeño
-2. **BUG-061:** re-narración de POI visitado al salir de caminata por tap (2/2 Edge+Chrome). Confirmar en walkmode.js/app.js antes de tocar
-3. **DT-60 reabierta:** dataPromise → fetchCityName (mata BUG-052 y carrera de ciudad) — **commit 1 de la implementación de DA-85**
-4. **Implementación DA-85** (tras DT-60): tesis + prólogo → lente en capítulos → DT-68 → epílogo (requiere DT-46)
-5. **DT-67** (tarjeta persistente, sesión de diseño con mockup) · **DT-46** (cierre de caminata)
-6. **DT-65** (curaduría wiki Nivel D — Fase 2; `POI_CACHE_VERSION++`; pregunta Escasez vs DA-72) · **DT-66** (autor/fecha fuera del intro — instinto: Wikidata P170/P84/P571)
-7. **DT-64** (brújula) · **DT-63** (campo flujo completo) · **DT-61** (+parques, vara Niveles A/B/C)
-8. v3.8 candidatas (NO abrir sin evidencia): personificación en capítulos y una-metáfora como líneas de scratchpad; extensión scratchpad a OSM
-9. Vigilar: voz tardía en escritorio (43-48s, safety rescata) · bienvenida idioma cruzado Safari (¿fuga DT-41?) · background iOS (doc pendiente: análisis Capacitor)
+1. **DT-60 reabierta:** dataPromise → fetchCityName (mata BUG-052 y carrera de ciudad) — **commit 1 de la implementación de DA-85**
+2. **Implementación DA-85** (tras DT-60): tesis + prólogo → lente en capítulos → DT-68 → epílogo (requiere DT-46)
+3. **DT-67** (tarjeta persistente, sesión de diseño con mockup) · **DT-46** (cierre de caminata)
+4. **DT-65** (curaduría wiki Nivel D — Fase 2; `POI_CACHE_VERSION++`; pregunta Escasez vs DA-72) · **DT-66** (autor/fecha fuera del intro — instinto: Wikidata P170/P84/P571)
+5. **DT-64** (brújula) · **DT-63** (campo flujo completo) · **DT-61 [ticket de interfaz, no confundir con el BUG-061 ya cerrado]** (+parques, vara Niveles A/B/C)
+6. v3.8 candidatas (NO abrir sin evidencia): personificación en capítulos y una-metáfora como líneas de scratchpad; extensión scratchpad a OSM
+7. Vigilar: voz tardía en escritorio (43-48s, safety rescata) · bienvenida idioma cruzado Safari (¿fuga DT-41?) · background iOS (doc pendiente: análisis Capacitor)
 
 ## El Narrador
 

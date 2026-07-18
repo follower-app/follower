@@ -6,6 +6,7 @@ Follower es una PWA de exploración cinematográfica que usa narración AI en ti
 
 **App:** [follower-app.github.io/follower](https://follower-app.github.io/follower)
 **Repo:** [github.com/follower-app/follower](https://github.com/follower-app/follower)
+**Worker:** followernarration.jaimeand.workers.dev
 
 ---
 
@@ -36,6 +37,7 @@ El usuario guarda el celular en el bolsillo. La app orquesta todo sola:
 - La historia usa el presente como punto de entrada — primero se vive, después se comprende
 - La ciudad misma es la banda sonora: sus campanas, sus mercados, sus conversaciones
 - Lleva mucho tiempo caminando, hace calor o va a llover → Follower sugiere con voz de anfitrión, no de sistema
+- Movimiento sostenido sin interacción → Modo Caminata (DT-54): la app confía en que el teléfono va en el bolsillo
 
 ---
 
@@ -49,11 +51,11 @@ Si nos acerca a una audioguía, probablemente es la decisión equivocada.
 
 ## El Narrador
 
-Follower tiene una sola voz. No es un sistema con personalidades intercambiables.
+Follower tiene una sola voz. No es un sistema con personalidades intercambiables (narrador único, DA-50).
 
 Es el amigo más culto que conoces, que nunca presume de lo que sabe. Puede haber nacido en la ciudad o haberse enamorado de ella. Conoce su historia, sus barrios, sus personajes y sus costumbres.
 
-Cada historia es un **capítulo**. Cada caminata construye una **tesis** sobre la ciudad. Al terminar, el usuario debe sentir: *"Ahora entiendo mejor esta ciudad."*
+Cada historia es un **capítulo** (90-130 palabras, excepcional 150). Cada caminata construye una **tesis de ciudad** (DA-85) que actúa como lente débil sobre los capítulos — nunca un itinerario. Al terminar, un **epílogo** cierra la caminata citando la tesis. El usuario debe sentir: *"Ahora entiendo mejor esta ciudad."*
 
 La banda sonora no la pone Follower. La pone la ciudad.
 
@@ -61,48 +63,35 @@ La banda sonora no la pone Follower. La pone la ciudad.
 
 ## Identidad de marca
 
-**Logo:** Corazón C2 — contorno de corazón con ticks cardinales y aguja de brújula. Norte en rojo. Exploración con alma. *(logo SVG pendiente)*
+**Logo:** Corazón C2 con brújula — contorno de corazón con ticks cardinales y aguja de brújula. Exploración con alma.
 
 **Slogan:** *your city soundtrack*
 
-**Paleta — Sístole y Diástole:**
+**Paleta:**
 
 | Nombre | Hex | Uso |
 |--------|-----|-----|
-| Navy | `#0d1b2a` | Base, fondo claro |
 | Noche | `#0d1420` | Fondo oscuro, pantallas |
-| Rojo diástole | `#c0392b` | Narración activa, norte, acento |
-| Rojo vivo | `#e74c3c` | Alertas, dark mode |
-| Azul sístole | `#1a5276` | Caminando, usuario en mapa |
-| Humo | `#c8d4e0` | Textos dark mode |
-| Crema | `#f5f3ef` | Fondo claro |
+| Sístole | `#1a5276` | Caminando, usuario en mapa |
 | Dorado | `#f0c87a` | Descanso, sugerencias cálidas |
-| Hielo | `#e8eef4` | Textos principales dark mode |
+| Humo | `#c8d4e0` | Textos dark mode |
+| Alerta | `#e74c3c` | Alertas |
 
 > **Sístole (azul)** = el corazón se contrae, avanza, el usuario camina.
-> **Diástole (rojo)** = el corazón se expande, recibe, el usuario escucha.
+> **Diástole** = el corazón se expande, recibe, el usuario escucha.
 > El usuario nunca lo sabe — solo lo siente.
 
-**Tipografía:**
-
-| Rol | Fuente | Uso |
-|-----|--------|-----|
-| Display | DM Serif Display | Nombre app, bienvenida ciudad, títulos POIs |
-| Narración | Inter 200 | Texto narración, descripciones |
-| UI | Inter 300 | Slogan, labels, botones |
-| Datos | Inter 500 | Métricas, distancias, estados |
+**Tipografía:** DM Serif Display Italic (display, bienvenida, títulos) · Inter (UI, narración, datos).
 
 ---
 
 ## Modos de exploración
 
-### Modo Libre *(default)*
+### Modo Libre *(default, DA-76)*
 El usuario camina sin rumbo. La app detecta POIs cercanos y reacciona automáticamente. La ciudad sorprende.
 
-### Recorridos Curados *(opt-in — versiones futuras)*
-Follower cuenta una historia con arco narrativo predefinido. La ruta existe para servir al relato — no al contrario.
-
-Ciudades planificadas: Barcelona (Gaudí), París Romántico, Cali Salsera, Lisboa de los Exploradores, Roma Imperial.
+### Modo Curado *(nota estratégica v2.0, sin ticket)*
+Evolución premium por selección narrativa, no por interfaz distinta. Aparcado.
 
 ---
 
@@ -112,7 +101,7 @@ Ciudades planificadas: Barcelona (Gaudí), París Romántico, Cali Salsera, Lisb
 |---------|---------|
 | Interfaz completa | ✅ |
 | Mapa de la zona | ✅ |
-| POIs cercanos | ✅ |
+| POIs cercanos (cache IndexedDB) | ✅ |
 | Narración POIs conocidos | ✅ |
 | Narración POIs nuevos | ❌ |
 | Clima en tiempo real | ❌ |
@@ -123,9 +112,9 @@ Ciudades planificadas: Barcelona (Gaudí), París Romántico, Cali Salsera, Lisb
 
 ```
 follower/
-├── index.html              → shell mínimo, sin selector de narrador (DA-50)
+├── index.html              → shell + wizard de entrada (DT-47)
 ├── manifest.json           → PWA config
-├── sw.js                   → service worker v4 (siempre último en commits)
+├── sw.js                   → service worker (siempre último en commits)
 ├── REGLAS_IA.md
 ├── README.md
 │
@@ -134,45 +123,51 @@ follower/
 │   ├── components.css      → botones, pills, cards, waves, badges
 │   ├── splash.css          → latido, rings, expand animation
 │   ├── modal.css           → modales, care card, route picker
+│   ├── wizard.css          → wizard de entrada (GPS → idioma → nombre → voz)
 │   ├── explore.css         → mapa, care strip, bottom bar, pills, brújula
 │   └── poi.css             → héroe, player, narración, acciones
 │
 ├── js/
 │   ├── keys.js             → API keys LOCAL ONLY (.gitignore)
-│   ├── config.js           → idioma, mode, volúmenes, localStorage (narrator eliminado en DA-50)
-│   ├── app.js              → AppState, navigateTo(), setPhase(),
-│   │                         welcomeCity(), onWalkInactivity(), _walkChapters
-│   ├── gps.js              → Leaflet, watchPosition, Haversine, Nominatim,
-│   │                         countryCode, simulatePosition(), detección inactividad (DT-40)
-│   ├── poi.js              → Wikipedia GeoSearch (primaria) + Overpass (fallback),
-│   │                         IndexedDB, detectPOI, cola narrativa, _pendingDetect (DT-38)
-│   ├── narration.js        → Claude Haiku vía Worker, Prompt Maestro v2.7,
-│   │                         _walkChapters, COUNTRY_LANG, cleanPOIName(), getFarewell(), getCareMessage()
-│   ├── voice.js            → Web Speech API, 12 idiomas BCP-47, prioridad latam
-│   ├── weather.js          → OpenWeatherMap vía Worker, cache 30min
-│   ├── care.js             → checkCareContext(), checkSpecialZone() (DT-43),
-│   │                         triggers + momentos memorables, generación de mensajes vía Claude
-│   ├── routes.js           → recorridos temáticos, Leaflet polyline
-│   ├── debug.js            → dashboard de experiencia, métricas 3 capas
-│   ├── debug-sim.js        → simulador GPS, tab Simular
-│   └── music.js            → eliminado en v0.9 (DA-50) — stub vacío, no recrear
+│   ├── config.js           → idioma, mode, volúmenes, localStorage
+│   ├── app.js               → AppState, navigateTo(), setPhase(), welcomeCity(),
+│   │                          wizard (_startWizard, _unlockAudioOnFirstTap)
+│   ├── gps.js               → Leaflet, watchPosition, Haversine, Nominatim, fetchCityName
+│   ├── poi.js                → Wikipedia GeoSearch (primaria, DA-72) + Overpass (complemento),
+│   │                           IndexedDB, cascada de curaduría, cola narrativa, dedup
+│   ├── narration.js          → Claude Haiku vía Worker, Prompt Maestro v3.7, scratchpad de
+│   │                           grounding, tesis de ciudad (DA-85), _walkChapters
+│   ├── voice.js              → Web Speech API, recuperación por visibilitychange, safety timer
+│   ├── weather.js            → OpenWeatherMap vía Worker, cache 30min
+│   ├── care.js                → checkCareContext(), checkSpecialZone(), Care Strip independiente
+│   ├── walkmode.js            → Modo Caminata (DT-54): overlay automático por inactividad + movimiento
+│   ├── routes.js               → recorridos temáticos, Leaflet polyline
+│   ├── debug.js                 → dashboard de experiencia, métricas 3 capas
+│   ├── debug-sim.js             → simulador GPS, tab Simular
+│   └── music.js                  → stub vacío (eliminado DA-50), no recrear
 │
 ├── cloudflare/
-│   └── worker.js           → proxy Claude API + OpenWeatherMap
+│   └── worker.js            → proxy Claude API + OpenWeatherMap, passthrough puro
 │
 ├── assets/
-│   ├── logo.svg            → pendiente (DT-1)
-│   └── icons/              → icon-192.png, icon-512.png (pendiente logo)
+│   └── icons/               → icon-192.png, icon-512.png
 │
 └── docs/
-    ├── contexto_maestro.md       → alma del producto, principios fundamentales
-    ├── producto.md               → producto v0.9, usuarios, principios
-    ├── arquitectura.md           → decisiones DA-1 a DA-65
-    ├── bitacora.md               → historial, bugs, deuda técnica (hasta Sesión 18)
-    ├── manifiesto_narrativo.md   → voz, capítulos, tesis de ciudad
-    ├── manifiesto_care_strip.md  → hospitalidad urbana, voz del cuidado
-    ├── prompt_maestro_follower.md → Prompt Maestro v2.7 oficial
-    └── dt42_care_miniprompt.md   → mini-prompt de Care, listo para implementar
+    ├── contexto_maestro.md        → alma del producto, principios fundamentales
+    ├── producto.md                → producto, usuarios, bugs, deuda técnica
+    ├── arquitectura.md            → decisiones DA-1 a DA-85
+    ├── bitacora.md                → historial de sesiones
+    ├── instrucciones_proyecto.md  → estado y pendientes, para pegar al abrir chat nuevo
+    ├── manifiesto_narrativo.md    → voz, capítulos, tesis de ciudad (Fase 3 cerrada)
+    ├── manifiesto_pois.md         → Detectado ≠ Visible ≠ Narrable, Niveles A-D
+    ├── manifiesto_care_strip.md   → hospitalidad urbana, voz del cuidado
+    ├── prompt_maestro_follower.md → Prompt Maestro v3.7 oficial
+    ├── dt42_care_miniprompt.md    → mini-prompt de Care
+    ├── dt45_bienvenida_animada.md
+    ├── dt47_wizard_mockup_final.html
+    ├── registro_sesion24_interfaz.md
+    ├── restauracion_poi_js.md
+    └── deuda_tecnica_interfaz.md
 ```
 
 ---
@@ -183,9 +178,9 @@ follower/
 HTML + CSS + JS Vanilla
 Leaflet.js              → mapas (OpenStreetMap · CartoDB Voyager)
 Claude Haiku            → narración AI + Care generativo (vía Cloudflare Worker)
-Web Speech API          → síntesis de voz nativa (12 idiomas)
-Wikipedia GeoSearch     → fuente primaria de POIs
-Overpass OSM            → fuente secundaria de POIs (fallback)
+Web Speech API          → síntesis de voz nativa
+Wikipedia GeoSearch     → fuente primaria de POIs (DA-72)
+Overpass OSM            → fuente complementaria de POIs
 OpenWeatherMap API      → clima en tiempo real (vía Cloudflare Worker)
 IndexedDB               → POIs y narraciones offline
 GitHub Pages            → hosting
@@ -200,33 +195,34 @@ Cloudflare Workers      → proxy de API keys (sin billing, sin exposición)
 ## Para IAs y desarrolladores
 
 **Leer antes de tocar cualquier archivo:** `REGLAS_IA.md`
+**Regla de Oro:** el panel es fotografía estática; el árbitro es el código en `raw.githubusercontent.com`. Fetch en vivo antes de editar, siempre.
 **Alma del producto:** `docs/contexto_maestro.md`
 **Voz narrativa:** `docs/manifiesto_narrativo.md` + `docs/prompt_maestro_follower.md`
+**POIs:** `docs/manifiesto_pois.md`
 **Hospitalidad:** `docs/manifiesto_care_strip.md`
 
-Funciones únicas — nunca duplicar:
+Funciones únicas — nunca duplicar (lista completa y viva en `docs/instrucciones_proyecto.md`):
 
 | Función | Archivo |
 |---------|---------|
-| `detectNearby()` | poi.js |
-| `cleanPOIName()` | narration.js |
-| `trigger(poi, lang, topic)` | narration.js |
-| `getFarewell()` | narration.js |
-| `getCareMessage(type, candidatos, ctx)` | narration.js |
-| `checkCareContext()` | care.js |
-| `checkSpecialZone()` | care.js |
-| `setPhase(phase)` | app.js |
-| `navigateTo(screen)` | app.js |
-| `welcomeCity(city)` | app.js |
-| `onWalkInactivity()` | app.js |
+| `detectNearby()`, `markVisited()`, `fetchWikipediaPOIs()` | poi.js |
+| `trigger()`, `buildGroundingBlock()`, `getCityWelcome()`, `sanitizeNarration()` | narration.js |
+| `checkCareContext()`, `checkSpecialZone()` | care.js |
+| `start()`, `stop()`, `onMove()`, `isActive()` | walkmode.js |
+| `speak()`, `unlockFromGesture()` | voice.js |
+| `setPhase()`, `navigateTo()`, `welcomeCity()` | app.js |
+
+`getFarewell()` aún no existe — nace con el Epílogo (DA-85, implementación pendiente).
 
 **Reglas absolutas:**
-- Sístole `#1a5276` = caminando · Diástole `#c0392b` = narrando · Nunca invertir
+- Sístole `#1a5276` = caminando · Diástole = narrando · Nunca invertir
 - GPS nunca se interrumpe — es el latido de la app
-- `sw.js` siempre último en commits
+- `sw.js` siempre último en commits, commit aparte
 - Nunca mostrar errores al usuario — siempre hay fallback
 - La ciudad sonora vive en el prompt, no en archivos de audio — `music.js` no existe (eliminado DA-50)
-- Narración: objetivo 130-160 palabras, máximo duro 170 (`max_tokens: 380`)
+- Narración: objetivo 90-130 palabras, excepcional 150 (`MAX_TOKENS=550`, andamiaje no longitud)
+- Cambio en query/filtros/normalización de POIs → `POI_CACHE_VERSION++` mismo commit
+- Cambio en el Prompt Maestro → `PROMPT_VERSION++` mismo commit
 
 ---
 
@@ -234,16 +230,12 @@ Funciones únicas — nunca duplicar:
 
 | Versión | Hitos | Estado |
 |---------|-------|--------|
-| v0.1–v0.4 | README · arquitectura · identidad · código base | ✅ |
-| v0.5 | Panel de debug + métricas de experiencia | ✅ |
-| v0.6 | UI rediseñada — bottom bar, pills, care strip, brújula | ✅ |
-| v0.7 | Sistema de narradores · música por intro · bienvenida ciudad | ✅ |
-| v0.7s | Estabilización: voz latam · narraciones cortas · laboratorio | ✅ |
+| v0.1–v0.7 | Base, identidad, debug, UI, narrador multi-estilo | ✅ |
 | v0.8 | Wikipedia GeoSearch · cola narrativa · visited-on-complete | ✅ |
-| v0.9 | Narrador único (DA-50) · memoria de capítulo · idioma local · zona especial · inactividad · DA-55 tránsito · Care generativo (DT-42, 7 triggers) | ✅ |
-| v0.9 | Bienvenida animada (DT-45) · cierre de caminata (DT-46) · validación en campo | 🔄 En curso |
+| v0.9 | Narrador único (DA-50) · memoria de capítulo · idioma local · Care generativo · Prompt Maestro v3.7 validado en campo (16/16) · Modo Caminata (DT-54) · wizard de entrada (DT-45/47) | ✅ |
+| v0.9 | DA-85 — Arquitectura Narrativa v1 (tesis + epílogo): diseño ratificado, implementación pendiente (próximo: DT-60) | 🔄 En curso |
 | v1.0 | Piloto con viajeros reales | 🔲 |
-| v2.0 | Recorridos curados · interacción por voz · más ciudades | 🔲 |
+| v2.0 | Capacitor (Android/iOS nativo) · Modo Curado · más ciudades | 🔲 |
 
 ---
 

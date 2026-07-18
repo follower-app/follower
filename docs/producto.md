@@ -285,7 +285,7 @@ El Prompt Maestro v2.7 (narrador único) tiene versiones en español e inglés. 
 | ID | Descripción | Prioridad |
 |----|-------------|-----------|
 | DT-1 | Logo SVG final + iconos PWA | **CERRADA** (S29) — assets/logo.svg, assets/icon-master.svg, assets/icons/*.png |
-| DT-60 | **REABIERTA (S31)** — splash eliminado (confirmado), pero `_showTitleCard()` solo espera GPS, no `fetchCityName()` ni POIs; esas cargas arrancan recién en `initExplore()`, después del title card. Ver sección propia más abajo. Fusiona con BUG-051/052. **Nota S33: prerequisito duro del Prólogo de DA-85 — commit 1 de la fase de implementación de esa DA** | Alta |
+| ~~DT-60~~ | **CERRADA (S34, sw.js v50-v51) — validada en campo ambos caminos.** Alcance implementado = Opción A ratificada: `dataPromise` en dos etapas (GPS → `GPS.fetchCityName`, ahora exportada; ambos caminos, el wizard ya deja `AppState.gps`), barra de compuertas reales (techos 45/90/95% por estado: GPS pendiente / ciudad pendiente / race; mensajes por estado, `TITLECARD_MSGS` eliminado), doble hit a Nominatim evitado (`onPosition` solo llama si `!AppState.cityName` — de paso, reintento natural si el title card falló). POIs quedaron deliberadamente fuera (se evaluará con evidencia DT-63 si hace falta; guardas `!_map` + auto-heal de marcadores confirmadas viables). Mata BUG-052 y cumple el prerequisito del Prólogo DA-85 (commit 1). Incluye matiz DA-77 ×2 (fallback genérico silenciado + saludo siempre en explore vía `_flushPendingWelcome()` — ver arquitectura.md) | ~~Alta~~ |
 | DT-4 | Pantalla resumen del paseo | Media |
 | DT-5 | Más ciudades en routes.js | Baja |
 | DT-8 | debug.js + debug-sim.js deshabilitados antes de v1.0 | Media |
@@ -328,7 +328,7 @@ espera de confirmación en campo antes de tocar código.
 | ID | Descripción | Causa | Prioridad |
 |----|-------------|-------|-----------|
 | BUG-051 | Tras configurar por primera vez, reabrir la app requiere un tap extra para que suene el saludo | **CONFIRMADO en código Y en campo (S31).** El tap sobre el title card llama `_unlockAudioOnFirstTap()` antes de `finish()` — pero si el usuario no toca y el title card termina solo (timer de piso/techo), `finish()` corre sin desbloquear audio. Reproducido en iPhone real: "Cali. Un capítulo te espera en cada esquina, Jaime." solo sonó al tocar la pantalla, no al abrir la app. **CERRADO (S31, sw.js v46) — veredicto de plataforma + decisión B.** El fix v45 (unlock automático en `finish()`) resultó PEOR que el síntoma: iOS acepta la llamada sin gesto sin error pero sin efecto, la bandera queda en `true` falsamente, `_pendingWelcome` no retiene nada y TODA la sesión de audio muere en silencio (log 15-jul 18:23: cero `onstart` en bienvenida + 2 narraciones). Veredicto: el desbloqueo de audio en iOS exige gesto directo; no existe camino automático. Decisión B ratificada: si al completar la carga el audio sigue bloqueado, el title card no avanza solo — muestra "toca para comenzar" y ese tap (gesto real) desbloquea y entra con el saludo sonando. Si el audio ya está desbloqueado (wizard, tap temprano), avanza solo como siempre | Alta |
-| BUG-052 | El saludo dice "tu ciudad tiene historias que contarte" en vez del nombre real de la ciudad | **CONFIRMADO en código (S31).** `_scheduleWelcomeFallback()` espera 10s desde que arranca `initExplore()` (no desde el arranque de la app) y si `fetchCityName()` no resolvió en ese margen, dispara `getCityIntroFallback()`. Como `fetchCityName()` ni siquiera empieza hasta entrar a explore (el title card no la espera — ver DT-60 reabierta), el margen real es más corto de lo que el diseño asumía. Fusionar con DT-60 reabierta | Alta |
+| ~~BUG-052~~ | El saludo dice "tu ciudad tiene historias que contarte" en vez del nombre real de la ciudad | **CONFIRMADO en código (S31) → CERRADO (S34, con DT-60).** La causa era la carrera: `_scheduleWelcomeFallback()` corría sus 10s desde `initExplore()` mientras `fetchCityName()` ni había empezado. Con DT-60, la ciudad resuelve durante el title card (dataPromise la espera con el techo de 8s) y el fallback solo se agenda si `!AppState.cityName`. Además, por matiz DA-77 (decisión B), el saludo genérico ya NO se habla en ningún caso — el fallback quedó como log de campo. Validado: recurrente y `?reset=1` con saludo real de ciudad, cero genérico | ~~Alta~~ |
 | BUG-053 | El mapa no sigue al caminante — el marcador se mueve, el mapa queda fijo | **FIX APLICADO (S31, sw.js v44).** Auto-seguimiento con margen en `updateUserPosition()`: `panTo` suave (0.8s) solo cuando el caminante sale del 70% central del viewport (`getBounds().pad(-0.3)`), nunca en cada lectura. Arrastre manual del mapa pausa el seguimiento por 10s (`dragstart` → gracia temporal, sin botón ni estado extra). Pendiente validación de campo | Alta |
 | BUG-054 | El pill de "siguiente POI" abre con un tap pero no se cierra con un segundo tap — hay que tocar el mapa | **CAUSA ENTENDIDA + FIX APLICADO (S31, sw.js v43).** Evidencia de campo (foto 15-jul): el panel cubre ~80% de la pantalla y su único cierre era tocar el mapa — cuya franja visible con el panel abierto es mínima. Fix: tap en cualquier zona del propio panel también cierra (un tap en un ítem primero activa el POI y luego cierra — sin conflicto). Pendiente validación de campo | Media |
 | BUG-055 | Pantalla de POI expandido muestra información sobrante de v1 bajo la narración | Confirmado en código: `renderExpanded()` en `poi.js` sigue llamando `renderQuickFacts()` (capacidad/año/altura/fuente) y `renderDepthPills()`, relictos del sistema de narradores múltiples pre-DA-50; también referencia `Config.getNarratorLabel()`, probablemente ya inexistente. **FIX APLICADO (S31, sw.js v45):** eliminadas las llamadas y definiciones de `renderQuickFacts()`/`renderDepthPills()`/`onDepthPill()` en `poi.js`, sus contenedores en `index.html`, y las dos referencias a `Config.getNarratorLabel()` — función que NO existe desde DA-50 (bomba latente que sobrevivía por guards). El rediseño completo de la pantalla sigue siendo DT-16 | Media |
@@ -415,7 +415,7 @@ puerta de entrada accesible: la app se presenta hablando, no mostrando.
 
 ---
 
-## DT-60 — REABIERTA (S31): splash eliminado, pero la carga real NO está completa
+## DT-60 — CERRADA (S34): la carga real del title card, completa y validada
 
 Ver `arquitectura.md` DA-81 para el diseño original y su corrección en
 Sesión 31. Lo que SÍ está confirmado en código en vivo: el splash se
@@ -444,6 +444,46 @@ DT-60 vuelve a quedar activa con alcance corregido: extender
 `fetchCityName()` y al menos el primer batch de POIs, antes de decidir
 si eso amerita nuevo diseño o solo ajuste de código. Prioridad: Alta.
 
+### CIERRE (Sesión 34, 18 julio 2026 — sw.js v50 y v51)
+
+**Estado de implementación (lo que el código HACE, verificado en campo):**
+
+- `dataPromise` en dos etapas: GPS (sin cambios) → `GPS.fetchCityName(AppState.gps)`,
+  para ambos caminos — primera vez incluida (el wizard paso 1 ya dejó la
+  posición). `fetchCityName` se exportó en la API pública de gps.js.
+- Barra de compuertas reales: la animación conserva su suavidad pero no
+  puede adelantar a la realidad — techo 45% hasta GPS, 90% hasta ciudad,
+  95% a la espera del race (techo 8s intacto). Mensajes por estado
+  (`obteniendo ubicación...` → `preparando tu soundtrack...` →
+  `casi listo...`); `TITLECARD_MSGS` indexado por porcentaje eliminado.
+  Log enriquecido: `Title card: datos listos · ciudad=X · Nms`, ahora
+  también en primera vez.
+- `onPosition()` solo llama `fetchCityName` si `!AppState.cityName` —
+  evita el doble hit a Nominatim (política 1 req/s) y actúa como
+  reintento natural si el title card cerró sin ciudad.
+- **Alcance POIs deliberadamente excluido** (Opción A ratificada): la
+  tesis DA-85 consume `cityName`, no POIs. Quedó auditado que la vía es
+  viable si la evidencia de DT-63 la pide (guarda `!_map` en
+  `addPOIMarker` + auto-heal por `updateMarkersState()` en cada ciclo);
+  pendiente de auditar `_pendingDetect`/DT-38 antes de activarla.
+- **Matiz DA-77 ×2 en el mismo paquete** (detalle en arquitectura.md):
+  el saludo genérico no se habla (fallback → log de campo) y el saludo
+  real suena SIEMPRE con el mapa visible, vía `_flushPendingWelcome()`
+  (función nueva en app.js). El hallazgo de campo de Jaime — "Cali..."
+  sonando en el tap del title card — refinó el alcance: el flush salió
+  de `_unlockAudioOnFirstTap()` hacia `initExplore()`.
+
+**Validación de campo (S34):** ambos caminos. `?reset=1`: wizard → title
+card (barra directo en fase ciudad) → avance solo → saludo con intro
+sobre el mapa. Recurrente: barra en dos fases → "toca para comenzar" →
+tap en silencio → saludo con el mapa en pantalla. Genérico: nunca sonó.
+
+**BUG-052 muere con este cierre. BUG-051 ya estaba cerrado (S31,
+decisión B del umbral).** Regresión atrapada en diseño (no en campo): el
+reset de `_cityWelcomeDone` en `initExplore()` habría hecho sonar el
+genérico 10s después del saludo real — por eso el fallback se agenda
+solo si `!AppState.cityName`.
+
 ## DT-63 (S29) — Validar en campo el flujo sin splash
 
 Confirmar en iPhone real ambos caminos del nuevo flujo (post DA-81):
@@ -462,9 +502,15 @@ validar DT-63 en campo antes de tocar `dataPromise` probablemente
 mostrará el mismo síntoma que ya se encontró leyendo el código. BUG-051
 y BUG-052 se fusionan aquí en vez de mantenerse como bugs sueltos.
 
+**Nota S34:** con DT-60 cerrada y validada, ambos caminos (reset y
+recurrente) quedaron confirmados en campo en la misma ciudad. Lo que
+resta de este ticket: el caso multi-ciudad (Barcelona → Lisboa de un día
+a otro — la detección debe refrescarse) y la sensación de espera del
+recurrente con red lenta real (barra retenida en 45%/90%).
+
 Prioridad: Alta — es el único camino de entrada a la app para ambos tipos
 de usuario; cualquier regresión aquí bloquea el uso completo.
 
 ---
 
-*Follower — Documento de Producto v0.9 | Sesión 33 | 17 Julio 2026*
+*Follower — Documento de Producto v0.9 | Sesión 34 | 18 Julio 2026*

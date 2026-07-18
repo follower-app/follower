@@ -2218,6 +2218,37 @@ sobrevivir hasta explore para que el saludo suene sin tap adicional.
 `_unlockAudioOnFirstTap()` es la **puerta única** de desbloqueo: wizard
 (paso 4), title card y primer tap en explore convergen en ella.
 
+**Matiz S34 (con DT-60 — dos decisiones B ratificadas, DA-77 sigue viva,
+no es reversa):**
+
+1. **El saludo genérico deja de hablarse.** "Tu ciudad te espera" era
+   relleno que confesaba no saber dónde está el caminante — como audio
+   sonaba a bug. Con DT-60, `fetchCityName()` resuelve durante el title
+   card y el caso genérico pasa de carrera perdida (BUG-052) a rareza real
+   (Nominatim caído, offline). `_scheduleWelcomeFallback()` queda solo
+   como ojo de campo (log a los 10s si la ciudad sigue sin resolver); el
+   title card ya cumple la función visual de portada, y el primer
+   `onPosition` en explore reintenta la ciudad — si resuelve tarde, el
+   saludo real llega con la intro "Soy Follower" intacta (`introHeard`
+   solo se marca cuando efectivamente suena).
+
+2. **El saludo siempre suena con el mapa en pantalla — por diseño, no por
+   accidente del orden de carga.** Hallazgo de campo S34: con DT-60, la
+   ciudad resolvía en el title card y el tap de "toca para comenzar"
+   pronunciaba el pendiente ahí mismo — el momento del saludo nunca había
+   sido una decisión, era efecto colateral de la demora de Nominatim.
+   Ratificación: `welcomeCity()` habla directo solo si
+   `AppState.screen === 'explore'`; en cualquier otra pantalla guarda el
+   pendiente. Nace `_flushPendingWelcome()` (función única: TTL + speak),
+   con dos llamadores: `initExplore()` al final de su arranque (camino
+   principal, mismo call stack del gesto — trust conservado) y
+   `_unlockAudioOnFirstTap()` solo si ya estamos en explore (red de
+   seguridad). Desde el title card, el tap desbloquea y nada más.
+   Razones: el contenido del saludo es de llegada (habla de la ciudad, y
+   la ciudad visual es el mapa), unifica ambos tipos de usuario en un solo
+   comportamiento, y deja la secuencia saludo → tesis (DA-85) en un solo
+   escenario.
+
 ---
 
 ## DT-46 (nota técnica) — Única fuente de verdad para `poi.visited` (Sesión 26)

@@ -5463,4 +5463,69 @@ ni el Prompt Maestro.
 
 ---
 
+---
+
+### Continuación Sesión 34 — DT-60 cerrada (commit 1 de DA-85) + doble decisión B sobre el saludo
+
+Misma tarde, chat aparte. Metodología intacta: archivos vivos de GitHub
+raw re-bajados antes de cada edición (md5 verificado contra lo pusheado),
+opciones A/B/C con recomendación, ratificación de Jaime antes de cada
+línea de código, `node --check` en cada entrega.
+
+**DT-60 — Opción A ratificada e implementada (sw.js v50).** De las tres
+opciones presentadas (A: solo ciudad en la dataPromise · B: ciudad +
+primer batch de POIs · C: refactor datos/visual de `onPosition()`), se
+ratificó A: es literalmente lo que el commit 1 de DA-85 necesita (la
+tesis consume `cityName`, no POIs) y no cierra las otras puertas.
+Hallazgos de la verificación previa en código vivo: `fetchCityName` era
+PRIVADA en gps.js (hubo que exportarla), y una regresión latente atrapada
+en diseño — el reset de `_cityWelcomeDone` en `initExplore()` habría
+hecho sonar el genérico 10s después del saludo real. Jaime corrigió
+además el alcance del ticket hacia arriba: la barra de compuertas reales
+no era extra de interfaz sino el alcance original nunca implementado
+("con carga real" estaba en el comentario de cabecera desde DT-45).
+Compuertas: techos 45/90/95% por estado real, mensajes por estado,
+`TITLECARD_MSGS` eliminado.
+
+**Matiz DA-77 #1 — el genérico calla (decisión B).** Duda de Jaime sobre
+saludo hablado vs. texto. Se defendió el saludo real en voz (la
+maquinaria de unlock existe por la narración, no por el saludo; texto no
+ahorraría nada y perdería la recompensa del gesto; DA-85 abre por ese
+canal) pero se le dio la razón en el genérico: "Tu ciudad te espera"
+hablado era relleno que sonaba a bug. `_scheduleWelcomeFallback()` quedó
+como ojo de campo (log), y el reintento natural vive en el primer
+`onPosition` de explore.
+
+**Matiz DA-77 #2 — el saludo siempre suena en explore (ratificación B).**
+Hallazgo de campo de Jaime, primer despliegue: "Cali. Un capítulo te
+espera en cada esquina. Jaime" sonó EN el tap del title card. No era
+malfuncionamiento: DT-60 quitó la demora accidental de Nominatim y dejó
+al descubierto que el momento del saludo nunca fue una decisión — era
+efecto colateral del orden de carga. Se ratificó B con alcance refinado
+por el propio hallazgo: el flush del pendiente sale de
+`_unlockAudioOnFirstTap()` (que puede dispararse en el title card) hacia
+`initExplore()`. Nace **`_flushPendingWelcome()`** (función única: TTL +
+speak; dos llamadores — initExplore como camino principal, unlock como
+red de seguridad solo si `AppState.screen === 'explore'`). Cadena
+verificada en el mismo call stack del gesto: tap → unlock silencioso →
+navigateTo → initExplore → flush (trust de speechSynthesis conservado).
+sw.js v51.
+
+**Validación de campo (misma sesión):** guion completo descrito antes de
+probar, ambos caminos confirmados por Jaime — `?reset=1` (barra directo
+en fase ciudad, avance solo, saludo con intro sobre el mapa) y
+recurrente (dos fases de barra, "toca para comenzar", tap en silencio,
+saludo con el mapa visible). Genérico: nunca sonó. **BUG-052 muere con
+este cierre.**
+
+**Decisión de cierre:** narration.js (tesis de ciudad, commit 2 de
+DA-85) va en chat nuevo con contexto fresco — esta sesión ya cargó dos
+bugs, DT-60 y dos matices de DA-77. DT-67 (tarjeta persistente) sigue
+siendo sesión de diseño propia con mockup, independiente de la tesis.
+
+**Commits de la continuación:** DT-60 (app.js + gps.js) · sw.js v50 ·
+ratificación B (app.js) · sw.js v51 · docs.
+
+---
+
 *Follower — Bitácora v0.9 | Sesión 34 | 18 Julio 2026*

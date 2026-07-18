@@ -14,11 +14,11 @@ El panel es fotografía estática; el árbitro es GitHub (`raw.githubusercontent
 
 ## Documentos del proyecto
 
-README · REGLAS_IA · docs/: contexto_maestro · producto (a S33) · **arquitectura (DA-1 a 85)** · bitacora (a S33) · **manifiesto_narrativo v3.1** (Estado actualizado S33: Fase 3 = diseño cerrado) · **manifiesto_pois v1.0** (Detectado ≠ Visible ≠ Narrable, Niveles A-D) · manifiesto_care_strip · prompt_maestro **v3.7** · dt42 · dt45/dt47 · registro_s24 · restauracion_poi_js
+README · REGLAS_IA · docs/: contexto_maestro · producto (a S34) · **arquitectura (DA-1 a 85)** · bitacora (a S34) · **manifiesto_narrativo v3.1** (Estado actualizado S33: Fase 3 = diseño cerrado) · **manifiesto_pois v1.0** (Detectado ≠ Visible ≠ Narrable, Niveles A-D) · manifiesto_care_strip · prompt_maestro **v3.7** · dt42 · dt45/dt47 · registro_s24 · restauracion_poi_js
 
 ## Arquitectura de archivos
 
-index.html · sw.js **v49** (siempre último en commits) · manifest.json · css/ · js/ (app, config, gps, poi, narration, voice, weather, care, walkmode, routes, debug, debug-sim; music.js stubbed) · assets/ · docs/ · cloudflare/worker.js
+index.html · sw.js **v51** (siempre último en commits) · manifest.json · css/ · js/ (app, config, gps, poi, narration, voice, weather, care, walkmode, routes, debug, debug-sim; music.js stubbed) · assets/ · docs/ · cloudflare/worker.js
 
 ## Reglas críticas
 
@@ -34,7 +34,7 @@ index.html · sw.js **v49** (siempre último en commits) · manifest.json · css
 - **v3.7 (VALIDADA 16/16 S32):** scratchpad en grounding wiki — "Verificación obligatoria:"/"Mandatory first check:" + autor/fecha/motivo + presupuesto 90-130 + `---` + capítulo. `sanitizeNarration()` corta el borrador (strip BUG-059 — NO quitar). `MAX_TOKENS=550` (andamiaje, NO longitud). Regla 8 = CIERRE (sin promesa adelante ni pregunta genérica). Anti-regaño en LÍMITES ESTRICTOS. Espejo es/en
 - **El scratchpad es LA herramienta probada de cumplimiento.** Reglas que aún fallan (personificación en capítulos, una-metáfora) = candidatas v3.8 con evidencia nueva, NO más redacción
 - **DA-85 (S33, diseño cerrado, SIN código):** Arquitectura Narrativa v1 — ver sección propia abajo
-- DA-75: userName solo welcome/farewell, nunca a Worker · DA-77: saludo 100% voz, `_unlockAudioOnFirstTap()` puerta única · unlock audio iOS exige gesto DIRECTO · DA-78: intro solo primera vez · DA-84: brújula sin ícono (impl. = DT-64)
+- DA-75: userName solo welcome/farewell, nunca a Worker · DA-77 + matiz S34: saludo 100% voz PERO siempre suena en explore (flush único `_flushPendingWelcome()`, llamado por `initExplore()` y por el unlock solo si `AppState.screen==='explore'`); el genérico "Tu ciudad te espera" ya NO se habla (fallback = solo log) · `_unlockAudioOnFirstTap()` puerta única, unlock iOS exige gesto DIRECTO · DA-78: intro solo primera vez · DA-84: brújula sin ícono (impl. = DT-64)
 - Patrón freeze-while-open (BUG-058): nunca `innerHTML` sobre lista con panel abierto en iOS
 - Care y cola narrativa independientes · Narración 90-130 palabras (excepcional 150)
 - ¿Archivo servido cambió? → sw.js bump, commit final aparte
@@ -46,7 +46,7 @@ index.html · sw.js **v49** (siempre último en commits) · manifest.json · css
 - **Actos:** NO se modelan en v1 — la tesis es el único arco. Continuidad sigue capítulo-a-capítulo (DT-39/DA-52)
 - **Capítulos:** tesis como lente débil en system prompt (nunca literal, nunca forzada), SIN línea de scratchpad. Fingerprint de tesis en clave de cache de narración
 - **Epílogo (absorbe DT-53):** disparador ÚNICO = cierre confirmado DT-46, jamás inferencia. Haiku + scratchpad, insumo = capítulos de la caminata (DT-68), bookend con tesis (único lugar donde citarla literal), userName ok (DA-75), sin cache, degradación fija, 0 capítulos → despedida simple
-- **Prerequisitos:** DT-60 → Prólogo (commit 1) · DT-46 + DT-68 → Epílogo
+- **Prerequisitos:** ~~DT-60~~ CUMPLIDO (S34) → Prólogo listo para arrancar · DT-46 + DT-68 → Epílogo
 - Derivados: DT-67 (tarjeta "Por descubrir", diseño propio con mockup) · DT-68 (acumular capítulos en sesión)
 - Aparcado: pregunta 6 (curaduría) → Fase 2 · Modo Curado = nota v2.0
 
@@ -54,22 +54,21 @@ index.html · sw.js **v49** (siempre último en commits) · manifest.json · css
 
 poi.js: detectNearby · enqueuePOI · processQueue · fetchWikipediaPOIs · _attachExtracts (truncado BUG-060) · fetchPOIsFromOSM · classifyOSMElement · dedupOSMPOIs · fuseWithWikipedia · markVisited · resetVisited
 narration.js: trigger · getCareMessage · getLocalLang (única fuente idioma, DT-41) · cleanPOIName · getCityWelcome · getCityIntroFallback · sanitizeNarration (strip BUG-059) · buildGroundingBlock (scratchpad wiki) · _dt51VerifyAutorFecha
-care.js: checkCareContext · checkSpecialZone · gps.js: distanceMeters · getRadiusConfig · fetchCityName · updateUserPosition · walkmode.js: start · stop · onMove · isActive · app.js: setPhase · navigateTo · welcomeCity · _unlockAudioOnFirstTap · _startWizard · _showTitleCard · voice.js: speak · stop · unlockFromGesture · recuperación visibilitychange · SAFETY_MAX_MS=120s
+care.js: checkCareContext · checkSpecialZone · gps.js: distanceMeters · getRadiusConfig · fetchCityName · updateUserPosition · walkmode.js: start · stop · onMove · isActive · app.js: setPhase · navigateTo · welcomeCity · _unlockAudioOnFirstTap · _flushPendingWelcome (S34, único flush del saludo) · _startWizard · _showTitleCard · voice.js: speak · stop · unlockFromGesture · recuperación visibilitychange · SAFETY_MAX_MS=120s
 (getFarewell() aún no existe — nace con el Epílogo DA-85/DT-53)
 
 ## Estado actual
 
-v0.9 — **Sesión 34 (18 julio 2026): sesión de bugs.** BUG-062 y BUG-061 cerrados con causa confirmada en código y fix aplicado (voice.js, narration.js, poi.js). sw.js v48→v49. README.md actualizado (estaba desactualizado: sw v4, prompt v2.7, narración 130-160 palabras — reflejaba v0.6-v0.7). Próximo paso: **DT-60** (commit 1 de la implementación de DA-85, sesión anterior — Sesión 33, 17 julio: sesión 100% de diseño, nace DA-85 / Arquitectura Narrativa v1, ver sección propia abajo).
+v0.9 — **Sesión 34 (18 julio 2026), dos partes.** Mañana: BUG-062 y BUG-061 cerrados (voice.js, narration.js, poi.js; sw v49) + README corregido. Tarde: **DT-60 CERRADA y validada en campo ambos caminos** (Opción A: dataPromise GPS→fetchCityName ahora exportada, barra de compuertas reales 45/90/95%, onPosition sin doble hit a Nominatim; sw v50) + **doble matiz DA-77** (genérico silenciado; saludo siempre en explore vía `_flushPendingWelcome()` nueva — hallazgo de campo: sonaba en el tap del title card; sw v51). BUG-052 muere con DT-60. Regresión atrapada en diseño: fallback solo se agenda si `!AppState.cityName`. Próximo paso: **tesis de ciudad (commit 2 de DA-85, narration.js) en chat nuevo**.
 
 ## Pendientes críticos (orden sugerido)
 
-1. **DT-60 reabierta:** dataPromise → fetchCityName (mata BUG-052 y carrera de ciudad) — **commit 1 de la implementación de DA-85**
-2. **Implementación DA-85** (tras DT-60): tesis + prólogo → lente en capítulos → DT-68 → epílogo (requiere DT-46)
-3. **DT-67** (tarjeta persistente, sesión de diseño con mockup) · **DT-46** (cierre de caminata)
-4. **DT-65** (curaduría wiki Nivel D — Fase 2; `POI_CACHE_VERSION++`; pregunta Escasez vs DA-72) · **DT-66** (autor/fecha fuera del intro — instinto: Wikidata P170/P84/P571)
-5. **DT-64** (brújula) · **DT-63** (campo flujo completo) · **DT-61 [ticket de interfaz, no confundir con el BUG-061 ya cerrado]** (+parques, vara Niveles A/B/C)
-6. v3.8 candidatas (NO abrir sin evidencia): personificación en capítulos y una-metáfora como líneas de scratchpad; extensión scratchpad a OSM
-7. Vigilar: voz tardía en escritorio (43-48s, safety rescata) · bienvenida idioma cruzado Safari (¿fuga DT-41?) · background iOS (doc pendiente: análisis Capacitor)
+1. **Implementación DA-85** (DT-60 ya cumplida): tesis de ciudad + prólogo (narration.js, `THESIS_PROMPT_VERSION` nace v1) → lente en capítulos → DT-68 → epílogo (requiere DT-46)
+2. **DT-67** (tarjeta persistente, sesión de diseño con mockup) · **DT-46** (cierre de caminata)
+3. **DT-65** (curaduría wiki Nivel D — Fase 2; `POI_CACHE_VERSION++`; pregunta Escasez vs DA-72) · **DT-66** (autor/fecha fuera del intro — instinto: Wikidata P170/P84/P571)
+4. **DT-64** (brújula) · **DT-63** (campo flujo completo) · **DT-61 [ticket de interfaz, no confundir con el BUG-061 ya cerrado]** (+parques, vara Niveles A/B/C)
+5. v3.8 candidatas (NO abrir sin evidencia): personificación en capítulos y una-metáfora como líneas de scratchpad; extensión scratchpad a OSM
+6. Vigilar: voz tardía en escritorio (43-48s, safety rescata) · bienvenida idioma cruzado Safari (¿fuga DT-41?) · background iOS (doc pendiente: análisis Capacitor)
 
 ## El Narrador
 

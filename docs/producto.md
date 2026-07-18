@@ -280,12 +280,12 @@ El Prompt Maestro v2.7 (narrador único) tiene versiones en español e inglés. 
 
 ---
 
-## 19. Deuda Técnica Activa *(actualizada a Sesión 32 — 17 julio 2026)*
+## 19. Deuda Técnica Activa *(actualizada a Sesión 33 — 17 julio 2026)*
 
 | ID | Descripción | Prioridad |
 |----|-------------|-----------|
 | DT-1 | Logo SVG final + iconos PWA | **CERRADA** (S29) — assets/logo.svg, assets/icon-master.svg, assets/icons/*.png |
-| DT-60 | **REABIERTA (S31)** — splash eliminado (confirmado), pero `_showTitleCard()` solo espera GPS, no `fetchCityName()` ni POIs; esas cargas arrancan recién en `initExplore()`, después del title card. Ver sección propia más abajo. Fusiona con BUG-051/052 | Alta |
+| DT-60 | **REABIERTA (S31)** — splash eliminado (confirmado), pero `_showTitleCard()` solo espera GPS, no `fetchCityName()` ni POIs; esas cargas arrancan recién en `initExplore()`, después del title card. Ver sección propia más abajo. Fusiona con BUG-051/052. **Nota S33: prerequisito duro del Prólogo de DA-85 — commit 1 de la fase de implementación de esa DA** | Alta |
 | DT-4 | Pantalla resumen del paseo | Media |
 | DT-5 | Más ciudades en routes.js | Baja |
 | DT-8 | debug.js + debug-sim.js deshabilitados antes de v1.0 | Media |
@@ -301,10 +301,10 @@ El Prompt Maestro v2.7 (narrador único) tiene versiones en español e inglés. 
 | DT-31 | Mejorar type/icon de POIs Wikipedia con categorías Wikidata | Baja |
 | DT-32 | Validar en campo real la arquitectura consolidada de narrador único | Alta |
 | DT-44 | Medir latencia del checklist mínimo v3.0 — DT-55 puede volverla irrelevante | Baja |
-| DT-46 | Diseño de UI: confirmación por tap para cierre de caminata — pareja natural de DT-53 | Media |
+| DT-46 | Diseño de UI: confirmación por tap para cierre de caminata — pareja natural de DT-53. **Nota S33: prerequisito de implementación del Epílogo de DA-85** — el epílogo se dispara únicamente desde este flujo de cierre confirmado, nunca por inferencia | Media |
 | DT-56 | Punto de entrada a Modo Recorrido desde explore — reciclar modal-mode como picker. Consecuencia de DA-76; hasta entonces Recorrido es inalcanzable | Media |
 | DT-57 | i18n de la copy del wizard — hoy español estático salvo título del paso 2 | Baja |
-| DT-53 | getFarewell() — despedida de caminata, nunca implementada; usa nombre DA-75 | Media |
+| DT-53 | getFarewell() — **ABSORBIDA por DA-85 (S33):** el epílogo queda diseñado por completo (disparador = cierre confirmado DT-46; Haiku + scratchpad; insumo = capítulos de la caminata vía DT-68; bookend con la tesis — único lugar donde citarla literal es legítimo; `userName` permitido por DA-75; sin cache; degradación fija; 0 capítulos → despedida simple). Se cierra cuando el epílogo se implemente. Prerequisitos: DT-46 + DT-68 | Media |
 | DT-54 | Wake lock + modo caminata — resuelve suspensión por bloqueo de pantalla (spec S24) | Alta |
 | DT-55 | Prefetch de narraciones cercanas — conexión por ráfagas (spec S24) | Media |
 | DT-51 | Grounding de narración — **CIERRE PARCIAL (S32): la misión original está cumplida.** El scratchpad deliberado de v3.7 (cara buena de BUG-059 convertida en técnica: verificación escrita + `---` + capítulo, cortada por `sanitizeNarration()`) llevó autor/fecha al capítulo **4/4 en Sagrada Família** (Safari/Edge/Chrome/Firefox, primer "cumple" del detector en la historia del proyecto, tras 0/n en cinco sesiones y cuatro enfoques de redacción). Detector + strip + scratchpad quedan como arquitectura permanente. Lo que hereda DT-66: el caso "autor/fecha fuera del intro" (Maceta: Pombo/2015 viven tras un encabezado de sección que `exintro` no cruza por definición — imposible por esta vía). Cierre total cuando DT-66 se resuelva o se acepte el límite documentado | Media |
@@ -313,6 +313,8 @@ El Prompt Maestro v2.7 (narrador único) tiene versiones en español e inglés. 
 | DT-64 | Brújula (DA-84, S31, diseño cerrado sin código): permiso de orientación silencioso dentro del gesto ya existente (`_unlockAudioOnFirstTap`/wizard paso 4 o primer tap del title card) — sin ícono ni estados reposo/latido/activo. Cono visual en el mapa condicionado a `AppState.activePOI` (solo con POI activo en diástole), no a un botón manual. Elimina `#btnCompass` y `_activateCompass()`/`_deactivateCompass()` manuales; conserva el cono SVG combinado del marcador de usuario (BUG-027) y el listener de `DeviceOrientationEvent`. Retoma y redefine el alcance de DT-20 | Alta |
 | DT-65 | Curaduría cinematográfica — rama Wikipedia (Fase 2, S32): la compuerta de DA-73 solo filtra OSM; los POIs wiki entran sin filtro y ganan toda fusión. Evidencia: estaciones MIO narradas como capítulos (muchas estaciones de transporte tienen artículo; también bocas de metro en Lisboa/Barcelona). Alcance: blacklist de Nivel D (`manifiesto_pois.md`: metro, MIO, paradas, cajeros, bancos, farmacias, gasolineras, parqueaderos) en la rama wiki por patrón de título y/o categoría, espejo de la blacklist OSM. Implica `POI_CACHE_VERSION++`. Pregunta abierta anexa: tensión Filosofía de Escasez vs. `COMPOSITE_THRESHOLD=8` de DA-72 — decidir en la sesión de este ticket | Alta |
 | DT-66 | Autor/fecha fuera del intro (heredero de DT-51, S32): en artículos CON secciones, `exintro` nunca entrega datos que el editor puso en "Historia" (caso Maceta: Pombo/2015 tras el encabezado — verificado por triple consola, extracto determinista de 1332 chars). Candidatas a evaluar en sesión propia: **(a)** fetch del extracto completo solo para el POI activado al narrar (request extra; en artículos largos 2500 chars podrían tampoco alcanzar); **(b)** Wikidata claims — los POIs ya heredan `wikidata` id en la fusión (DT-49); P170 (creador), P84 (arquitecto), P571 (fecha de creación) son datos estructurados, independientes de dónde vive la prosa. Instinto de sesión: (b) es la definitiva | Media |
+| DT-67 | Tarjeta narrativa persistente (DA-85, S33): el title card se contrae a una tarjeta con ciudad + tesis + "Por descubrir · N" (POIs cercanos detectados AHORA por GPS — evidencias variables bajo tesis fija; jamás capítulos/actos/rutas: tráiler, no índice). Sesión de diseño propia con mockup antes de tocar código. Banderas a resolver: qué aporta la lista de nombres que el mapa no aporta ya; qué cuenta el N (Detectados ≠ Visibles ≠ Narrables — manifiesto POIs); relación con DA-81/DT-16 | Media |
+| DT-68 | Acumulación de capítulos narrados en memoria de sesión (DA-85, S33): guardar título + idea central de cada capítulo de la caminata actual — hoy solo se conserva el último (DT-39/DA-52). Habilitador del insumo del Epílogo. Memoria de sesión, no IndexedDB: cada caminata es única | Media |
 
 ### Bugs de interfaz — reportados Sesión 31
 
@@ -465,4 +467,4 @@ de usuario; cualquier regresión aquí bloquea el uso completo.
 
 ---
 
-*Follower — Documento de Producto v0.9 | Sesión 32 | 17 Julio 2026*
+*Follower — Documento de Producto v0.9 | Sesión 33 | 17 Julio 2026*

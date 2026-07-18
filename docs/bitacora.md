@@ -5297,4 +5297,98 @@ agenda y los manifiestos como base.
 
 ---
 
-*Follower — Bitácora v0.9 | Sesión 32 | 17 Julio 2026*
+## Sesión 33 — 17 Julio 2026 — Diseño de Arquitectura Narrativa (Fase 3): nace DA-85
+
+Sesión de escritorio 100% de diseño — cero código, patrón S24/DA-84
+(definir antes de implementar). Agenda de apertura ratificada: las 6
+preguntas del replanteamiento (traídas por Jaime al inicio del chat)
+cruzadas con las 4 preguntas abiertas del manifiesto narrativo v3.1, con
+los dos manifiestos como documentos base.
+
+### El documento de Jaime cambió el punto de partida
+
+Antes de arrancar el Punto 1, Jaime trajo una propuesta trabajada en
+paralelo ("Arquitectura Narrativa + UX post-S32"): NO convertir Follower
+en ruta guiada; la ciudad recibe una **tesis fija** ("Lisboa — la ciudad
+que aprendió a mirar el mar") que actúa como **lente**, no como
+itinerario; comportamiento de **tráiler, no índice** (responde "¿quién es
+esta ciudad?", nunca "¿qué haré después?"); title card que se contrae a
+tarjeta persistente con "Por descubrir · N" (POIs cercanos detectados
+ahora — evidencias variables bajo tesis fija); actos internos pero
+**inicialmente invisibles**; y Modo Curado como evolución premium por
+selección narrativa, no por interfaz distinta. Triaje ratificado: el
+concepto entra de lleno a la sesión (resuelve el Punto 1 y simplifica el
+Punto 2); la tarjeta persistente sale a ticket propio de interfaz
+(DT-67); Modo Curado queda como nota estratégica (v2.0, sin ticket).
+
+Cuatro banderas levantadas y resueltas en el triaje: (1) "Por descubrir"
+lista POIs que el propio documento prohíbe revelar — defendible por la
+distinción detectados-ahora ≠ guion futuro, pero qué aporta vs. el mapa y
+qué cuenta el N van al ticket DT-67; (2) la tesis es personificación pura
+→ ratificada como **válvula**: personificación autorizada SOLO en
+prólogo/tesis, prohibida en capítulos como hasta ahora; (3) el documento
+no dice cómo se genera la tesis → trabajo central de la sesión; (4) la
+contracción del title card es interfaz → DT-67.
+
+### Decisiones ratificadas punto por punto (el paquete DA-85)
+
+1. **Tesis: 100% generada por Haiku (opción A** sobre tabla curada B y
+   solo-curada C): "la ciudad propone" no puede depender de una tabla
+   escrita a mano. El riesgo de calidad se mitiga con el scratchpad —
+   la herramienta que ganó su guerra en S32.
+2. **Cache versionado:** `${THESIS_PROMPT_VERSION}_${cityName}_${lang}`;
+   fijeza para el usuario, no para el desarrollo (espejo de DT-50).
+3. **Insumo y degradación:** extracto wiki de la ciudad por el canal
+   BUG-060-safe (sin `exchars`, truncado cliente 2500 con retroceso al
+   último punto); wiki local primero (DT-41), fallback en.wiki;
+   scratchpad con prohibición de datos literales (el prólogo promete, no
+   informa); cascada de degradación sin cachear, nunca mostrar error;
+   sin detector programático (no hay dato auditable — validación de
+   campo).
+4. **Momento y carrera:** fetch de tesis al resolver `fetchCityName()`
+   primera vez, en paralelo con POIs; consumida por el prólogo hablado de
+   primera vez (DA-78 intacta); **el saludo nunca espera a Haiku** — si
+   la tesis no llegó, saludo actual y la tesis debuta en la tarjeta
+   (pérdida acotada de su versión hablada, preferible a bloquear por
+   red).
+5. **Actos: opción A — la tesis es el único arco.** "Tema actual" no se
+   modela en v1; continuidad sigue capítulo-a-capítulo (DT-39/DA-52).
+   Una variable a la vez: no hay evidencia de que Haiku sostenga arcos.
+6. **Capítulos: tesis como lente débil (opción A)** — bloque en system
+   prompt ("cuando el lugar lo permita naturalmente... nunca literal,
+   nunca forzada"), sin línea de scratchpad. Si el campo muestra que la
+   ignora siempre, se gradúa con evidencia (doctrina v3.8). Fingerprint
+   de tesis en la clave de cache de narración (auto-invalidación, la
+   decisión que pagó en S32).
+7. **Epílogo: disparador único = cierre confirmado DT-46**, jamás por
+   inferencia — premio del cierre intencional. Haiku + scratchpad;
+   insumo = capítulos de esta caminata (nace DT-68); bookend con la
+   tesis (único lugar donde citarla literal es legítimo); `userName`
+   permitido (DA-75); presupuesto corto; sin cache; degradación fija;
+   0 capítulos → despedida simple. **DT-53 queda absorbida.**
+
+### Respuestas formales a las 6 preguntas
+
+1. ¿Tesis inicial de ciudad? — **Sí** (DA-85 §1). 2. ¿DA específica? —
+**Sí: DA-85.** 3. ¿Modelar tema actual? — **No en v1** (la tesis es el
+arco). 4. ¿Qué recibe cada capítulo? — lo de hoy + tesis como lente
+débil. 5. ¿Farewell/Epílogo? — DA-85 §4. 6. ¿Formalizar curaduría? —
+**aparcada a Fase 2** (DT-65 + tensión Escasez vs. DA-72), por la ruta de
+tres fases de S32.
+
+### Estado al cierre
+
+Nace **DA-85** (arquitectura.md). Tickets nuevos: **DT-67** (tarjeta
+persistente, sesión de diseño propia) y **DT-68** (acumulación de
+capítulos, habilitador del epílogo). DT-53 absorbida por DA-85. DT-46 y
+DT-60 anotadas como prerequisitos de implementación (epílogo y prólogo
+respectivamente — DT-60 es el commit 1 de la implementación).
+Manifiesto narrativo v3.1: sección "Estado de implementación"
+actualizada (la Fase 3 pasa de "sesión pendiente" a "diseño ratificado,
+implementación pendiente"). Cero código, cero sw.js bump (solo docs).
+**Orden sugerido post-S33:** BUG-062 (fix pequeño ya propuesto) →
+BUG-061 → DT-60 → implementación DA-85.
+
+---
+
+*Follower — Bitácora v0.9 | Sesión 33 | 17 Julio 2026*

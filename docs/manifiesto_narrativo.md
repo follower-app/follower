@@ -183,21 +183,28 @@ ratificada. Se actualiza cada vez que una pieza cambia de columna.*
   como material, nunca como ficha) + detector programático + scratchpad
   v3.7.
 
-**Visión ratificada, implementación PENDIENTE (Fase 3 — sesión de diseño
-de Arquitectura Narrativa, candidata a DA):**
+**Visión ratificada, DISEÑO CERRADO en DA-85 (Sesión 33), implementación
+PENDIENTE:**
 
-- **Prólogo** — la tesis inicial de ciudad no existe. Prerequisito
-  técnico: DT-60 (el title card debe esperar `fetchCityName`; hoy la
-  ciudad puede no estar resuelta cuando arrancaría el prólogo).
-- **Actos / tema actual** — no existe el concepto en código; ninguna
-  estructura de datos modela "tema". Prerequisito: scratchpad validado
-  (n≥4 de v3.7) como vehículo de cumplimiento antes de pedirle a Haiku
-  sostener estructuras de arco.
-- **Epílogo** — `getFarewell()` nunca fue implementada (DT-53). La Fase 3
-  la absorbe: la despedida resume descubrimientos, no lugares.
+- **Prólogo / tesis de ciudad** — diseñado en DA-85 §1: tesis 100%
+  generada por Haiku + scratchpad sobre el extracto wiki de la ciudad,
+  cache `${THESIS_PROMPT_VERSION}_${cityName}_${lang}`, degradación en
+  cascada, el saludo nunca espera a Haiku. Personificación autorizada
+  SOLO aquí. Prerequisito de implementación: DT-60 (commit 1 de la fase
+  de implementación).
+- **Actos / tema actual** — decisión DA-85 §2: NO se modela en v1; la
+  tesis es el único arco. La continuidad sigue capítulo-a-capítulo
+  (DT-39/DA-52). "Tema actual" = evolución futura condicionada a
+  evidencia de campo.
+- **Capítulos** — DA-85 §3: la tesis entra al system prompt como lente
+  débil (nunca literal, nunca forzada), sin scratchpad; fingerprint de
+  tesis en la clave de cache de narración.
+- **Epílogo** — DA-85 §4 (absorbe DT-53): disparador único = cierre
+  confirmado de DT-46; insumo = capítulos de la caminata (DT-68);
+  bookend con la tesis; `userName` (DA-75); sin cache. La despedida
+  resume descubrimientos, no lugares.
 
-**Prerequisitos de la Fase 3, en orden:** (1) scratchpad validado con
-n≥4 (v3.7), (2) DT-60 resuelta, (3) sesión de diseño con las preguntas
-abiertas: cómo modelar el tema actual, qué información recibe cada
-capítulo, cómo se genera la tesis (GPS → ciudad → Wikipedia ciudad → IA),
-cómo se implementa el epílogo.
+**Estado de los prerequisitos (S33):** (1) scratchpad validado n≥4 ✔
+(S32); (2) DT-60 pendiente — prerequisito de implementación del Prólogo;
+(3) sesión de diseño ✔ (S33 → DA-85). Prerequisito nuevo del Epílogo:
+DT-46 + DT-68.

@@ -2670,4 +2670,139 @@ diseño nuevo, no el botón de 3 estados original.
 
 ---
 
-*Follower — Arquitectura v0.9 | Sesión 31 | 14 Julio 2026*
+## DA-85 — Arquitectura Narrativa v1: tesis de ciudad generada, actos invisibles, epílogo por cierre confirmado
+
+**Sesión 33 (17 julio 2026).** Diseño ratificado punto por punto; ningún
+código tocado en la sesión (patrón S24/DA-84: definir antes de
+implementar). Es la materialización de la Fase 3 de la ruta ratificada en
+S32, con los manifiestos narrativo v3.1 y de POIs v1.0 como base, las 6
+preguntas del replanteamiento como agenda, y una propuesta de UX de Jaime
+(documento "Arquitectura Narrativa + UX post-S32") como insumo central:
+NO convertir Follower en ruta guiada — la tesis da la lente, no el
+itinerario. Comportamiento de tráiler, no de índice: responde "¿quién es
+esta ciudad?", nunca "¿qué haré después?".
+
+### 1. Tesis inicial de ciudad (Prólogo)
+
+- **Existe** y es la frase insignia de la experiencia en cada ciudad
+  (ej. de diseño: "Lisboa — la ciudad que aprendió a mirar el mar").
+- **Personificación autorizada exclusivamente en prólogo/tesis** — y
+  sigue prohibida en capítulos. La decisión convierte la regla que aún
+  falla (2/3 Maceta S32) en válvula: la personificación tiene un lugar
+  legítimo y los capítulos no la necesitan.
+- **100% generada por Haiku** (opción A ratificada sobre tabla curada o
+  híbrido): "la ciudad propone" no puede depender de una tabla escrita a
+  mano. Mini-prompt dedicado CON scratchpad — la técnica probada 16/16 en
+  S32 — que verifica que la tesis surge de algo real del extracto,
+  presupuesto de longitud, y **prohibición de datos literales** (el
+  manifiesto: el prólogo "no presenta datos, presenta una promesa
+  narrativa" — el scratchpad verifica al revés que en capítulos).
+- **Insumo:** extracto del artículo de Wikipedia de la ciudad, mismo
+  canal validado — TextExtracts SIN `exchars`, truncado en cliente a
+  `EXTRACT_MAX_CHARS` (2500) con retroceso al último punto (lección
+  BUG-060 aplicada desde el día uno). Wiki del idioma local primero
+  (`getLocalLang`, DT-41), fallback en.wiki.
+- **Cache versionado:** clave `${THESIS_PROMPT_VERSION}_${cityName}_${lang}`
+  en IndexedDB. La tesis es fija *para el usuario* (todas las sesiones en
+  la ciudad usan la misma); `THESIS_PROMPT_VERSION` (nace en v1) permite
+  regenerar por mejora de prompt — espejo exacto de DT-50. La fijeza es
+  promesa de experiencia, no cadena para el desarrollo.
+- **Degradación en cascada (nunca mostrar error):** (1) artículo de
+  ciudad inexistente / fetch fallido → title card solo con nombre de
+  ciudad, prólogo hablado con `getCityWelcome()` actual; (2) Haiku falla
+  o responde basura (scratchpad malformado, strip vacío) → misma
+  degradación; (3) la degradación NO se cachea como tesis — la siguiente
+  sesión reintenta en silencio.
+- **Sin detector programático:** no hay dato verificable que auditar
+  (a diferencia de autor/fecha). Validación de calidad = campo,
+  probabilística.
+- **Momento de generación:** al resolverse `fetchCityName()` por primera
+  vez en ciudad sin tesis cacheada, fetch de tesis en paralelo con la
+  carga de POIs — una promesa más en vuelo, no bloquea nada.
+- **Consumo:** el prólogo hablado de primera vez en la ciudad (DA-78
+  intacta: intro solo primera vez). El saludo de primera vez pasa de
+  genérico a tesis + promesa narrativa (~8-12 s). Sesiones siguientes:
+  sin prólogo hablado; la tesis vive en la tarjeta visual persistente
+  (DT-67).
+- **Regla de carrera: el saludo NUNCA espera a Haiku.** Si la tesis no
+  volvió al momento del saludo, sale el saludo actual, la tesis se cachea
+  al llegar y debuta en la tarjeta visual — se pierde su versión hablada
+  (`introHeard` ya marcada). Pérdida real pero acotada; preferible a
+  bloquear por red (regla crítica del proyecto).
+
+### 2. Actos — invisibles y sin modelo de datos en v1
+
+Opción A ratificada: **la tesis es el único arco.** "Tema actual" no se
+modela — ni estructura de datos ni concepto en código. La continuidad
+sigue siendo capítulo-a-capítulo (DT-39/DA-52, en producción). Razón: una
+variable a la vez; el scratchpad se validó con reglas puntuales, no con
+estructuras de arco — no hay evidencia de que Haiku sostenga un tema a
+través de N capítulos. "Tema actual" queda documentado como evolución
+futura condicionada a evidencia de campo. Coherente con la propuesta UX:
+"la Arquitectura Narrativa sigue existiendo, pero inicialmente será
+invisible".
+
+### 3. Capítulos — la tesis como lente débil
+
+Opción A ratificada: bloque nuevo en el system prompt de capítulo —
+*"Tesis de la ciudad: [tesis]. Es la lente de la obra — cuando el lugar
+lo permita naturalmente, deja que el capítulo resuene con ella. Nunca la
+cites literal, nunca la fuerces."* Sin línea de scratchpad, sin
+verificación: es tono, no regla. La tesis propone, Haiku decide cuándo
+resonar. Si en campo se observa que la ignora siempre, se gradúa a línea
+de scratchpad en versión futura, con evidencia (doctrina v3.8).
+
+**Nota técnica ratificada:** la tesis entra a la clave de cache de
+narración vía un fingerprint corto (espejo de `extractFingerprint`) —
+bump de `THESIS_PROMPT_VERSION` auto-invalida los capítulos cacheados con
+la tesis vieja. Misma decisión de diseño que pagó en S32.
+
+### 4. Epílogo — `getFarewell()` nace por diseño (absorbe DT-53)
+
+- **Disparador único: el flujo de cierre confirmado de DT-46** (pregunta
+  hablada + confirmación por tap). NUNCA por inferencia (quietud, cierre
+  de app, pérdida de GPS). Sin confirmación no hay epílogo y no pasa
+  nada: es un premio del cierre intencional, no una obligación del
+  sistema.
+- **Generación:** Haiku + scratchpad. Insumo: títulos + ideas centrales
+  de los capítulos narrados en ESTA caminata (requiere DT-68 — hoy solo
+  se conserva el último capítulo).
+- **Bookend con la tesis:** el prólogo la enuncia, el epílogo la
+  responde — único lugar donde citarla literal es legítimo. "La
+  despedida resume descubrimientos, no lugares" (manifiesto v3.1).
+- **`userName` permitido** — DA-75 lo reserva exactamente para
+  welcome/farewell.
+- **Presupuesto más corto que un capítulo. Sin cache** (cada caminata es
+  única). **Degradación:** despedida fija breve si la API falla. **Caso
+  borde:** 0 capítulos narrados → despedida simple sin síntesis.
+
+### Prerequisitos de implementación (simetría de extremos)
+
+- **DT-60 → Prólogo:** sin `fetchCityName` resuelta antes del title
+  card, la carrera del saludo sería la norma. DT-60 es el commit 1 de la
+  fase de implementación de esta DA.
+- **DT-46 (+DT-68) → Epílogo:** sin cierre confirmado no hay disparador;
+  sin acumulación de capítulos no hay insumo.
+
+Cada extremo de la obra tiene su prerequisito. El cuerpo (tesis como
+lente en capítulos) solo depende de que la tesis exista.
+
+### Derivados y aparcados
+
+- **DT-67 (nuevo):** tarjeta persistente — title card contraído (ciudad
+  + tesis + "Por descubrir · N"). Sesión de diseño propia con mockup;
+  banderas registradas en el ticket.
+- **DT-68 (nuevo):** acumulación de capítulos narrados en memoria de
+  sesión (habilitador del epílogo).
+- **Pregunta 6 del replanteamiento** (formalizar curaduría
+  cinematográfica) → aparcada explícitamente a Fase 2 (DT-65 + tensión
+  Escasez vs. DA-72).
+- **Modo Curado (premium):** nota estratégica en bitácora S33 — misma
+  arquitectura, diferencia de selección narrativa, no de interfaz. Sin
+  ticket: es v2.0.
+- **v3.8:** sin cambios — personificación y una-metáfora siguen como
+  candidatas condicionadas a evidencia nueva.
+
+---
+
+*Follower — Arquitectura v0.9 | Sesión 33 | 17 Julio 2026*

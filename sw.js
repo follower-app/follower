@@ -8,7 +8,7 @@
 
 // Incrementar CACHE_VERSION fuerza descarga de todos los archivos
 // en el proximo arranque — incluso si el navegador tiene version cacheada.
-const CACHE_VERSION = 'follower-v50';  // DT-60: dataPromise espera GPS+ciudad, barra de compuertas reales, fallback generico silenciado (app.js, gps.js)
+const CACHE_VERSION = 'follower-v51';  // Ratificacion B: saludo siempre suena en explore — flush unico de _pendingWelcome en initExplore (app.js)
 
 const STATIC_ASSETS = [
   './',

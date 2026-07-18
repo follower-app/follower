@@ -5391,4 +5391,76 @@ BUG-061 → DT-60 → implementación DA-85.
 
 ---
 
-*Follower — Bitácora v0.9 | Sesión 33 | 17 Julio 2026*
+## Sesión 34 — 18 Julio 2026 — Cierre de BUG-062 y BUG-061; README desactualizado corregido
+
+Sesión de corrección de bugs siguiendo el orden sugerido al cierre de
+S33. Regla de Oro aplicada en cada paso: fetch en vivo de
+`voice.js`, `narration.js`, `poi.js`, `walkmode.js` y `app.js` antes de
+tocar nada.
+
+### BUG-062 — cerrado
+
+Causa confirmada en código: `voice.js._finish(source)` cierra toda
+narración (`onend`, `safety-timer`, `visibility-recovery`) por el mismo
+callback `onEnd()`, sin informarle al llamador cuál fue el motivo.
+`narration.js` marcaba `visited=true` sobre cualquier cierre por igual —
+incluida la recuperación tras `visibilitychange`, donde la síntesis
+murió a mitad de capítulo y el usuario nunca escuchó el final. Fix de
+dos archivos: `_finish` ahora invoca `onEnd(source)`; en `narration.js`
+el guard de `visited` excluye explícitamente
+`source === 'visibility-recovery'`. Con cache, el capítulo interrumpido
+se re-dispara gratis en la próxima detección — no se pierde para
+siempre.
+
+### BUG-061 — cerrado (hipótesis original descartada)
+
+La hipótesis de S32 ("el tap de salida de walkmode re-entrega el POI
+activo") no se sostuvo al leer el código: `walkmode.js` no toca
+`AppState.activePOI` ni el flujo de detección al salir por tap — el
+tap y el bug solo coincidían en el tiempo, sin relación causal.
+
+Causa real, encontrada en `poi.js`: la rama principal de `detectPOI()`
+(`closestPOI.id !== AppState.activePOI?.id` → `activatePOI()`) nunca
+chequeaba `poi.visited`, a diferencia de `enqueuePOI()` que sí lo hace.
+Cualquier vez que `AppState.activePOI` volviera a `null` — histéresis de
+desactivación (BUG-046), botón de detener narración, o `resetPOIs()` —
+mientras el POI ya narrado seguía siendo el más cercano, se reactivaba y
+re-narraba sin ningún guard de por medio. Fix: `!closestPOI.visited`
+agregado a esa condición.
+
+Decisión de producto tomada en la sesión: `activateFromBar()` (tap
+manual en la lista de historias cercanas) queda **sin tocar a
+propósito** — la posibilidad de volver a escuchar un POI visitado por
+elección explícita del caminante se preserva como feature, no se cierra
+como si fuera parte del mismo bug.
+
+### sw.js v48 → v49
+
+Bump por los tres archivos servidos que cambiaron (`voice.js`,
+`narration.js`, `poi.js`). Commit aparte, al final, como siempre.
+
+### README.md — desactualizado desde hace varias versiones
+
+Al revisar la documentación de cierre, Jaime notó que `README.md` no se
+tocaba desde la época de narrador múltiple: sw.js "v4", Prompt Maestro
+v2.7, narración "130-160 palabras / max_tokens 380", sin `walkmode.js`
+en la arquitectura de archivos, tabla de docs/ incompleta. Reescrito
+completo para reflejar el estado real: Prompt Maestro v3.7, narración
+90-130 (excepcional 150) / `MAX_TOKENS=550`, DA-85 con su estado de
+diseño-cerrado-implementación-pendiente, lista completa de `docs/`,
+tabla de funciones únicas actualizada y nota explícita de que
+`getFarewell()` aún no existe.
+
+### Estado al cierre
+
+BUG-062 y BUG-061 cerrados en `producto.md` (movidos a "Resueltas
+recientemente" con causa y fix documentados). `instrucciones_proyecto.md`
+actualizada: sw.js v49, reglas críticas con ambas causas confirmadas,
+pendientes reordenados con **DT-60 como próximo paso** (commit 1 de la
+implementación de DA-85). Sin cambios a `POI_CACHE_VERSION` ni
+`PROMPT_VERSION` — ninguno de los dos fixes toca query/filtros de POIs
+ni el Prompt Maestro.
+
+---
+
+*Follower — Bitácora v0.9 | Sesión 34 | 18 Julio 2026*

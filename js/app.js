@@ -400,20 +400,28 @@ function _unlockAudioOnFirstTap() {
     Debug.log('info', 'Audio: desbloqueado desde gesto');
   }
 
-  // DA-77: saludo pendiente — se pronuncia en el primer gesto.
-  // Pasado el TTL se descarta en silencio: un "bienvenido" a los 5 minutos
-  // sonaria a bug, no a bienvenida.
-  if (_pendingWelcome) {
-    const p = _pendingWelcome;
-    _pendingWelcome = null;
-    if (Date.now() - p.ts <= WELCOME_TTL_MS) {
-      const onSpoken = p.isIntro
-        ? () => { if (typeof Config !== 'undefined') Config.set('introHeard', true); }
-        : null;
-      Voice.speak(p.text, p.lang, onSpoken);
-    } else if (typeof Debug !== 'undefined') {
-      Debug.log('info', 'Bienvenida descartada — TTL vencido (intro conservada para proxima vez)');
-    }
+  // Ratificacion B (S34): pronunciar el pendiente SOLO si ya estamos en
+  // explore (red de seguridad dentro del mapa). Desde el title card el tap
+  // solo desbloquea — el flush ocurre en initExplore(), con el mapa visible.
+  if (AppState.screen === 'explore') _flushPendingWelcome();
+}
+
+/* ── FLUSH UNICO DEL SALUDO PENDIENTE — ratificacion B (S34) ──
+   Convergen aqui: initExplore() (camino principal, mapa recien visible) y
+   _unlockAudioOnFirstTap() (red de seguridad si el desbloqueo llega ya en
+   explore). TTL de DA-77 intacto: un "bienvenido" a los 5 minutos sonaria
+   a bug, no a bienvenida. */
+function _flushPendingWelcome() {
+  if (!_pendingWelcome || !_audioUnlocked) return;
+  const p = _pendingWelcome;
+  _pendingWelcome = null;
+  if (Date.now() - p.ts <= WELCOME_TTL_MS) {
+    const onSpoken = p.isIntro
+      ? () => { if (typeof Config !== 'undefined') Config.set('introHeard', true); }
+      : null;
+    Voice.speak(p.text, p.lang, onSpoken);
+  } else if (typeof Debug !== 'undefined') {
+    Debug.log('info', 'Bienvenida descartada — TTL vencido (intro conservada para proxima vez)');
   }
 }
 
@@ -494,6 +502,12 @@ function initExplore() {
     document.addEventListener('touchend', _unlockAudioOnFirstTap, { once: true });
     document.addEventListener('click',    _unlockAudioOnFirstTap, { once: true });
   }
+
+  // Ratificacion B (S34): el saludo pendiente se pronuncia aqui, con el mapa
+  // recien visible — camino principal para ambos tipos de usuario. Si el
+  // audio sigue bloqueado, no hace nada y la red de seguridad de arriba
+  // hara el flush en el primer gesto dentro de explore.
+  _flushPendingWelcome();
 }
 
 /* ── BIENVENIDA DE CIUDAD — texto sobre el mapa, una vez por sesión ── */
@@ -538,7 +552,11 @@ function welcomeCity(city) {
     : null;
 
   const speakLang = isFallback ? (AppState.lang || 'es') : localLang;
-  if (_audioUnlocked) {
+  // Ratificacion B (S34): el saludo SIEMPRE suena con el mapa en pantalla —
+  // por diseño, no por accidente del orden de carga. Si la ciudad resuelve
+  // durante el title card, el saludo espera en _pendingWelcome y lo pronuncia
+  // initExplore() (flush unico). Hablar directo solo si ya estamos en explore.
+  if (_audioUnlocked && AppState.screen === 'explore') {
     Voice.speak(text, speakLang, onSpoken);
   } else {
     _pendingWelcome = { text, lang: speakLang, isIntro: includeIntro, ts: Date.now() };  // DA-77

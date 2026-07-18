@@ -945,7 +945,7 @@ const POI = (() => {
     updateMarkersState();
 
     // Si hay un POI activo y no es el mismo que ya narrabamos
-    if (closestPOI && closestPOI.id !== AppState.activePOI?.id) {
+    if (closestPOI && !closestPOI.visited && closestPOI.id !== AppState.activePOI?.id) {
       if (typeof Debug !== 'undefined') Debug.trackExp('poi_eligible');
 
       _outOfRadiusStreak = 0; // BUG-046: seguimos dentro de algún radio — resetear contador

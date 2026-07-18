@@ -941,12 +941,15 @@ Idioma: ${lang}`;
     updateNarrationUI(text);
 
     if (typeof Voice !== 'undefined') {
-      Voice.speak(text, lang, () => {
+      Voice.speak(text, lang, (source) => {
         _isNarrating = false;
         stopWaves();
 
+        // BUG-062: cierre por visibility-recovery = narracion interrumpida,
+        // no completada. No marcar visited — con cache el re-disparo es
+        // instantaneo y el capitulo no se pierde para siempre.
         // S2-A1: marcar visitado al COMPLETAR, no al activar
-        if (poi && !poi.visited) {
+        if (poi && !poi.visited && source !== 'visibility-recovery') {
           poi.visited = true;
           if (typeof POI !== 'undefined' && typeof POI.markVisited === 'function') {
             POI.markVisited(poi.id);

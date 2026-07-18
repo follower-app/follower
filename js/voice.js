@@ -174,7 +174,10 @@ const Voice = (() => {
         Debug.log('warn', `Voice: callback por ${source} · ${text.length} chars · lang=${lang}`);
       }
 
-      if (onEnd) onEnd();
+      // BUG-062: el llamador (narration.js) necesita saber si el cierre
+      // vino de visibility-recovery para NO marcar visited sobre un
+      // capitulo interrumpido — con cache, el re-disparo es gratis.
+      if (onEnd) onEnd(source);
     };
     _forceFinish = _finish;     // BUG-057: visible para la recuperacion por visibilitychange
 

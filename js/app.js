@@ -262,14 +262,8 @@ function requestGPSPermission() {
 
 const TITLECARD_MIN_MS     = 1800;  // piso: que no sea un flash aunque los datos ya esten listos
 const TITLECARD_TIMEOUT_MS = 8000;  // techo: mismo valor que tenia el splash viejo para GPS
-
-const TITLECARD_MSGS = [
-  'iniciando...',
-  'obteniendo ubicación...',
-  'cargando puntos históricos...',
-  'preparando tu soundtrack...',
-  'casi listo...'
-];
+// DT-60: los mensajes de la barra ya no se indexan por porcentaje (mentia) —
+// se eligen por estado real en el interval: GPS pendiente / ciudad pendiente / listo.
 
 function _showTitleCard(onDone) {
   const card = document.getElementById('screen-titlecard');
@@ -308,26 +302,48 @@ function _showTitleCard(onDone) {
   // DT-47: primera vez ya pidio GPS en el paso 1 del wizard — aqui no se
   // vuelve a pedir. Usuario recurrente: este es el UNICO disparo, y se
   // repite cada vez que abre la app (la ciudad pudo haber cambiado).
-  const dataPromise = isFirst ? Promise.resolve(true) : requestGPSPermission();
+  // DT-60: la promesa ahora tiene dos etapas reales — GPS y ciudad.
+  // fetchCityName solo necesita AppState.gps (no depende de Leaflet) y
+  // nunca lanza (try/catch interno): la cadena siempre resuelve.
+  let gpsReady  = isFirst;  // primera vez: el wizard paso 1 ya resolvio GPS
+  let cityReady = false;
 
+  const gpsPromise = isFirst ? Promise.resolve(true) : requestGPSPermission();
+
+  const dataPromise = gpsPromise.then((ok) => {
+    gpsReady = true;
+    if (AppState.gps && !AppState.cityName
+        && typeof GPS !== 'undefined' && typeof GPS.fetchCityName === 'function') {
+      return GPS.fetchCityName(AppState.gps.lat, AppState.gps.lng)
+        .then(() => { cityReady = true; return ok; });
+    }
+    // Sin posicion no habra ciudad (o ya la teniamos) — no retener la barra
+    cityReady = true;
+    return ok;
+  });
+
+  // DT-60: compuertas — la barra anima suave pero no puede adelantar a la
+  // realidad: techo 45% hasta GPS, 90% hasta ciudad, 95% a la espera del race.
   let pct = 0;
   iv = setInterval(() => {
+    const cap = !gpsReady ? 45 : (!cityReady ? 90 : 95);
     const increment = pct < 80 ? Math.random() * 16 + 7 : Math.random() * 4 + 1;
-    pct = Math.min(pct + increment, 95);
+    pct = Math.min(pct + increment, cap);
     if (fill)  fill.style.width = pct + '%';
-    if (label) label.textContent = TITLECARD_MSGS[
-      Math.min(Math.floor((pct / 100) * TITLECARD_MSGS.length), TITLECARD_MSGS.length - 1)
-    ];
+    if (label) label.textContent = !gpsReady
+      ? (pct < 15 ? 'iniciando...' : 'obteniendo ubicación...')
+      : (!cityReady ? 'preparando tu soundtrack...' : 'casi listo...');
   }, 480);
 
   Promise.race([
     dataPromise,
     new Promise(resolve => setTimeout(() => resolve(false), TITLECARD_TIMEOUT_MS))
   ]).then((ok) => {
-    if (typeof Debug !== 'undefined' && !isFirst) {
+    // DT-60: primera vez tambien espera datos reales (ciudad) — loguear siempre
+    if (typeof Debug !== 'undefined') {
       Debug.log(
         ok ? 'info' : 'warn',
-        `Title card: datos ${ok ? 'listos' : 'timeout'} · ${Math.round(performance.now() - startTs)}ms`
+        `Title card: datos ${ok ? 'listos' : 'timeout'} · ciudad=${AppState.cityName || 'sin resolver'} · ${Math.round(performance.now() - startTs)}ms`
       );
     }
     if (fill)  fill.style.width = '100%';
@@ -464,8 +480,11 @@ function initExplore() {
   // el overlay negro entra solo con movimiento sostenido sin interaccion
   if (typeof WalkMode !== 'undefined') WalkMode.start();
 
-  // Fallback: si Nominatim no responde en 10s, mostrar bienvenida genérica
-  _scheduleWelcomeFallback();
+  // DT-60: el fallback solo se agenda si la ciudad NO resolvio durante el
+  // title card. Sin esta compuerta, el reset de _cityWelcomeDone de arriba
+  // haria sonar el generico 10s despues del saludo real (regresion detectada
+  // en diseño, no en campo).
+  if (!AppState.cityName) _scheduleWelcomeFallback();
 
   // Unlock de audio en primer tap — red de seguridad si nadie toco wizard ni title card
   if (!_audioUnlocked) {
@@ -526,13 +545,19 @@ function welcomeCity(city) {
   }
 }
 
-/* ── FALLBACK: mostrar bienvenida genérica si no hay ciudad en 10s ── */
+/* ── FALLBACK DE BIENVENIDA — matiz a DA-77 (S34, con DT-60) ──
+   Decision B: el saludo generico ("Tu ciudad te espera") deja de hablarse.
+   Era relleno que confesaba no saber donde estas — como audio sonaba a bug.
+   El title card ya cumplio la funcion visual de portada; si la ciudad
+   resuelve tarde (reintento en onPosition), el saludo real llega por
+   welcomeCity con la intro "Soy Follower" intacta (introHeard solo se
+   marca cuando efectivamente suena). Aqui solo queda el ojo de campo. */
 function _scheduleWelcomeFallback() {
   setTimeout(() => {
-    if (!AppState._cityWelcomeDone) {
-      const lang = AppState.lang || 'es';
-      const fallback = lang === 'es' ? 'Tu ciudad te espera.' : 'Your city awaits.';
-      welcomeCity(fallback);
+    if (!AppState._cityWelcomeDone && !AppState.cityName) {
+      if (typeof Debug !== 'undefined') {
+        Debug.log('warn', 'Bienvenida: ciudad sin resolver a los 10s — saludo generico suprimido (DA-77 matiz)');
+      }
     }
   }, 10000);
 }

@@ -316,7 +316,10 @@ const GPS = (() => {
     // Inicializar mapa si es la primera posición
     if (!_map) {
       initMap(lat, lng);
-      fetchCityName(lat, lng);
+      // DT-60: la ciudad normalmente ya resolvio durante el title card —
+      // evitar doble hit a Nominatim (politica de uso: 1 req/s). Si fallo
+      // alli (red, timeout 8s), esta llamada es el reintento natural.
+      if (!AppState.cityName) fetchCityName(lat, lng);
     }
 
     // Actualizar marcador en el mapa
@@ -527,6 +530,7 @@ const GPS = (() => {
     stop,
     centerMap,
     distanceMeters,
+    fetchCityName,   // DT-60: el title card la invoca con AppState.gps ya resuelto
     addPOIMarker,
     showHeadingCone,
     updateHeadingCone,

@@ -820,6 +820,29 @@ Los idiomas de cada parte se indican en el mensaje del usuario — la tesis (Par
     return loadThesisFromCache(cityName, tesisLang, prologoLang); // Promise<{tesis,prologo}|null>
   }
 
+  /* ── DEBUG: borrar SOLO la tesis+prólogo de una ciudad puntual ──
+     Pensado para el panel de debug (Debug.retestCityWelcome) — permite
+     reintentar la generación fresca sin perder el cache de POIs ni forzar
+     un reload completo, a diferencia de Debug.clearCache() (borra todo
+     'follower_db'). Reutiliza _thesisCacheKey — misma clave que
+     save/loadThesisFromCache, sin duplicar el formato. */
+  async function clearCityThesisCache(cityName, tesisLang, prologoLang) {
+    const key = _thesisCacheKey(cityName, tesisLang, prologoLang);
+    return new Promise((resolve) => {
+      try {
+        const req = indexedDB.open('follower_db', 1);
+        req.onsuccess = (e) => {
+          const db = e.target.result;
+          const tx = db.transaction('narrations', 'readwrite');
+          tx.objectStore('narrations').delete(key);
+          tx.oncomplete = () => resolve(true);
+          tx.onerror    = () => resolve(false);
+        };
+        req.onerror = () => resolve(false);
+      } catch (e) { resolve(false); }
+    });
+  }
+
   /* ── DT-51 (instrumentación, Sesión 28): VERIFICACIÓN PROGRAMÁTICA AUTOR/FECHA ──
      Punto 1 ratificado: enfoque estructural en vez de seguir ajustando texto
      del prompt (S27b confirmó 0/n en autor/fecha tras cuatro intentos de
@@ -1268,6 +1291,6 @@ Los idiomas de cada parte se indican en el mensaje del usuario — la tesis (Par
   function isNarrating()    { return _isNarrating; }
   function isPaused()       { return _isPaused; }
 
-  return { trigger, stop, pause, resume, getCurrentText, isNarrating, isPaused, getCityWelcome, getCityIntroFallback, getCityIntroPrefix, getLocalLang, getCareMessage, prefetchCityThesis, getFreshCityWelcome, getCachedCityWelcome };
+  return { trigger, stop, pause, resume, getCurrentText, isNarrating, isPaused, getCityWelcome, getCityIntroFallback, getCityIntroPrefix, getLocalLang, getCareMessage, prefetchCityThesis, getFreshCityWelcome, getCachedCityWelcome, clearCityThesisCache };
 
 })();

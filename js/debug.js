@@ -683,6 +683,7 @@ const Debug = (() => {
         <button class="dbg-poi-action map" onclick="Debug.testNarration()">🎙️ Test</button>
         <button class="dbg-poi-action map" onclick="Debug.checkWorker()">☁️ Worker</button>
         <button class="dbg-poi-action map" onclick="Debug.clearCache()">🗑️ Cache</button>
+        <button class="dbg-poi-action map" onclick="Debug.retestCityWelcome()">🏙️ Ciudad</button>
       </div>
     `;
   }
@@ -1691,6 +1692,60 @@ const Debug = (() => {
     }
   }
 
+  /* ── DEBUG: reintentar la bienvenida de la ciudad actual ──
+     A diferencia de clearCache() (borra follower_db entero + reload), esto
+     SOLO borra la tesis+prólogo de la ciudad en curso y vuelve a disparar
+     todo el flujo (prefetch + welcomeCity) en la misma página — sin perder
+     el cache de POIs, sin recargar. Pensado para iterar rápido probando el
+     camino "fresco" (tesis hablada + sheet expandido) repetidamente.
+     Nota: AppState.cityName guarda "Ciudad, PAIS" — se toma solo el primer
+     tramo, igual que usa el resto del pipeline de bienvenida. */
+  async function retestCityWelcome() {
+    if (typeof AppState === 'undefined' || !AppState.cityName) {
+      log('error', 'Retest ciudad: todavía no hay AppState.cityName');
+      return;
+    }
+    if (typeof Narration === 'undefined') {
+      log('error', 'Retest ciudad: Narration no está cargado');
+      return;
+    }
+
+    const rawCity     = AppState.cityName.split(',')[0].trim();
+    const tesisLang   = (typeof Narration.getLocalLang === 'function')
+      ? Narration.getLocalLang(AppState.countryCode) : 'en';
+    const prologoLang = AppState.lang || 'es';
+
+    const borrado = (typeof Narration.clearCityThesisCache === 'function')
+      ? await Narration.clearCityThesisCache(rawCity, tesisLang, prologoLang)
+      : false;
+
+    log('info', `Retest ciudad: cache de "${rawCity}" (${tesisLang}-${prologoLang}) ${borrado ? 'borrado' : 'NO se pudo borrar'}`);
+
+    // Resetear el sheet a su estado visual original antes de re-disparar
+    const block   = document.getElementById('welcomeBlock');
+    const tesisEl = document.getElementById('welcomeTesis');
+    const prolEl  = document.getElementById('welcomePrologo');
+    const titleEl = document.getElementById('nearbySelectorTitle');
+    const sel     = document.getElementById('nearbySelector');
+    if (block)   block.classList.add('hidden');
+    if (tesisEl) tesisEl.classList.remove('compact');
+    if (prolEl)  prolEl.classList.remove('hidden');
+    if (titleEl) titleEl.textContent = 'Historias cerca';
+    if (sel)     sel.classList.remove('welcome-expanded');
+
+    AppState._cityWelcomeDone      = false;
+    AppState._cityWelcomeCollapsed = false;
+
+    if (typeof Narration.prefetchCityThesis === 'function') {
+      Narration.prefetchCityThesis(rawCity, tesisLang, prologoLang);
+    }
+    if (typeof welcomeCity === 'function') {
+      welcomeCity(AppState.cityName);
+    }
+
+    log('info', `Retest ciudad: bienvenida re-disparada para "${rawCity}" — esperando a Haiku...`);
+  }
+
   function clearCache() {
     indexedDB.deleteDatabase('follower_db');
     log('info', 'IndexedDB eliminada — recargando página...');
@@ -1806,6 +1861,7 @@ const Debug = (() => {
     testNarration,
     checkWorker,
     clearCache,
+    retestCityWelcome,
     clearLogs,
     clearTimings,
     getInFlightCount,

@@ -8,7 +8,7 @@
 
 // Incrementar CACHE_VERSION fuerza descarga de todos los archivos
 // en el proximo arranque — incluso si el navegador tiene version cacheada.
-const CACHE_VERSION = 'follower-v58';  // Debug: boton Ciudad para reintentar la bienvenida sin recargar la pagina (clearCityThesisCache + retestCityWelcome)
+const CACHE_VERSION = 'follower-v59';  // Debug: boton Actualizar app (skipWaiting bajo demanda) + boton borrar todas las tesis + message listener SKIP_WAITING
 
 const STATIC_ASSETS = [
   './',
@@ -47,6 +47,15 @@ self.addEventListener('install', (event) => {
   );
   // No llamar skipWaiting() automaticamente — esperar al proximo arranque
   // para no interrumpir una sesion de audio activa
+});
+
+// ── MESSAGE: activacion forzada BAJO DEMANDA (boton "Actualizar app" del
+// panel de debug) — no cambia el comportamiento automatico de arriba, solo
+// da una via explicita para saltarse la espera cuando el usuario lo pide. ──
+self.addEventListener('message', (event) => {
+  if (event.data && event.data.type === 'SKIP_WAITING') {
+    self.skipWaiting();
+  }
 });
 
 // ── ACTIVATE: limpiar caches viejos ──

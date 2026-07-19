@@ -8,7 +8,7 @@
 
 // Incrementar CACHE_VERSION fuerza descarga de todos los archivos
 // en el proximo arranque — incluso si el navegador tiene version cacheada.
-const CACHE_VERSION = 'follower-v56';  // DA-85 S1+: title card en 2 etapas (carga sin corazon -> corazon latiendo + tap) + bugfix isFirst contaminado por orden de persistencia del wizard
+const CACHE_VERSION = 'follower-v57';  // BUGFIX: piso minimo antes de transicionar a Etapa 2 del title card (evita fusion visual) + logging del encabezado persistente
 
 const STATIC_ASSETS = [
   './',

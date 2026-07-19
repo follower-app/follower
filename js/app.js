@@ -363,6 +363,7 @@ function _showTitleCard(onDone) {
       );
     }
     if (fill)  fill.style.width = '100%';
+    if (iv)    { clearInterval(iv); iv = null; } // BUG: sin esto, el interval seguia sobrescribiendo el label cada 480ms — "toca para comenzar" nunca se quedaba en pantalla (S35+, expuesto al quitar el paso 4 del wizard)
 
     const elapsed   = performance.now() - startTs;
     const remaining = Math.max(TITLECARD_MIN_MS - elapsed, 0);
@@ -426,14 +427,15 @@ function _unlockAudioOnFirstTap() {
    Convergen aqui: initExplore() (camino principal, mapa recien visible) y
    _unlockAudioOnFirstTap() (red de seguridad si el desbloqueo llega ya en
    explore). TTL de DA-77 intacto: un "bienvenido" a los 5 minutos sonaria
-   a bug, no a bienvenida. DA-85 (S35+): si había sheet de bienvenida
-   pendiente, se abre en el mismo momento en que la voz arranca. */
+   a bug, no a bienvenida. DA-85 (S35+ fix): la resolucion de tesis/prologo
+   ocurre AQUI, recien ahora — es el momento con mas margen real para que
+   Haiku haya respondido (ver nota de BUGFIX en welcomeCity). */
 function _flushPendingWelcome() {
   if (!_pendingWelcome || !_audioUnlocked) return;
   const p = _pendingWelcome;
   _pendingWelcome = null;
   if (Date.now() - p.ts <= WELCOME_TTL_MS) {
-    _speakCityWelcome(p.text, p.lang, p.isIntro, p.sheetData);
+    _resolveAndSpeakCityWelcome(p);
   } else if (typeof Debug !== 'undefined') {
     Debug.log('info', 'Bienvenida descartada — TTL vencido (intro conservada para proxima vez)');
   }
@@ -529,14 +531,37 @@ function welcomeCity(city) {
   if (AppState._cityWelcomeDone) return;
   AppState._cityWelcomeDone = true;
 
+  const isFallback = (city === 'Tu ciudad te espera.' || city === 'Your city awaits.');
+
+  // DT-45: el saludo vive 100% en el canal de voz — la pantalla titula, la voz saluda
+  if (typeof Voice === 'undefined' || !Voice.isSupported || !Voice.isSupported()) return;
+
+  // BUGFIX (S35+): antes esta función resolvía tesis/prólogo AQUÍ MISMO,
+  // en el instante en que la ciudad se resuelve — pero prefetchCityThesis()
+  // recién arranca en ese instante (Wikipedia + Haiku, toma segundos). El
+  // resultado: getFreshCityWelcome() siempre volvía null, SIEMPRE perdía
+  // la carrera, nunca "a veces". Fix: solo guardamos los insumos aquí; la
+  // resolución real se pospone hasta el momento en que la voz vaya a
+  // sonar de verdad (_flushPendingWelcome, normalmente tras el tap del
+  // title card + entrada a explore) — ahí sí hubo tiempo real para Haiku.
+  const params = { city, isFallback, ts: Date.now() };
+
+  if (_audioUnlocked && AppState.screen === 'explore') {
+    _resolveAndSpeakCityWelcome(params);
+  } else {
+    _pendingWelcome = params;  // DA-77 + DA-85
+  }
+}
+
+/* ── DA-85 (S35+ fix): RESOLUCIÓN TARDÍA — se llama justo antes de hablar,
+   nunca al componer. Aquí sí conviene consultar getFreshCityWelcome(). ── */
+function _resolveAndSpeakCityWelcome({ city, isFallback }) {
   // DT-41: saludo en idioma local de la ciudad, no del usuario
   const localLang = (AppState.countryCode && typeof Narration !== 'undefined' && Narration.getLocalLang)
     ? Narration.getLocalLang(AppState.countryCode)
     : 'en';
 
-  // Si es el fallback generico, no pasar por getCityWelcome
-  const isFallback  = (city === 'Tu ciudad te espera.' || city === 'Your city awaits.');
-  const name        = (typeof Config !== 'undefined') ? (Config.get('userName') || null) : null;  // DA-75
+  const name = (typeof Config !== 'undefined') ? (Config.get('userName') || null) : null;  // DA-75
 
   // Ratificacion S25c: "Soy Follower" solo la primera vez que el saludo
   // efectivamente suena — no es bienvenida recurrente, es presentacion.
@@ -552,8 +577,8 @@ function welcomeCity(city) {
   } else {
     // DA-85 §1 (S35+): la bienvenida se consulta siempre que hay ciudad real.
     // getFreshCityWelcome() solo devuelve algo si se generó DE CERO en esta
-    // sesión (cache miss) y llegó antes de este punto (regla de carrera).
-    // Tesis en idioma local de la ciudad; prólogo en el idioma del usuario.
+    // sesión (cache miss) y llegó antes de este punto (regla de carrera —
+    // ahora con margen real, ver nota de BUGFIX arriba).
     const userLang = AppState.lang || 'es';
     const fresh = (typeof Narration !== 'undefined' && typeof Narration.getFreshCityWelcome === 'function')
       ? Narration.getFreshCityWelcome(city, localLang, userLang)
@@ -582,19 +607,8 @@ function welcomeCity(city) {
     Debug.log('info', `Bienvenida (voz${includeIntro ? ', con intro' : ''}): "${text}"`);
   }
 
-  // DT-45: el saludo vive 100% en el canal de voz — la pantalla titula, la voz saluda
-  if (typeof Voice === 'undefined' || !Voice.isSupported || !Voice.isSupported()) return;
-
   const speakLang = isFallback ? (AppState.lang || 'es') : localLang;
-  // Ratificacion B (S34): el saludo SIEMPRE suena con el mapa en pantalla —
-  // por diseño, no por accidente del orden de carga. Si la ciudad resuelve
-  // durante el title card, el saludo espera en _pendingWelcome y lo pronuncia
-  // initExplore() (flush unico). Hablar directo solo si ya estamos en explore.
-  if (_audioUnlocked && AppState.screen === 'explore') {
-    _speakCityWelcome(text, speakLang, includeIntro, sheetData);
-  } else {
-    _pendingWelcome = { text, lang: speakLang, isIntro: includeIntro, ts: Date.now(), sheetData };  // DA-77 + DA-85
-  }
+  _speakCityWelcome(text, speakLang, includeIntro, sheetData);
 }
 
 /* ── DA-85 (S35+): HABLAR + ABRIR EL SHEET, PUNTO ÚNICO ──

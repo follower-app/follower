@@ -8,7 +8,7 @@
 
 // Incrementar CACHE_VERSION fuerza descarga de todos los archivos
 // en el proximo arranque — incluso si el navegador tiene version cacheada.
-const CACHE_VERSION = 'follower-v51';  // Ratificacion B: saludo siempre suena en explore — flush unico de _pendingWelcome en initExplore (app.js)
+const CACHE_VERSION = 'follower-v52';  // DA-85 S1: tesis+prologo de ciudad (narration.js), wizard 3 pasos + sheet de bienvenida (index.html, app.js, explore.css), prefetch en gps.js
 
 const STATIC_ASSETS = [
   './',

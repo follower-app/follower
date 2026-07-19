@@ -677,16 +677,6 @@ const Debug = (() => {
           <div class="dbg-cell-value">${s.cityName || '—'} · ${s.mood || '—'}</div>
         </div>
       </div>
-
-      <div style="display:flex; gap:6px; flex-wrap:wrap; margin-top:4px;">
-        <button class="dbg-poi-action narrate" onclick="Debug.forceLoadPOIs()">🔄 POIs</button>
-        <button class="dbg-poi-action map" onclick="Debug.testNarration()">🎙️ Test</button>
-        <button class="dbg-poi-action map" onclick="Debug.checkWorker()">☁️ Worker</button>
-        <button class="dbg-poi-action map" onclick="Debug.clearCache()">🗑️ Cache</button>
-        <button class="dbg-poi-action map" onclick="Debug.retestCityWelcome()">🏙️ Ciudad</button>
-        <button class="dbg-poi-action map" onclick="Debug.clearAllThesisCache()">🗑️ Todas las tesis</button>
-        <button class="dbg-poi-action map" onclick="Debug.forceUpdateApp()">🔄 Actualizar app</button>
-      </div>
     `;
   }
 
@@ -707,6 +697,15 @@ const Debug = (() => {
       <div id="dbg-search-wrap">
         <input id="dbg-search-input" placeholder="Filtrar por nombre (opcional)..." />
         <button id="dbg-search-btn">Filtrar</button>
+      </div>
+      <div style="display:flex; gap:6px; flex-wrap:wrap; margin:8px 0 10px;">
+        <button class="dbg-poi-action narrate" onclick="Debug.forceLoadPOIs()">🔄 POIs</button>
+        <button class="dbg-poi-action map" onclick="Debug.testNarration()">🎙️ Test</button>
+        <button class="dbg-poi-action map" onclick="Debug.checkWorker()">☁️ Worker</button>
+        <button class="dbg-poi-action map" onclick="Debug.clearCache()">🗑️ Cache</button>
+        <button class="dbg-poi-action map" onclick="Debug.retestCityWelcome()">🏙️ Ciudad</button>
+        <button class="dbg-poi-action map" onclick="Debug.clearAllThesisCache()">🗑️ Todas las tesis</button>
+        <button class="dbg-poi-action map" onclick="Debug.forceUpdateApp()">🔄 Actualizar app</button>
       </div>
       <div id="dbg-search-results">
         ${renderPOIList(sorted.slice(0, 20))}

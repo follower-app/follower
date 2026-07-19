@@ -8,7 +8,7 @@
 
 // Incrementar CACHE_VERSION fuerza descarga de todos los archivos
 // en el proximo arranque — incluso si el navegador tiene version cacheada.
-const CACHE_VERSION = 'follower-v59';  // Debug: boton Actualizar app (skipWaiting bajo demanda) + boton borrar todas las tesis + message listener SKIP_WAITING
+const CACHE_VERSION = 'follower-v60';  // BUGFIX: fila de botones de debug vivia en renderStatus(), una pestana huerfana sin boton visible desde hace tiempo — movida a renderSearch() (pestana POIs, la que si se ve)
 
 const STATIC_ASSETS = [
   './',

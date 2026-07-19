@@ -378,7 +378,13 @@ function _showTitleCard(onDone) {
     // Si el audio ya esta desbloqueado (tap temprano durante la Etapa 1),
     // avanza solo como siempre, sin pasar por la Etapa 2.
     if (!_audioUnlocked) {
-      _showTitleCardTapStage();
+      // BUGFIX (S35+, hallado en campo): sin este piso, cuando los datos
+      // resuelven muy rapido (<500ms, visto en campo con Wikipedia/ciudad
+      // ya cacheadas) la Etapa 2 se disparaba de inmediato — el cross-fade
+      // de 0.7s no alcanzaba a completarse y las dos etapas se veian
+      // superpuestas (wordmark + corazon a la vez). Mismo TITLECARD_MIN_MS
+      // que ya usaba la rama de abajo, aplicado tambien aqui.
+      setTimeout(() => _showTitleCardTapStage(), remaining);
       return; // tapFinish (registrado abajo) es el unico camino de salida
     }
 
@@ -630,7 +636,14 @@ function _resolveAndSpeakCityWelcome({ city, isFallback }) {
     // un instante después, sin narración de por medio.
     if (!sheetData && typeof Narration !== 'undefined' && typeof Narration.getCachedCityWelcome === 'function') {
       Narration.getCachedCityWelcome(city, localLang, userLang).then((cachedValue) => {
-        if (cachedValue) _populatePersistentCityHeader(city, cachedValue.tesis);
+        if (cachedValue) {
+          if (typeof Debug !== 'undefined') {
+            Debug.log('info', `Encabezado persistente: poblado desde cache — ${city}: "${cachedValue.tesis}"`);
+          }
+          _populatePersistentCityHeader(city, cachedValue.tesis);
+        } else if (typeof Debug !== 'undefined') {
+          Debug.log('info', `Encabezado persistente: sin tesis cacheada para ${city} — nada que poblar`);
+        }
       });
     }
   }

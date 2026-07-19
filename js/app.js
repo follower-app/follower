@@ -601,6 +601,20 @@ function _resolveAndSpeakCityWelcome({ city, isFallback }) {
       // Escenarios 1/4/5: sin bienvenida fresca — comportamiento actual intacto.
       text = Narration.getCityWelcome(city, name, localLang, includeIntro);
     }
+
+    // DA-85 (S35+): aunque no haya bienvenida FRESCA (ya se visitó esta
+    // ciudad antes en este dispositivo), el encabezado — ciudad + tesis
+    // compacta — debería seguir presente en el sheet para el resto de la
+    // caminata. Es la identidad de la ciudad, no un anuncio de una sola
+    // vez; separar "hablar la tesis" (una vez) de "mostrar el encabezado"
+    // (siempre) era la pieza que faltaba. Lectura no consumible, en
+    // paralelo, nunca bloquea la voz — si tarda, el encabezado aparece
+    // un instante después, sin narración de por medio.
+    if (!sheetData && typeof Narration !== 'undefined' && typeof Narration.getCachedCityWelcome === 'function') {
+      Narration.getCachedCityWelcome(city, localLang, userLang).then((cachedValue) => {
+        if (cachedValue) _populatePersistentCityHeader(city, cachedValue.tesis);
+      });
+    }
   }
 
   if (typeof Debug !== 'undefined') {
@@ -687,6 +701,37 @@ function _collapseCityWelcomeSheet() {
   // abierto (evita el tap-cancel de iOS). Excepcion deliberada: este es el
   // unico rebuild que necesitamos forzar en el instante del colapso, no un
   // tick de fondo a mitad de un gesto — por eso pasa force=true.
+  if (typeof updateHistCount === 'function') updateHistCount(true);
+}
+
+/* ── DA-85 (S35+): ENCABEZADO PERSISTENTE DESDE CACHE (sin narración) ──
+   Aunque la ciudad ya se haya visitado antes en este dispositivo (cache
+   hit, sin bienvenida fresca que hablar), el nombre+tesis deberían seguir
+   presentes en el sheet para el resto de la caminata — no son un anuncio
+   de una sola vez, son la identidad de la ciudad. Se puebla en silencio,
+   directo en forma compacta (sin pasar por expandir→narrar→colapsar):
+   solo prepara el contenido para cuando el usuario abra el sheet vía el
+   pill. El prólogo nunca aparece aquí — solo acompaña la narración fresca. */
+function _populatePersistentCityHeader(cityName, tesis) {
+  const block   = document.getElementById('welcomeBlock');
+  const cityEl  = document.getElementById('welcomeCityName');
+  const tesisEl = document.getElementById('welcomeTesis');
+  const prolEl  = document.getElementById('welcomePrologo');
+  if (!block || !cityEl || !tesisEl) return;
+
+  // No pisar un sheet que ya está en bienvenida expandida en este instante
+  // (fresca, con su propio ciclo de vida) — esto es solo para el caso sin
+  // bienvenida fresca.
+  const sel = document.getElementById('nearbySelector');
+  if (sel && sel.classList.contains('welcome-expanded')) return;
+
+  cityEl.textContent  = cityName;
+  tesisEl.textContent = `"${tesis}"`;
+  tesisEl.classList.add('compact');
+  if (prolEl) prolEl.classList.add('hidden');
+  block.classList.remove('hidden');
+
+  AppState._cityWelcomeCollapsed = true; // "Por descubrir" en vez de "Historias cerca"
   if (typeof updateHistCount === 'function') updateHistCount(true);
 }
 

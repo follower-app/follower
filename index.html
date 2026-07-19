@@ -87,7 +87,7 @@
 
     <!-- Paso 1 — GPS (priming, patron Citymapper) -->
     <section class="wizard-step active">
-      <div class="wizard-dots"><span class="wdot on"></span><span class="wdot"></span><span class="wdot"></span><span class="wdot"></span></div>
+      <div class="wizard-dots"><span class="wdot on"></span><span class="wdot"></span><span class="wdot"></span></div>
       <div class="wizard-icon">📍</div>
       <h3 class="wizard-title">Camino contigo</h3>
       <p class="wizard-example">"Para susurrarte la historia de la iglesia que tienes enfrente, necesito saber dónde estás."</p>
@@ -98,7 +98,7 @@
 
     <!-- Paso 2 — Idioma (antes de la voz: la muestra suena en el idioma confirmado) -->
     <section class="wizard-step">
-      <div class="wizard-dots"><span class="wdot on"></span><span class="wdot on"></span><span class="wdot"></span><span class="wdot"></span></div>
+      <div class="wizard-dots"><span class="wdot on"></span><span class="wdot on"></span><span class="wdot"></span></div>
       <div class="wizard-icon">🗣️</div>
       <h3 class="wizard-title" id="wizLangTitle">Te hablaré en español</h3>
       <div class="wizard-chip">Detectado de tu teléfono · <b id="wizLangCode">es</b></div>
@@ -112,23 +112,18 @@
       <button class="wizard-btn wizard-btn-ghost" id="wizLangChange">Cambiar idioma</button>
     </section>
 
-    <!-- Paso 3 — Nombre (DA-75: microcopy = contrato) -->
+    <!-- Paso 3 — Nombre (DA-75: microcopy = contrato). Cierre del wizard —
+         DA-85 (S35+): el Paso 4 (corazon "Toca para escucharme") se elimina.
+         El desbloqueo de audio pasa a ocurrir en el tap del title card,
+         igual para primera vez y recurrentes (una sola puerta, DA-77). -->
     <section class="wizard-step">
-      <div class="wizard-dots"><span class="wdot on"></span><span class="wdot on"></span><span class="wdot on"></span><span class="wdot"></span></div>
+      <div class="wizard-dots"><span class="wdot on"></span><span class="wdot on"></span><span class="wdot on"></span></div>
       <div class="wizard-icon">👋</div>
       <h3 class="wizard-title">¿Cómo quieres que te llame?</h3>
       <p class="wizard-plain">Solo lo usaré para saludarte y despedirme.</p>
       <input class="wizard-input" id="wizNameInput" type="text" placeholder="Tu nombre" maxlength="24" autocomplete="given-name">
       <button class="wizard-btn wizard-btn-gold" id="wizNameOk">Continuar</button>
       <button class="wizard-btn wizard-btn-ghost" id="wizNameSkip">Prefiero no decirlo</button>
-    </section>
-
-    <!-- Paso 4 — Voz (cierre: touchend desbloquea speechSynthesis — linaje BUG-036) -->
-    <section class="wizard-step">
-      <div class="wizard-dots"><span class="wdot on"></span><span class="wdot on"></span><span class="wdot on"></span><span class="wdot on"></span></div>
-      <div class="wizard-icon" id="wizHeartBtn">💗</div>
-      <h3 class="wizard-title">Toca para escucharme</h3>
-      <p class="wizard-plain">Al tocar, despierto la voz que te acompañará en el paseo.</p>
     </section>
 
   </div>
@@ -198,7 +193,18 @@
     <!-- Nearby stories selector — bottom sheet sobre el mapa -->
     <div class="style-selector hidden" id="nearbySelector">
       <div class="style-handle"></div>
-      <p class="style-title">Historias cerca</p>
+
+      <!-- DA-85 (S35+): bloque de bienvenida — oculto por defecto. Estado
+           expandido: JS lo puebla y oculta title+list (POIs ocultos hasta
+           el colapso). Estado colapsado: queda visible compacto, junto al
+           title ("Por descubrir · N") y la lista, ya con POIs. -->
+      <div class="welcome-block hidden" id="welcomeBlock">
+        <div class="welcome-city" id="welcomeCityName"></div>
+        <div class="welcome-tesis" id="welcomeTesis"></div>
+        <div class="welcome-prologo" id="welcomePrologo"></div>
+      </div>
+
+      <p class="style-title" id="nearbySelectorTitle">Historias cerca</p>
       <div class="style-list" id="nearbySelectorList">
         <div class="style-card" style="justify-content:center;">
           <span style="font-size:11px;color:var(--color-smoke-2);">Buscando historias cercanas...</span>

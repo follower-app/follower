@@ -585,6 +585,49 @@ body.phase-diastole .heart-compass {
   letter-spacing: 0.02em;
 }
 
+/* ── DA-85 (S35+): BLOQUE DE BIENVENIDA — dentro del mismo style-selector ──
+   Estado expandido: solo este bloque, POIs ocultos (style-title + style-list
+   quedan hidden aparte). Estado colapsado: welcome-tesis toma .compact,
+   welcome-prologo se oculta, y title/list reaparecen debajo. */
+
+.welcome-block.hidden { display: none !important; }
+
+.welcome-city {
+  font-family: var(--font-ui);
+  font-size: 10px;
+  font-weight: var(--weight-medium);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--color-smoke);
+  margin-bottom: 8px;
+}
+
+.welcome-tesis {
+  font-family: var(--font-display);
+  font-style: italic;
+  font-weight: 400;
+  font-size: 19px;
+  line-height: 1.3;
+  color: var(--color-gold);
+  margin-bottom: 12px;
+}
+
+.welcome-tesis.compact {
+  font-size: 14px;
+  margin-bottom: 4px;
+}
+
+.welcome-prologo {
+  font-family: var(--font-ui);
+  font-weight: var(--weight-light);
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--color-smoke);
+  margin-bottom: var(--space-lg);
+}
+
+.welcome-prologo.hidden { display: none !important; }
+
 /* ── MODO RECORRIDO ── */
 
 .route-path {

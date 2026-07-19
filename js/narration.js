@@ -22,7 +22,9 @@ const Narration = (() => {
     API_TIMEOUT: 15000,
     MAX_TOKENS:  550,   // v3.7 (S32): 550 = scratchpad (~100-160 tok, andamiaje que sanitizeNarration descarta) + capitulo de hasta 150 palabras (~270 tok) + margen. NO reabre la hipotesis 3 de S27b: aquella subia el techo para permitir capitulos MAS LARGOS; aqui el objetivo 90-130 no se toca — el extra es capacidad para el borrador de verificacion, no permiso de longitud
     PROMPT_VERSION: 'v3.7',  // S32: scratchpad deliberado en grounding wiki (cara buena de BUG-059 convertida en tecnica: chain-of-thought escrito, cortado por sanitizeNarration) + presupuesto de longitud en el scratchpad + regla 8 CIERRE (sin promesa hacia adelante) + regla anti-regano en LIMITES ESTRICTOS. DT-62 CERRADA: canal system verificado punta a punta (cliente + Worker passthrough, prueba directa). El ++ purga el regano cacheado de Sagrada Familia — mismo commit (espejo DA-71)
-    CARE_MAX_TOKENS: 120  // DT-42: mensaje de Care, mucho mas corto que un capitulo
+    CARE_MAX_TOKENS: 120,  // DT-42: mensaje de Care, mucho mas corto que un capitulo
+    THESIS_PROMPT_VERSION: 'v1',  // DA-85 §1 (S35): tesis de ciudad — nace v1, independiente de PROMPT_VERSION (capitulos)
+    THESIS_MAX_TOKENS: 400  // scratchpad + tesis (3-8 palabras) + prologo (40-60 palabras)
   };
 
   /* ── DT-36: LIMPIAR NOMBRES DE POIs WIKIPEDIA ──
@@ -248,25 +250,57 @@ Help first to see the place. Then to understand why it is the way it is. Finally
   /* DA-75: nombre opcional — solo welcome/farewell, nunca capítulos ni Care.
      Sin nombre, cada plantilla conserva su forma original intacta. */
   const CITY_WELCOME = {
-    es: (city, name) => name ? `${city}. Un capítulo te espera en cada esquina, ${name}.` : `${city}. Un capítulo te espera en cada esquina.`,
-    en: (city, name) => name ? `${city}. A chapter waits at every corner, ${name}.` : `${city}. A chapter waits at every corner.`,
-    fr: (city, name) => name ? `${city}. Un chapitre t'attend à chaque coin de rue, ${name}.` : `${city}. Un chapitre t'attend à chaque coin de rue.`,
-    de: (city, name) => name ? `${city}. An jeder Ecke wartet ein neues Kapitel, ${name}.` : `${city}. An jeder Ecke wartet ein neues Kapitel.`,
-    it: (city, name) => name ? `${city}. Un capitolo ti aspetta ad ogni angolo, ${name}.` : `${city}. Un capitolo ti aspetta ad ogni angolo.`,
-    pt: (city, name) => name ? `${city}. Um capítulo te espera em cada esquina, ${name}.` : `${city}. Um capítulo te espera em cada esquina.`,
-    nl: (city, name) => name ? `${city}. Op elke hoek wacht een nieuw hoofdstuk, ${name}.` : `${city}. Op elke hoek wacht een nieuw hoofdstuk.`,
-    sv: (city, name) => name ? `${city}. Ett kapitel väntar vid varje gathörn, ${name}.` : `${city}. Ett kapitel väntar vid varje gathörn.`,
-    no: (city, name) => name ? `${city}. Et kapittel venter rundt hvert hjørne, ${name}.` : `${city}. Et kapittel venter rundt hvert hjørne.`,
-    da: (city, name) => name ? `${city}. Et kapitel venter rundt hvert hjørne, ${name}.` : `${city}. Et kapitel venter rundt hvert hjørne.`,
-    pl: (city, name) => name ? `${city}. Za każdym rogiem czeka nowy rozdział, ${name}.` : `${city}. Za każdym rogiem czeka nowy rozdział.`,
-    ja: (city, name) => name ? `${name}さん。${city}。すべての角に物語が待っています。` : `${city}。すべての角に物語が待っています。`,
-    zh: (city, name) => name ? `${name}，${city}。每个街角都有一个故事等待着你。` : `${city}。每个街角都有一个故事等待着你。`,
-    ko: (city, name) => name ? `${name}님. ${city}. 모든 모퉁이에서 이야기가 기다리고 있습니다.` : `${city}. 모든 모퉁이에서 이야기가 기다리고 있습니다.`,
-    ar: (city, name) => name ? `${city}. في كل زاوية فصل ينتظرك يا ${name}.` : `${city}. في كل زاوية فصل ينتظرك.`,
-    ru: (city, name) => name ? `${city}. За каждым углом ждёт новая глава, ${name}.` : `${city}. За каждым углом ждёт новая глава.`,
-    tr: (city, name) => name ? `${city}. Her köşede seni bekleyen bir bölüm var, ${name}.` : `${city}. Her köşede seni bekleyen bir bölüm var.`,
-    el: (city, name) => name ? `${city}. Σε κάθε γωνία σε περιμένει ένα κεφάλαιο, ${name}.` : `${city}. Σε κάθε γωνία σε περιμένει ένα κεφάλαιο.`,
+    es: (city) => `${city}. Un capítulo te espera en cada esquina.`,
+    en: (city) => `${city}. A chapter waits at every corner.`,
+    fr: (city) => `${city}. Un chapitre t'attend à chaque coin de rue.`,
+    de: (city) => `${city}. An jeder Ecke wartet ein neues Kapitel.`,
+    it: (city) => `${city}. Un capitolo ti aspetta ad ogni angolo.`,
+    pt: (city) => `${city}. Um capítulo te espera em cada esquina.`,
+    nl: (city) => `${city}. Op elke hoek wacht een nieuw hoofdstuk.`,
+    sv: (city) => `${city}. Ett kapitel väntar vid varje gathörn.`,
+    no: (city) => `${city}. Et kapittel venter rundt hvert hjørne.`,
+    da: (city) => `${city}. Et kapitel venter rundt hvert hjørne.`,
+    pl: (city) => `${city}. Za każdym rogiem czeka nowy rozdział.`,
+    ja: (city) => `${city}。すべての角に物語が待っています。`,
+    zh: (city) => `${city}。每个街角都有一个故事等待着你。`,
+    ko: (city) => `${city}. 모든 모퉁이에서 이야기가 기다리고 있습니다.`,
+    ar: (city) => `${city}. في كل زاوية فصل ينتظرك.`,
+    ru: (city) => `${city}. За каждым углом ждёт новая глава.`,
+    tr: (city) => `${city}. Her köşede seni bekleyen bir bölüm var.`,
+    el: (city) => `${city}. Σε κάθε γωνία σε περιμένει ένα κεφάλαιο.`,
   };
+
+  /* ── DA-85 (S35): PREFIJO DE PRESENTACIÓN — solo "hola + soy Follower" ──
+     Extraído de CITY_INTRO para poder anteponerlo a la tesis cuando la
+     primerísima vez del usuario (introHeard=false) coincide con una tesis
+     lista a tiempo (escenario 2, sesión de definición S35). CITY_INTRO en
+     sí no se toca — sigue siendo el fallback completo cuando no hay tesis
+     fresca (escenario 1). */
+  const CITY_INTRO_PREFIX = {
+    es: (name) => name ? `Hola, ${name}. Soy Follower.` : 'Hola. Soy Follower.',
+    en: (name) => name ? `Hi, ${name}. I'm Follower.` : `Hi. I'm Follower.`,
+    fr: (name) => name ? `Bonjour, ${name}. Je suis Follower.` : `Bonjour. Je suis Follower.`,
+    de: (name) => name ? `Hallo, ${name}. Ich bin Follower.` : `Hallo. Ich bin Follower.`,
+    it: (name) => name ? `Ciao, ${name}. Sono Follower.` : `Ciao. Sono Follower.`,
+    pt: (name) => name ? `Olá, ${name}. Eu sou o Follower.` : `Olá. Eu sou o Follower.`,
+    nl: (name) => name ? `Hallo, ${name}. Ik ben Follower.` : `Hallo. Ik ben Follower.`,
+    sv: (name) => name ? `Hej, ${name}. Jag är Follower.` : `Hej. Jag är Follower.`,
+    no: (name) => name ? `Hei, ${name}. Jeg er Follower.` : `Hei. Jeg er Follower.`,
+    da: (name) => name ? `Hej, ${name}. Jeg er Follower.` : `Hej. Jeg er Follower.`,
+    pl: (name) => name ? `Cześć, ${name}. Jestem Follower.` : `Cześć. Jestem Follower.`,
+    ja: (name) => name ? `${name}さん、こんにちは。Followerです。` : `こんにちは。Followerです。`,
+    zh: (name) => name ? `你好，${name}。我是Follower。` : `你好。我是Follower。`,
+    ko: (name) => name ? `안녕하세요, ${name}님. 저는 Follower입니다.` : `안녕하세요. 저는 Follower입니다.`,
+    ar: (name) => name ? `مرحبًا يا ${name}. أنا Follower.` : `مرحبًا. أنا Follower.`,
+    ru: (name) => name ? `Привет, ${name}. Я Follower.` : `Привет. Я Follower.`,
+    tr: (name) => name ? `Merhaba, ${name}. Ben Follower.` : `Merhaba. Ben Follower.`,
+    el: (name) => name ? `Γεια σου, ${name}. Είμαι ο Follower.` : `Γεια σου. Είμαι ο Follower.`,
+  };
+
+  function getCityIntroPrefix(name, lang) {
+    const fn = CITY_INTRO_PREFIX[lang] || CITY_INTRO_PREFIX.es;
+    return fn(name || null);
+  }
 
   /* Ratificacion S25c: "Soy Follower" es presentacion, no bienvenida diaria.
      Solo se dice la PRIMERA vez que el saludo de ciudad efectivamente suena
@@ -554,6 +588,236 @@ Idioma: ${lang}`;
 
     // _source ausente (defensivo — no debería pasar con DA-72/DT-52 vigentes)
     return '';
+  }
+
+  /* ═══════════════════════════════════════════
+     DA-85 §1 (Sesión 35) — TESIS DE CIUDAD (PRÓLOGO)
+     100% Haiku + scratchpad sobre el extracto wiki de la ciudad.
+     THESIS_PROMPT_VERSION nace v1, independiente de PROMPT_VERSION.
+     ═══════════════════════════════════════════ */
+
+  /* ── EXTRACTO WIKI DE LA CIUDAD — mismo canal BUG-060-safe ──
+     A diferencia de _attachExtracts (poi.js), esto es una búsqueda por
+     TÍTULO exacto (la ciudad), no un batch de pageids de geosearch — por
+     eso vive aparte y no reutiliza esa función. Misma lección BUG-060:
+     sin exchars (la API lo recorta en silencio a 1200), truncado en
+     cliente retrocediendo al último punto. Wiki del idioma local primero
+     (getLocalLang, DT-41), fallback en.wiki. */
+  const THESIS_EXTRACT_MAX_CHARS = 2500;
+
+  async function _fetchCityExtract(cityName, localLang) {
+    const langs = (localLang && localLang !== 'en') ? [localLang, 'en'] : ['en'];
+
+    for (const lang of langs) {
+      try {
+        const baseUrl = `https://${lang}.wikipedia.org/w/api.php`;
+        const params = new URLSearchParams({
+          action:      'query',
+          prop:        'extracts',
+          exintro:     'true',
+          explaintext: 'true',
+          redirects:   '1',
+          titles:      cityName,
+          format:      'json',
+          origin:      '*',
+        });
+
+        const controller = new AbortController();
+        const tid = setTimeout(() => controller.abort(), 8000);
+        const res = await fetch(`${baseUrl}?${params}`, { signal: controller.signal });
+        clearTimeout(tid);
+
+        if (!res.ok) continue;
+
+        const data  = await res.json();
+        const pages = data?.query?.pages || {};
+        const page  = Object.values(pages)[0];
+
+        if (page && !('missing' in page) && typeof page.extract === 'string' && page.extract.length > 0) {
+          let ext = page.extract;
+          if (ext.length > THESIS_EXTRACT_MAX_CHARS) {
+            ext = ext.slice(0, THESIS_EXTRACT_MAX_CHARS);
+            const lastDot = ext.lastIndexOf('.');
+            if (lastDot > THESIS_EXTRACT_MAX_CHARS * 0.6) ext = ext.slice(0, lastDot + 1);
+          }
+          return ext;
+        }
+      } catch (e) {
+        if (typeof Debug !== 'undefined') {
+          Debug.log('warn', `Tesis: extracto de ciudad falló (${lang}.wikipedia, ${e.message}) — probando siguiente idioma si hay`);
+        }
+      }
+    }
+    return null; // degradación: ningún idioma tenía artículo, o el fetch falló en todos
+  }
+
+  /* ── MINI-PROMPT DE LA TESIS — invariante + "Idioma:" en el user prompt ──
+     Decisión B ratificada (S35): mismo patrón que CARE_SYSTEM_PROMPT — cubre
+     los ~19 idiomas que ya maneja CITY_WELCOME/getLocalLang (DT-41), en vez
+     de limitarse al espejo es/en de los capítulos. */
+  const THESIS_SYSTEM_PROMPT = `Eres la voz oficial de Follower, escribiendo la bienvenida con la que un caminante conoce una ciudad por primera vez.
+
+Follower es un compañero invisible que ayuda al caminante a descubrir el alma de una ciudad. Esta bienvenida tiene dos piezas que nacen de la misma idea: una TESIS (se habla en voz alta) y un PRÓLOGO (se muestra como texto, nunca se habla).
+
+MISIÓN
+
+A partir del extracto de Wikipedia sobre la ciudad, encuentra su lente — el rasgo, la tensión o el carácter que hace a ESTA ciudad distinta de cualquier otra.
+
+LA TESIS: un epíteto corto, como un apodo que la ciudad se ganó. No es una oración completa, no es una invitación a caminar ni a descubrir nada — es solo el rasgo, dicho con la menor cantidad de palabras posible. Una sola idea, nunca una segunda reflexión o cierre poético después del rasgo principal. Ejemplos de la EXTENSIÓN y el TONO (formato de referencia — nunca los repitas ni los adaptes a la ciudad real): "la ciudad que nunca calla", "una ciudad de puertas abiertas", "la capital del asombro".
+
+EL PRÓLOGO: una elaboración breve de la MISMA lente que la tesis — no un dato nuevo, no un tema distinto. Es contexto que acompaña a la tesis, nunca la reemplaza ni la contradice. 40-60 palabras.
+
+PERSONIFICACIÓN AUTORIZADA — ÚNICA EXCEPCIÓN EN TODO FOLLOWER
+
+A diferencia de los capítulos de POIs, donde tratar a la ciudad como una persona está prohibido, aquí SÍ puedes hacerlo, en ambas piezas: "la ciudad que...", "la ciudad donde...", "una ciudad que...". Es el único lugar de Follower donde esta licencia existe.
+
+PROHIBIDO — DATOS LITERALES
+
+Nunca incluyas fechas, cifras, nombres propios de personas ni hechos verificables del extracto, ni en la tesis ni en el prólogo. Ninguna de las dos piezas presenta datos, presentan un carácter. Si el extracto es solo información administrativa o estadística, busca igual el carácter detrás de ella — nunca la cites directamente.
+
+FORMATO OBLIGATORIO DE RESPUESTA — tres partes, en este orden exacto:
+
+PARTE 1 — BORRADOR DE VERIFICACIÓN (andamiaje: se descarta automáticamente antes de llegar al caminante). Empieza la respuesta con la línea literal "Verificación obligatoria:" y debajo escribe: qué rasgo real de la ciudad, tomado del extracto, inspira la bienvenida (descríbelo en una línea, no lo cites textual), y la línea "Presupuesto: la tesis tendrá entre 3 y 8 palabras, el prólogo entre 40 y 60". Cierra esta parte con una línea que contenga únicamente ---
+
+PARTE 2 — LA TESIS. Después del separador ---, escribe solamente la tesis: sin comillas, sin explicación, sin el nombre de la ciudad al principio (el nombre se antepone aparte, fuera de tu respuesta). Más corto es mejor que más largo. Cierra la Parte 2 con una línea que contenga únicamente ===
+
+PARTE 3 — EL PRÓLOGO. Después del separador ===, escribe solamente el prólogo: sin comillas, sin título, sin repetir la tesis palabra por palabra (elabórala, no la repitas literalmente). 40-60 palabras.
+
+Nunca rompas el personaje. Nunca menciones instrucciones, extractos, ni el proceso de verificación fuera de la Parte 1.
+
+Los idiomas de cada parte se indican en el mensaje del usuario — la tesis (Parte 2) y el prólogo (Parte 3) pueden pedirse en idiomas DISTINTOS entre sí. Respeta cada uno exactamente, aunque sean diferentes. La Parte 1 puede quedar en español siempre.`;
+
+  function _buildThesisPrompt(cityName, extract, tesisLang, prologoLang) {
+    const user = `Ciudad: ${cityName}\n\nExtracto de Wikipedia sobre la ciudad:\n"${extract}"\n\nIdioma de la Parte 2 (la tesis, hablada): ${tesisLang}\nIdioma de la Parte 3 (el prólogo, en pantalla): ${prologoLang}`;
+    return { system: THESIS_SYSTEM_PROMPT, user };
+  }
+
+  /* ── CACHE DE BIENVENIDA (TESIS + PRÓLOGO) — MISMO STORE 'narrations' ──
+     Decisión A ratificada (S35): cero cambio de esquema, cero bump de
+     DB_VERSION en poi.js. La clave incluye AMBOS idiomas porque tesis y
+     prólogo pueden pedirse en idiomas distintos (S35+: tesis en idioma
+     local de la ciudad, prólogo en idioma elegido por el usuario) — dos
+     usuarios visitando la misma ciudad con idiomas de usuario distintos
+     necesitan cachés distintos. Sin fingerprint de extracto — THESIS_
+     PROMPT_VERSION es la única palanca de invalidación, por diseño. */
+  function _thesisCacheKey(cityName, tesisLang, prologoLang) {
+    return `thesis_${CONFIG.THESIS_PROMPT_VERSION}_${cityName}_${tesisLang}_${prologoLang}`;
+  }
+
+  async function loadThesisFromCache(cityName, tesisLang, prologoLang) {
+    const key = _thesisCacheKey(cityName, tesisLang, prologoLang);
+    return new Promise((resolve) => {
+      const timeout = setTimeout(() => resolve(null), 2000);
+      try {
+        const req = indexedDB.open('follower_db', 1);
+        req.onsuccess = (e) => {
+          const db  = e.target.result;
+          const tx  = db.transaction('narrations', 'readonly');
+          const get = tx.objectStore('narrations').get(key);
+          get.onsuccess = () => { clearTimeout(timeout); resolve(get.result?.value || null); };
+          get.onerror   = () => { clearTimeout(timeout); resolve(null); };
+        };
+        req.onerror = () => { clearTimeout(timeout); resolve(null); };
+      } catch (e) { clearTimeout(timeout); resolve(null); }
+    });
+  }
+
+  async function saveThesisToCache(cityName, tesisLang, prologoLang, value) {
+    const key = _thesisCacheKey(cityName, tesisLang, prologoLang);
+    try {
+      const req = indexedDB.open('follower_db', 1);
+      req.onsuccess = (e) => {
+        const db = e.target.result;
+        const tx = db.transaction('narrations', 'readwrite');
+        tx.objectStore('narrations').put({ id: key, value, cachedAt: Date.now() });
+      };
+    } catch (e) { console.warn('Narration: no se pudo guardar bienvenida en cache'); }
+  }
+
+  /* ── GENERACIÓN + REGLA DE CARRERA ──
+     _thesisInFlight evita disparos duplicados para la misma ciudad+par de
+     idiomas. _thesisFreshValue SOLO se llena cuando se generó DE CERO en
+     esta sesión (cache miss) — un hit de cache significa "ya viví esta
+     ciudad antes", así que nunca se marca como fresca ni se habla/muestra
+     de nuevo. El saludo NUNCA espera esta promesa (DA-85): se dispara
+     fire-and-forget desde gps.js y welcomeCity() solo consulta si ya llegó. */
+  let _thesisInFlight   = {};
+  let _thesisFreshValue = {};
+
+  async function prefetchCityThesis(cityName, tesisLang, prologoLang) {
+    if (!cityName) return;
+    const key = _thesisCacheKey(cityName, tesisLang, prologoLang);
+    if (_thesisInFlight[key]) return;
+
+    _thesisInFlight[key] = (async () => {
+      try {
+        const cached = await loadThesisFromCache(cityName, tesisLang, prologoLang);
+        if (cached) {
+          if (typeof Debug !== 'undefined') {
+            Debug.log('info', `Bienvenida: cache hit — ${cityName}/${tesisLang}-${prologoLang}, sesión no es la primera, no se habla`);
+          }
+          return;
+        }
+
+        const extract = await _fetchCityExtract(cityName, tesisLang);
+        if (!extract) {
+          if (typeof Debug !== 'undefined') {
+            Debug.log('info', `Bienvenida: sin artículo de ciudad para "${cityName}" — degradación silenciosa, no se cachea`);
+          }
+          return;
+        }
+
+        const { system, user } = _buildThesisPrompt(cityName, extract, tesisLang, prologoLang);
+        const raw = await callClaude(system, user, CONFIG.THESIS_MAX_TOKENS);
+        if (!raw) return; // Haiku falló — degradación, no cachea
+
+        // sanitizeNarration ya descarta la Parte 1 (mismo regex de
+        // "Verificación obligatoria: ... ---" que usan los capítulos).
+        // Lo que queda es "tesis\n===\nprologo" — se separa con ===.
+        const afterScratchpad = sanitizeNarration(raw);
+        const pieces  = afterScratchpad.split(/\n?={3,}\n?/);
+        const tesis   = (pieces[0] || '').trim();
+        const prologo = (pieces[1] || '').trim();
+
+        if (!tesis || !prologo || /^\s*verificaci[óo]n/i.test(tesis)) {
+          if (typeof Debug !== 'undefined') {
+            Debug.log('warn', `Bienvenida: borrador malformado para "${cityName}" — descartada, no se cachea`);
+          }
+          return; // separador --- o === ausente, o strip vacío — degradación
+        }
+
+        const value = { tesis, prologo };
+        await saveThesisToCache(cityName, tesisLang, prologoLang, value);
+        _thesisFreshValue[key] = value;
+        if (typeof Debug !== 'undefined') {
+          Debug.log('info', `Bienvenida: generada — ${cityName}/${tesisLang}-${prologoLang} · tesis="${tesis}" · prólogo=${prologo.length} chars`);
+        }
+      } catch (e) {
+        if (typeof Debug !== 'undefined') {
+          Debug.log('warn', `Bienvenida: excepción (${e.message}) — degradación silenciosa`);
+        }
+      } finally {
+        delete _thesisInFlight[key];
+      }
+    })();
+  }
+
+  /* Consumo de un solo uso (para la voz + el sheet visual): si
+     welcomeCity() lo toma, se borra — una segunda caminata en la misma
+     pestaña/ciudad ya no lo vuelve a hablar/mostrar. */
+  function getFreshCityWelcome(cityName, tesisLang, prologoLang) {
+    const key   = _thesisCacheKey(cityName, tesisLang, prologoLang);
+    const value = _thesisFreshValue[key] || null;
+    if (value) delete _thesisFreshValue[key];
+    return value; // { tesis, prologo } | null
+  }
+
+  /* Lectura NO consumible — reservada para DT-67 (tarjeta persistente
+     futura). A diferencia de getFreshCityWelcome(), no borra la entrada:
+     la tarjeta necesita poder leerla en cada sesión, no solo la primera
+     vez que se generó. */
+  function getCachedCityWelcome(cityName, tesisLang, prologoLang) {
+    return loadThesisFromCache(cityName, tesisLang, prologoLang); // Promise<{tesis,prologo}|null>
   }
 
   /* ── DT-51 (instrumentación, Sesión 28): VERIFICACIÓN PROGRAMÁTICA AUTOR/FECHA ──
@@ -1004,6 +1268,6 @@ Idioma: ${lang}`;
   function isNarrating()    { return _isNarrating; }
   function isPaused()       { return _isPaused; }
 
-  return { trigger, stop, pause, resume, getCurrentText, isNarrating, isPaused, getCityWelcome, getCityIntroFallback, getLocalLang, getCareMessage };
+  return { trigger, stop, pause, resume, getCurrentText, isNarrating, isPaused, getCityWelcome, getCityIntroFallback, getCityIntroPrefix, getLocalLang, getCareMessage, prefetchCityThesis, getFreshCityWelcome, getCachedCityWelcome };
 
 })();

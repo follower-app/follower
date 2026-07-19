@@ -247,6 +247,17 @@ const GPS = (() => {
         AppState.countryCode = country;  // DT-41: para getLocalLang en bienvenida
         updateCareStrip();  // BUG-048: updateTopPill no existe desde v0.6 (refactor v0.6 incompleto)
 
+        // DA-85 §1 (S35+): prefetch de la bienvenida (tesis+prólogo) — en
+        // paralelo, no bloqueante. Mismo gate temporal que welcomeCity()
+        // (isFirst). El saludo NUNCA espera esto (regla de carrera, DA-85).
+        // Tesis en idioma local de la ciudad (DT-41); prólogo en el idioma
+        // que el usuario eligió en el wizard (ratificación S35+).
+        if (isFirst && typeof Narration !== 'undefined' && typeof Narration.prefetchCityThesis === 'function') {
+          const tesisLang   = (typeof Narration.getLocalLang === 'function') ? Narration.getLocalLang(country) : 'en';
+          const prologoLang = (typeof AppState !== 'undefined' && AppState.lang) ? AppState.lang : 'es';
+          Narration.prefetchCityThesis(city, tesisLang, prologoLang);
+        }
+
         if (typeof Debug !== 'undefined') {
           Debug.log('info', `fetchCityName: OK "${city}, ${country}" · ${_ms}ms · status=${res.status}`);
         }

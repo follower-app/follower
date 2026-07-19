@@ -153,8 +153,13 @@ function updateExplorePhase(phase) {
   }
 }
 
-/* ── ACTUALIZAR PILL DERECHO + NEARBY SELECTOR ── */
-function updateHistCount() {
+/* ── ACTUALIZAR PILL DERECHO + NEARBY SELECTOR ──
+   DA-85 (S35+): parametro force — bypassa el guard BUG-058 (rebuild
+   congelado mientras el sheet esta abierto) para el unico caso en que SI
+   queremos forzar un rebuild con el sheet ya abierto: el colapso de la
+   bienvenida (_collapseCityWelcomeSheet), que no es un tick de fondo a
+   mitad de un gesto sino una transicion deliberada de una sola vez. */
+function updateHistCount(force) {
   const nearby = AppState.nearbyPOIs || [];
   const sorted = [...nearby]
     .sort((a, b) => (a._distanceMeters || 999) - (b._distanceMeters || 999))
@@ -195,9 +200,20 @@ function updateHistCount() {
   // los taps dentro del panel morian contra un DOM que ya no existia:
   // pantalla "secuestrada". Fix: con el panel ABIERTO, congelar el rebuild
   // (contenido levemente desactualizado mientras esta abierto — aceptable);
-  // se reconstruye en el siguiente tick tras cerrarse.
+  // se reconstruye en el siguiente tick tras cerrarse. force=true (DA-85,
+  // solo desde el colapso de la bienvenida) es la unica excepcion.
   const selectorEl = document.getElementById('nearbySelector');
-  if (selectorEl && !selectorEl.classList.contains('hidden')) return;
+  if (!force && selectorEl && !selectorEl.classList.contains('hidden')) return;
+
+  // DA-85 (S35+): tras el colapso de la bienvenida, el titulo del sheet
+  // pasa de "Historias cerca" a "Por descubrir · N" para el resto de la
+  // caminata — mismo sheet, mismo listado, solo cambia el encabezado.
+  const titleEl = document.getElementById('nearbySelectorTitle');
+  if (titleEl) {
+    titleEl.textContent = AppState._cityWelcomeCollapsed
+      ? `Por descubrir · ${sorted.length}`
+      : 'Historias cerca';
+  }
 
   if (sorted.length === 0) {
     listEl.innerHTML = `<div class="style-card" style="justify-content:center;">
@@ -386,7 +402,7 @@ function _enterExploreViaTitleCard(afterExplore) {
    (paso 4), el tap del title card y el primer tap en exploracion. Ademas
    pronuncia el saludo de ciudad pendiente si el TTL sigue vigente. */
 let _audioUnlocked = false;
-let _pendingWelcome = null;          // { text, lang, ts } — DA-77
+let _pendingWelcome = null;          // { text, lang, isIntro, ts, sheetData } — DA-77 + DA-85
 const WELCOME_TTL_MS = 90000;        // se fija en mano (60-90s)
 
 function _unlockAudioOnFirstTap() {
@@ -410,16 +426,14 @@ function _unlockAudioOnFirstTap() {
    Convergen aqui: initExplore() (camino principal, mapa recien visible) y
    _unlockAudioOnFirstTap() (red de seguridad si el desbloqueo llega ya en
    explore). TTL de DA-77 intacto: un "bienvenido" a los 5 minutos sonaria
-   a bug, no a bienvenida. */
+   a bug, no a bienvenida. DA-85 (S35+): si había sheet de bienvenida
+   pendiente, se abre en el mismo momento en que la voz arranca. */
 function _flushPendingWelcome() {
   if (!_pendingWelcome || !_audioUnlocked) return;
   const p = _pendingWelcome;
   _pendingWelcome = null;
   if (Date.now() - p.ts <= WELCOME_TTL_MS) {
-    const onSpoken = p.isIntro
-      ? () => { if (typeof Config !== 'undefined') Config.set('introHeard', true); }
-      : null;
-    Voice.speak(p.text, p.lang, onSpoken);
+    _speakCityWelcome(p.text, p.lang, p.isIntro, p.sheetData);
   } else if (typeof Debug !== 'undefined') {
     Debug.log('info', 'Bienvenida descartada — TTL vencido (intro conservada para proxima vez)');
   }
@@ -529,12 +543,39 @@ function welcomeCity(city) {
   const includeIntro = (typeof Config !== 'undefined') ? !Config.get('introHeard') : false;
 
   let text = city;
+  let sheetData = null; // DA-85 (S35+): {city, tesis, prologo} si hay bienvenida fresca
+
   if (isFallback) {
     text = (includeIntro && typeof Narration !== 'undefined' && typeof Narration.getCityIntroFallback === 'function')
       ? Narration.getCityIntroFallback(name, AppState.lang || 'es')
       : city;
-  } else if (typeof Narration !== 'undefined' && typeof Narration.getCityWelcome === 'function') {
-    text = Narration.getCityWelcome(city, name, localLang, includeIntro);
+  } else {
+    // DA-85 §1 (S35+): la bienvenida se consulta siempre que hay ciudad real.
+    // getFreshCityWelcome() solo devuelve algo si se generó DE CERO en esta
+    // sesión (cache miss) y llegó antes de este punto (regla de carrera).
+    // Tesis en idioma local de la ciudad; prólogo en el idioma del usuario.
+    const userLang = AppState.lang || 'es';
+    const fresh = (typeof Narration !== 'undefined' && typeof Narration.getFreshCityWelcome === 'function')
+      ? Narration.getFreshCityWelcome(city, localLang, userLang)
+      : null;
+
+    if (fresh && includeIntro) {
+      // Escenario 2: primerísima vez del usuario Y bienvenida lista a
+      // tiempo — se conserva "Hola, [name]. Soy Follower." (prefijo
+      // aislado) y se reemplaza solo el tramo genérico por la tesis.
+      const prefix = (typeof Narration !== 'undefined' && typeof Narration.getCityIntroPrefix === 'function')
+        ? Narration.getCityIntroPrefix(name, localLang)
+        : '';
+      text = `${prefix} ${city}. ${fresh.tesis}`;
+      sheetData = { city, tesis: fresh.tesis, prologo: fresh.prologo };
+    } else if (fresh) {
+      // Escenario 3: ya pasó la presentación, primera vez en ESTA ciudad.
+      text = `${city}. ${fresh.tesis}`;
+      sheetData = { city, tesis: fresh.tesis, prologo: fresh.prologo };
+    } else if (typeof Narration !== 'undefined' && typeof Narration.getCityWelcome === 'function') {
+      // Escenarios 1/4/5: sin bienvenida fresca — comportamiento actual intacto.
+      text = Narration.getCityWelcome(city, name, localLang, includeIntro);
+    }
   }
 
   if (typeof Debug !== 'undefined') {
@@ -544,23 +585,95 @@ function welcomeCity(city) {
   // DT-45: el saludo vive 100% en el canal de voz — la pantalla titula, la voz saluda
   if (typeof Voice === 'undefined' || !Voice.isSupported || !Voice.isSupported()) return;
 
-  // Marcar introHeard SOLO cuando la frase con intro efectivamente suena
-  // (onEnd de Voice.speak) — no al componerla. Si el TTL descarta el
-  // pendiente sin sonar, el usuario conserva su oportunidad de escucharla.
-  const onSpoken = includeIntro
-    ? () => { if (typeof Config !== 'undefined') Config.set('introHeard', true); }
-    : null;
-
   const speakLang = isFallback ? (AppState.lang || 'es') : localLang;
   // Ratificacion B (S34): el saludo SIEMPRE suena con el mapa en pantalla —
   // por diseño, no por accidente del orden de carga. Si la ciudad resuelve
   // durante el title card, el saludo espera en _pendingWelcome y lo pronuncia
   // initExplore() (flush unico). Hablar directo solo si ya estamos en explore.
   if (_audioUnlocked && AppState.screen === 'explore') {
-    Voice.speak(text, speakLang, onSpoken);
+    _speakCityWelcome(text, speakLang, includeIntro, sheetData);
   } else {
-    _pendingWelcome = { text, lang: speakLang, isIntro: includeIntro, ts: Date.now() };  // DA-77
+    _pendingWelcome = { text, lang: speakLang, isIntro: includeIntro, ts: Date.now(), sheetData };  // DA-77 + DA-85
   }
+}
+
+/* ── DA-85 (S35+): HABLAR + ABRIR EL SHEET, PUNTO ÚNICO ──
+   Converge aquí el camino inmediato (welcomeCity) y el diferido
+   (_flushPendingWelcome) — evita duplicar la composición del onEnd. Si
+   hay sheetData, el sheet se abre EXPANDIDO en el mismo instante en que
+   arranca la voz, y se colapsa al terminar de narrar (onEnd) o con un tap
+   manual — lo que ocurra primero. */
+function _speakCityWelcome(text, lang, isIntro, sheetData) {
+  if (sheetData) _showCityWelcomeSheet(sheetData.city, sheetData.tesis, sheetData.prologo);
+
+  const onSpoken = (source) => {
+    if (isIntro && typeof Config !== 'undefined') Config.set('introHeard', true);
+    if (sheetData) _collapseCityWelcomeSheet();
+  };
+
+  Voice.speak(text, lang, onSpoken);
+}
+
+/* ── DA-85 (S35+): SHEET DE BIENVENIDA — reutiliza el bottom sheet real
+   (.style-selector / #nearbySelector, hoy "Historias cerca"). Se abre
+   EXPANDIDO con ciudad+tesis+prólogo, POIs ocultos, y se colapsa al
+   terminar de narrar la tesis o con un tap — lo que ocurra primero
+   (ratificación S35+). Alcance de esta sesión: el sheet queda ABIERTO
+   tras colapsar (título + tesis compacta + "Por descubrir" + POIs) — el
+   pulido visual de esa tarjeta persistente (animación de contracción,
+   contorno propio) es DT-67, deliberadamente fuera de este commit. */
+function _showCityWelcomeSheet(cityName, tesis, prologo) {
+  const sel = document.getElementById('nearbySelector');
+  if (!sel) return;
+
+  const block   = document.getElementById('welcomeBlock');
+  const cityEl  = document.getElementById('welcomeCityName');
+  const tesisEl = document.getElementById('welcomeTesis');
+  const prolEl  = document.getElementById('welcomePrologo');
+  const titleEl = document.getElementById('nearbySelectorTitle');
+  const listEl  = document.getElementById('nearbySelectorList');
+  if (!block || !cityEl || !tesisEl || !prolEl) return;
+
+  cityEl.textContent  = cityName;
+  tesisEl.textContent = `"${tesis}"`;
+  tesisEl.classList.remove('compact');
+  prolEl.textContent  = prologo;
+  prolEl.classList.remove('hidden');
+  block.classList.remove('hidden');
+
+  // POIs ocultos hasta el colapso (ratificación S35+)
+  if (titleEl) titleEl.classList.add('hidden');
+  if (listEl)  listEl.classList.add('hidden');
+
+  sel.classList.add('welcome-expanded'); // marca de estado — leida por los listeners de tap-to-close
+  sel.classList.remove('hidden');
+}
+
+function _collapseCityWelcomeSheet() {
+  const sel = document.getElementById('nearbySelector');
+  if (!sel || !sel.classList.contains('welcome-expanded')) return; // ya colapsado o nunca se abrió
+
+  sel.classList.remove('welcome-expanded');
+
+  const tesisEl = document.getElementById('welcomeTesis');
+  const prolEl  = document.getElementById('welcomePrologo');
+  const titleEl = document.getElementById('nearbySelectorTitle');
+  const listEl  = document.getElementById('nearbySelectorList');
+
+  if (tesisEl) tesisEl.classList.add('compact');
+  if (prolEl)  prolEl.classList.add('hidden');
+  if (titleEl) titleEl.classList.remove('hidden');
+  if (listEl)  listEl.classList.remove('hidden');
+
+  // A partir de aqui, "Por descubrir" reemplaza a "Historias cerca" por
+  // el resto de la caminata (ver updateHistCount).
+  AppState._cityWelcomeCollapsed = true;
+
+  // BUG-058: updateHistCount() congela el rebuild mientras el sheet esta
+  // abierto (evita el tap-cancel de iOS). Excepcion deliberada: este es el
+  // unico rebuild que necesitamos forzar en el instante del colapso, no un
+  // tick de fondo a mitad de un gesto — por eso pasa force=true.
+  if (typeof updateHistCount === 'function') updateHistCount(true);
 }
 
 /* ── FALLBACK DE BIENVENIDA — matiz a DA-77 (S34, con DT-60) ──
@@ -678,13 +791,17 @@ function initWizard() {
     });
   });
 
-  // Paso 3 — nombre (DA-75)
+  // Paso 3 — nombre (DA-75). Cierre del wizard — DA-85 (S35+): ya no hay
+  // paso 4. La persistencia que antes vivía en _wizFinish() (disparada por
+  // el corazón) se mueve aquí. El desbloqueo de audio NO ocurre en el
+  // wizard — pasa a ser responsabilidad única del tap en el title card
+  // (DA-77: una sola puerta, primera vez y recurrentes por igual).
   const nameOk = document.getElementById('wizNameOk');
   if (nameOk) {
     nameOk.addEventListener('click', () => {
       const input = document.getElementById('wizNameInput');
       _wizName = input ? input.value.trim().slice(0, 24) : '';
-      _wizGoTo(4);
+      _wizComplete();
     });
   }
 
@@ -692,26 +809,14 @@ function initWizard() {
   if (nameSkip) {
     nameSkip.addEventListener('click', () => {
       _wizName = '';
-      _wizGoTo(4);
+      _wizComplete();
     });
-  }
-
-  // Paso 4 — corazon: gesto confiable (touchend — BUG-036) + frase de muestra
-  const heart = document.getElementById('wizHeartBtn');
-  if (heart) {
-    heart.addEventListener('touchend', _wizFinish, { once: true });
-    heart.addEventListener('click',    _wizFinish, { once: true });
   }
 }
 
-function _wizFinish() {
+function _wizComplete() {
   if (_wizDone) return;
   _wizDone = true;
-
-  // Desbloqueo DENTRO del call stack del gesto — no mover de aqui.
-  // Via _unlockAudioOnFirstTap para que la bandera quede marcada y el
-  // saludo de ciudad pueda sonar de inmediato al llegar a explore.
-  _unlockAudioOnFirstTap();
 
   // Persistir — esto hace que isFirstTime() sea false en adelante
   Config.setLang(_wizLang);
@@ -724,11 +829,9 @@ function _wizFinish() {
     Debug.log('info', `Wizard: completado · lang=${_wizLang} · nombre=${_wizName ? 'si' : 'no'}`);
   }
 
-  // Ratificacion S25c: sin frase de muestra audible — "Soy Follower" se
-  // fusiono con el saludo de ciudad real (CITY_INTRO, primera vez que suena).
-  // El corazon solo necesita el gesto para desbloquear (ya ocurrido arriba).
-  // Pequena pausa de cortesia para que el pulso del corazon no corte en seco.
-  setTimeout(() => _enterExploreViaTitleCard(), 400);
+  // DA-85 (S35+): sin paso 4, sin desbloqueo de audio aquí — el title card
+  // se encarga (tap único, ver _showTitleCard). Transición directa.
+  _enterExploreViaTitleCard();
 }
 
 /* ── EVENT LISTENERS — MODE MODAL ── */
@@ -906,8 +1009,15 @@ function initExploreListeners() {
   }
 
   // Cerrar nearby selector al tocar el mapa
+  // DA-85 (S35+): si el sheet esta en bienvenida expandida, un tap fuera
+  // colapsa (tesis+prologo -> compacto+POIs) en vez de ocultar del todo —
+  // ratificacion S35+: "al terminar de narrar o con un tap".
   document.getElementById('map')?.addEventListener('click', () => {
-    nearbySelect?.classList.add('hidden');
+    if (nearbySelect?.classList.contains('welcome-expanded')) {
+      _collapseCityWelcomeSheet();
+    } else {
+      nearbySelect?.classList.add('hidden');
+    }
   });
 
   // BUG-054: cerrar tambien con tap en el propio panel. Con el panel
@@ -916,9 +1026,15 @@ function initExploreListeners() {
   // salir). Un tap en un item primero activa el POI (su onclick inline
   // corre antes en la fase de burbujeo) y luego esto cierra — sin
   // conflicto. Un tap en cualquier otra zona del panel solo cierra.
+  // DA-85 (S35+): misma logica — durante bienvenida expandida, colapsa en
+  // vez de cerrar del todo (el sheet colapsado queda abierto a proposito).
   if (nearbySelect) {
     nearbySelect.addEventListener('click', () => {
-      nearbySelect.classList.add('hidden');
+      if (nearbySelect.classList.contains('welcome-expanded')) {
+        _collapseCityWelcomeSheet();
+      } else {
+        nearbySelect.classList.add('hidden');
+      }
     });
   }
 

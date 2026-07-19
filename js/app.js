@@ -290,7 +290,7 @@ function _showTitleCard(onDone) {
   const fill  = document.getElementById('titlecardProgressFill');
   const label = document.getElementById('titlecardProgressLabel');
 
-  const isFirst = Config.isFirstTime();
+  const isFirst = Config.isFirstTime() || AppState._justCompletedWizard === true;
   const startTs = performance.now();
 
   const cardId = (typeof Debug !== 'undefined')
@@ -370,13 +370,15 @@ function _showTitleCard(onDone) {
 
     // BUG-051, decision B (S31): si el audio sigue bloqueado al completar la
     // carga, el title card NO avanza solo — se convierte en umbral
-    // intencional: "toca para comenzar". Ese tap es gesto real garantizado
-    // (tapFinish ya desbloquea y avanza), el saludo suena al entrar, y el
-    // tap deja de ser un misterio para volverse la puerta de entrada.
-    // Si el audio ya esta desbloqueado (wizard primera vez, o tap temprano
-    // en el title card), avanza solo como siempre.
+    // intencional. DA-85 (S35+): ese umbral ahora es su propia Etapa 2
+    // visual (corazón latiendo + "toca para escucharme"), no un cambio de
+    // texto sobre la Etapa 1 — mismo peso visual que tenía el viejo Paso 4
+    // del wizard, ahora aquí. Ese tap es gesto real garantizado (tapFinish
+    // ya desbloquea y avanza), el saludo suena al entrar.
+    // Si el audio ya esta desbloqueado (tap temprano durante la Etapa 1),
+    // avanza solo como siempre, sin pasar por la Etapa 2.
     if (!_audioUnlocked) {
-      if (label) label.textContent = 'toca para comenzar';
+      _showTitleCardTapStage();
       return; // tapFinish (registrado abajo) es el unico camino de salida
     }
 
@@ -384,10 +386,26 @@ function _showTitleCard(onDone) {
     setTimeout(finish, remaining);
   });
 
-  // Tap salta Y desbloquea la voz — no espera a los datos, igual que antes
+  // Tap salta Y desbloquea la voz — no espera a los datos, igual que antes.
+  // Funciona en las dos etapas por igual (el listener vive en el contenedor
+  // del title card completo, no en una etapa en particular).
   const tapFinish = () => { _unlockAudioOnFirstTap(); finish(); };
   card.addEventListener('touchend', tapFinish, { once: true });
   card.addEventListener('click',    tapFinish, { once: true });
+}
+
+/* ── DA-85 (S35+): ETAPA 2 DEL TITLE CARD — corazón + tap ──
+   Reemplaza el antiguo "toca para comenzar" en texto por su propia
+   pantalla: cross-fade desde la Etapa 1 (carga) hacia el corazón-brújula
+   latiendo (misma animación titlecard-heartbeat que ya existe) + el
+   prompt. Da al gesto de desbloqueo el mismo peso visual que tenía el
+   Paso 4 del wizard que eliminamos — antes se perdía en un texto chico
+   sobre una barra de progreso. */
+function _showTitleCardTapStage() {
+  const stageLoading = document.getElementById('titlecardStageLoading');
+  const stageTap      = document.getElementById('titlecardStageTap');
+  if (stageLoading) stageLoading.classList.remove('visible');
+  if (stageTap)     stageTap.classList.add('visible');
 }
 
 function _enterExploreViaTitleCard(afterExplore) {
@@ -887,6 +905,15 @@ function _wizComplete() {
   if (typeof Debug !== 'undefined') {
     Debug.log('info', `Wizard: completado · lang=${_wizLang} · nombre=${_wizName ? 'si' : 'no'}`);
   }
+
+  // BUGFIX (preexistente, hallado S35+): Config.isFirstTime() en
+  // _showTitleCard() siempre contestaba "false", incluso aqui mismo,
+  // porque el Config.set(...) de arriba YA escribio localStorage antes de
+  // que el title card preguntara. Resultado: el title card SIEMPRE volvia
+  // a pedir GPS (aunque el wizard ya lo hubiera conseguido en su Paso 1) y
+  // la metrica etiquetaba todo como "returning-user", primera vez incluida.
+  // Flag explicito, no depende del timing de Config.
+  AppState._justCompletedWizard = true;
 
   // DA-85 (S35+): sin paso 4, sin desbloqueo de audio aquí — el title card
   // se encarga (tap único, ver _showTitleCard). Transición directa.

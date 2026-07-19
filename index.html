@@ -45,7 +45,26 @@
   <!-- ══════════════════════════════════════ -->
   <div id="screen-titlecard" class="screen hidden">
     <div class="titlecard-glow"></div>
-    <div class="titlecard-center">
+
+    <!-- Etapa 1 — carga: solo wordmark + slogan + barra, sin corazón.
+         DA-85 (S35+): el corazón se movió a la Etapa 2 a propósito, para
+         no competir visualmente con la barra de progreso. -->
+    <div class="titlecard-stage titlecard-stage-loading visible" id="titlecardStageLoading">
+      <h1 class="titlecard-wordmark">FOLLOWER</h1>
+      <p class="titlecard-slogan">your city soundtrack</p>
+      <div class="titlecard-progress">
+        <div class="titlecard-progress-bar">
+          <div class="titlecard-progress-fill" id="titlecardProgressFill"></div>
+        </div>
+        <p class="titlecard-progress-label" id="titlecardProgressLabel">iniciando...</p>
+      </div>
+    </div>
+
+    <!-- Etapa 2 — tap para desbloquear audio: corazón-brújula latiendo +
+         prompt explícito. Reemplaza al viejo Paso 4 del wizard ("Toca para
+         escucharme") — mismo peso visual, ahora aquí, sin techo de tiempo
+         (DA-85 S35+). -->
+    <div class="titlecard-stage titlecard-stage-tap" id="titlecardStageTap">
       <div class="titlecard-wrap">
         <div class="titlecard-rings">
           <div class="titlecard-ring"></div>
@@ -67,15 +86,8 @@
           <circle cx="50" cy="44" r="1.5" fill="#c8d4e0"/>
         </svg>
       </div>
-      <h1 class="titlecard-wordmark">FOLLOWER</h1>
-      <p class="titlecard-slogan">your city soundtrack</p>
-      <!-- Barra de progreso — reemplaza la del splash eliminado -->
-      <div class="titlecard-progress">
-        <div class="titlecard-progress-bar">
-          <div class="titlecard-progress-fill" id="titlecardProgressFill"></div>
-        </div>
-        <p class="titlecard-progress-label" id="titlecardProgressLabel">iniciando...</p>
-      </div>
+      <p class="titlecard-tap-prompt">toca para escucharme</p>
+      <p class="titlecard-tap-sub">Follower necesita tu permiso para hablarte durante la caminata</p>
     </div>
   </div>
 

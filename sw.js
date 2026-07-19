@@ -8,7 +8,7 @@
 
 // Incrementar CACHE_VERSION fuerza descarga de todos los archivos
 // en el proximo arranque — incluso si el navegador tiene version cacheada.
-const CACHE_VERSION = 'follower-v60';  // BUGFIX: fila de botones de debug vivia en renderStatus(), una pestana huerfana sin boton visible desde hace tiempo — movida a renderSearch() (pestana POIs, la que si se ve)
+const CACHE_VERSION = 'follower-v61';  // BUGFIX: retestCityWelcome() pasaba AppState.cityName ("Cali, CO") a welcomeCity() en vez del nombre crudo, y no esperaba a que prefetchCityThesis terminara antes de consultar el cache
 
 const STATIC_ASSETS = [
   './',

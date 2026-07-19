@@ -684,6 +684,8 @@ const Debug = (() => {
         <button class="dbg-poi-action map" onclick="Debug.checkWorker()">☁️ Worker</button>
         <button class="dbg-poi-action map" onclick="Debug.clearCache()">🗑️ Cache</button>
         <button class="dbg-poi-action map" onclick="Debug.retestCityWelcome()">🏙️ Ciudad</button>
+        <button class="dbg-poi-action map" onclick="Debug.clearAllThesisCache()">🗑️ Todas las tesis</button>
+        <button class="dbg-poi-action map" onclick="Debug.forceUpdateApp()">🔄 Actualizar app</button>
       </div>
     `;
   }
@@ -1692,6 +1694,81 @@ const Debug = (() => {
     }
   }
 
+  /* ── DEBUG: forzar actualizacion del Service Worker ──
+     Problema real (hallado en campo S35+): index.html se sirve cache-first
+     y skipWaiting() esta deshabilitado a proposito (para no interrumpir
+     audio activo en produccion) — un simple F5 NO trae el index.html mas
+     reciente, solo cerrando TODAS las pestañas se fuerza. Este boton evita
+     tener que hacer eso: manda SKIP_WAITING al SW en espera y recarga
+     apenas toma control. */
+  async function forceUpdateApp() {
+    if (!('serviceWorker' in navigator)) {
+      log('error', 'Actualizar app: este navegador no soporta Service Worker');
+      return;
+    }
+
+    const reg = await navigator.serviceWorker.getRegistration();
+    if (!reg) {
+      log('warn', 'Actualizar app: no hay Service Worker registrado — recargando de todas formas');
+      location.reload();
+      return;
+    }
+
+    log('info', 'Actualizar app: consultando si hay version nueva...');
+    try { await reg.update(); } catch (e) { /* red caida — seguimos con lo que haya */ }
+
+    const activateAndReload = (worker) => {
+      navigator.serviceWorker.addEventListener('controllerchange', () => {
+        log('info', 'Actualizar app: Service Worker nuevo tomo control — recargando');
+        location.reload();
+      }, { once: true });
+      worker.postMessage({ type: 'SKIP_WAITING' });
+    };
+
+    if (reg.waiting) {
+      log('info', 'Actualizar app: version nueva encontrada, activando...');
+      activateAndReload(reg.waiting);
+    } else if (reg.installing) {
+      log('info', 'Actualizar app: instalando version nueva, espera...');
+      reg.installing.addEventListener('statechange', function handler(e) {
+        if (e.target.state === 'installed' && reg.waiting) {
+          e.target.removeEventListener('statechange', handler);
+          activateAndReload(reg.waiting);
+        }
+      });
+    } else {
+      log('info', 'Actualizar app: ya estás en la versión más reciente');
+    }
+  }
+
+  /* ── DEBUG: borrar TODAS las tesis+prologos cacheados (todas las ciudades) ──
+     A diferencia de Debug.retestCityWelcome() (solo la ciudad actual), esto
+     limpia cualquier ciudad que hayas probado en esta sesion de pruebas —
+     sin tocar el cache de POIs ni recargar la pagina. */
+  async function clearAllThesisCache() {
+    return new Promise((resolve) => {
+      try {
+        const req = indexedDB.open('follower_db', 1);
+        req.onsuccess = (e) => {
+          const db    = e.target.result;
+          const tx    = db.transaction('narrations', 'readwrite');
+          const store = tx.objectStore('narrations');
+          const keysReq = store.getAllKeys();
+          keysReq.onsuccess = () => {
+            const thesisKeys = keysReq.result.filter(k => typeof k === 'string' && k.startsWith('thesis_'));
+            thesisKeys.forEach(k => store.delete(k));
+            tx.oncomplete = () => {
+              log('info', `Cache de tesis: ${thesisKeys.length} entrada(s) borrada(s) (todas las ciudades)`);
+              resolve(thesisKeys.length);
+            };
+          };
+          keysReq.onerror = () => resolve(0);
+        };
+        req.onerror = () => resolve(0);
+      } catch (e) { resolve(0); }
+    });
+  }
+
   /* ── DEBUG: reintentar la bienvenida de la ciudad actual ──
      A diferencia de clearCache() (borra follower_db entero + reload), esto
      SOLO borra la tesis+prólogo de la ciudad en curso y vuelve a disparar
@@ -1862,6 +1939,8 @@ const Debug = (() => {
     checkWorker,
     clearCache,
     retestCityWelcome,
+    forceUpdateApp,
+    clearAllThesisCache,
     clearLogs,
     clearTimings,
     getInFlightCount,

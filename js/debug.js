@@ -1813,13 +1813,24 @@ const Debug = (() => {
     AppState._cityWelcomeCollapsed = false;
 
     if (typeof Narration.prefetchCityThesis === 'function') {
-      Narration.prefetchCityThesis(rawCity, tesisLang, prologoLang);
+      log('info', `Retest ciudad: esperando a Haiku para "${rawCity}"...`);
+      // BUGFIX: antes se disparaba sin esperar (fire-and-forget) y welcomeCity()
+      // corria justo despues, en el mismo tick — perdia la carrera SIEMPRE,
+      // igual que el bug que ya corregimos en el flujo real. Aqui SI conviene
+      // esperar de verdad: el boton existe para validar el resultado, no
+      // para simular la carrera de produccion.
+      await Narration.prefetchCityThesis(rawCity, tesisLang, prologoLang);
     }
     if (typeof welcomeCity === 'function') {
-      welcomeCity(AppState.cityName);
+      // BUGFIX: welcomeCity() debe recibir el nombre CRUDO ("Cali"), igual
+      // que en gps.js — AppState.cityName trae "Cali, CO" (con pais), lo
+      // que generaba una clave de cache distinta a la que uso el prefetch
+      // de arriba, así que nunca coincidian aunque Haiku ya hubiera
+      // respondido.
+      welcomeCity(rawCity);
     }
 
-    log('info', `Retest ciudad: bienvenida re-disparada para "${rawCity}" — esperando a Haiku...`);
+    log('info', `Retest ciudad: bienvenida re-disparada para "${rawCity}"`);
   }
 
   function clearCache() {

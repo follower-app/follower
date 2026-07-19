@@ -8,7 +8,7 @@
 
 // Incrementar CACHE_VERSION fuerza descarga de todos los archivos
 // en el proximo arranque — incluso si el navegador tiene version cacheada.
-const CACHE_VERSION = 'follower-v57';  // BUGFIX: piso minimo antes de transicionar a Etapa 2 del title card (evita fusion visual) + logging del encabezado persistente
+const CACHE_VERSION = 'follower-v58';  // Debug: boton Ciudad para reintentar la bienvenida sin recargar la pagina (clearCityThesisCache + retestCityWelcome)
 
 const STATIC_ASSETS = [
   './',

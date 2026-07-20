@@ -2754,7 +2754,9 @@ esta ciudad?", nunca "¿qué haré después?".
   intacta: intro solo primera vez). El saludo de primera vez pasa de
   genérico a tesis + promesa narrativa (~8-12 s). Sesiones siguientes:
   sin prólogo hablado; la tesis vive en la tarjeta visual persistente
-  (DT-67).
+  (DT-67). **[Corregido en implementación, ver "Estado de implementación
+  (S35)" al final de esta DA — el consumo real terminó siendo distinto
+  a lo descrito aquí.]**
 - **Regla de carrera: el saludo NUNCA espera a Haiku.** Si la tesis no
   volvió al momento del saludo, sale el saludo actual, la tesis se cachea
   al llegar y debuta en la tarjeta visual — se pierde su versión hablada
@@ -2820,9 +2822,10 @@ lente en capítulos) solo depende de que la tesis exista.
 
 ### Derivados y aparcados
 
-- **DT-67 (nuevo):** tarjeta persistente — title card contraído (ciudad
-  + tesis + "Por descubrir · N"). Sesión de diseño propia con mockup;
-  banderas registradas en el ticket.
+- **DT-67: ABSORBIDA (S35).** El rediseño completo del tab de ciudad (3
+  estados — closed/peek/expanded — ver "Estado de implementación" abajo)
+  cumple el propósito de este ticket sin necesitar su propia sesión de
+  diseño con mockup por separado.
 - **DT-68 (nuevo):** acumulación de capítulos narrados en memoria de
   sesión (habilitador del epílogo).
 - **Pregunta 6 del replanteamiento** (formalizar curaduría
@@ -2834,6 +2837,104 @@ lente en capítulos) solo depende de que la tesis exista.
 - **v3.8:** sin cambios — personificación y una-metáfora siguen como
   candidatas condicionadas a evidencia nueva.
 
+### Estado de implementación (Sesión 35, 20 julio 2026)
+
+**§1 (Tesis + Prólogo) implementado y en producción.** Sesión abierta
+como "Commit 2 de DA-85" (tesis de ciudad, alcance declarado: solo
+`narration.js`). Terminó fusionando Commit 2 y 3 (Prólogo), y creciendo
+hacia wizard, title card y el tab de ciudad — todo en la misma sesión,
+sin volver a abrir chat. Documentado así a propósito: mejor que el
+registro refleje lo que pasó, no el plan original.
+
+**Cambios reales respecto al texto original de §1 arriba:**
+
+- **Una sola llamada a Haiku**, no un "prólogo hablado" separado. El
+  mini-prompt (`THESIS_PROMPT_VERSION` = v1) devuelve, en este orden:
+  scratchpad de verificación → tesis (separador `---`) → prólogo
+  (separador `===`). **Solo la tesis se habla** — el prólogo nunca suena,
+  es texto puro en el tab.
+- **La tesis es un epíteto de 3-8 palabras**, no la "frase insignia"
+  más larga del ejemplo de diseño original. Iteración de campo: la
+  primera versión (15-25 palabras + invitación a caminar) salía "con
+  filosofía de cierre" — la cláusula de invitación era la puerta de
+  escape hacia la reflexión extra. Fix: sin invitación, presupuesto
+  bajado, regla explícita "una sola idea, nunca una segunda reflexión".
+  Validado en campo: "la ciudad sorpresa" (Pasto), "una ciudad que baila"
+  (Cali).
+- **El prólogo ya NO es exclusivo de la primera vez** — corrección
+  directa sobre "sesiones siguientes: sin prólogo hablado" de arriba: el
+  prólogo (texto, nunca hablado) vive en el tab cada vez que se abre, se
+  haya escuchado la tesis antes o no. Es identidad de la ciudad, no un
+  anuncio de una sola vez.
+- **Tesis e idioma del prólogo pueden diferir** — decisión nueva, no
+  estaba en el diseño original: tesis en el idioma local de la ciudad
+  (`getLocalLang`, DT-41, mismo criterio que ya regía la voz), prólogo en
+  el idioma que el usuario eligió en el wizard.
+- **Degradación con voz propia:** sin tesis (sin artículo de Wikipedia),
+  el tab muestra el mismo texto que ya suena hablado (`getCityWelcome()`,
+  reusado — nunca se desincronizan texto hablado y texto mostrado), con
+  estilo visual distinto (`.welcome-generic`, sin cursiva dorada) para no
+  confundirse con una tesis real.
+- **Cache:** mismo store `narrations`, clave
+  `thesis_${THESIS_PROMPT_VERSION}_${cityName}_${tesisLang}_${prologoLang}`
+  — incluye ambos idiomas porque pueden diferir entre sí. Sin
+  fingerprint de extracto, como estaba previsto.
+- **Regla de carrera, con matiz de dónde se resuelve:** la resolución de
+  tesis/prólogo se pospone hasta el momento REAL de hablar
+  (`_flushPendingWelcome()` / `_resolveAndSpeakCityWelcome()`), no al
+  resolver la ciudad — ver BUG-064 (producto.md): consultarla antes
+  perdía la carrera siempre, no a veces.
+
+**Crecimiento orgánico más allá del texto original de esta DA** —
+decidido en la misma sesión, documentado aquí en vez de abrir una DA-86
+separada, porque las tres piezas existen únicamente para entregar la
+experiencia que §1 ya había diseñado (no son decisiones narrativas
+nuevas, son la interfaz que las sostiene):
+
+- **Wizard simplificado a 3 pasos** (GPS → idioma → nombre): se elimina
+  el Paso 4 ("Toca para escucharme", el corazón). El desbloqueo de audio
+  deja de vivir en el wizard — pasa a ser responsabilidad única del title
+  card, igual para primera vez y recurrentes (extensión de DA-77: "una
+  sola puerta").
+- **Title card en 2 etapas:** Etapa 1 (carga) = wordmark + slogan + barra
+  de progreso, sin corazón. Etapa 2 (tap) = corazón-brújula latiendo
+  (mismas animaciones `titlecard-heartbeat`/`titlecard-ring-pulse` que ya
+  existían) + "toca para escucharme", sin techo de tiempo. Cross-fade
+  entre etapas.
+- **Tab de ciudad — rediseño completo**, reemplaza "Historias cerca": se
+  elimina el pill `bar-pill-right` ("próxima historia") — el tab es
+  ahora la única fuente de identidad de ciudad y POIs cercanos. 3
+  estados vía clase en `#nearbySelector`: `state-closed` (manija
+  mínima), `state-peek` (ciudad + tesis/genérico + fila de iconos de POI
+  con distancia, sin nombres — elegida por criterio cinematográfico:
+  "sugiere, no resume", sobre la alternativa de tarjetas completas),
+  `state-expanded` (+ prólogo + lista completa). Tap en un icono del
+  peek expande y resalta la tarjeta correspondiente en vez de narrar
+  directo — más seguro caminando (iconos de 38px, toque accidental
+  narraría sin querer). El tab se oculta del todo durante diástole
+  (mini-player de narración) para no solaparse — ambos anclados a
+  `bottom:0` — y se restaura a peek (o closed, si el usuario lo había
+  cerrado a mano) al volver a sístole.
+
+**Bugs de campo cerrados durante la implementación:** BUG-063 a 067 —
+ver producto.md para el detalle técnico de cada uno (interval del title
+card sin detenerse, la carrera de bienvenida ya descrita arriba,
+`Config.isFirstTime()` contaminado por el orden de persistencia del
+wizard, mismatch de nombre de ciudad en la herramienta de debug, y
+botones de debug en una pestaña sin botón visible desde hacía tiempo).
+
+**Hallazgo de infraestructura (preexistente, no de esta sesión):**
+`index.html` se sirve cache-first y `skipWaiting()` está deshabilitado a
+propósito ("no interrumpir audio activo"). Un F5 normal no trae el
+HTML/CSS más reciente — explica buena parte de la confusión al probar
+cambios que "no aparecían" durante la sesión. Resuelto hacia adelante con
+el botón de debug "Actualizar app" (`postMessage` + `skipWaiting()` bajo
+demanda).
+
+**Próximo paso:** §3 — lente narrativa en capítulos (tesis como lente
+débil en el system prompt de cada POI, sin scratchpad). Prerrequisito ya
+cumplido: tesis y prólogo en producción y validados en campo.
+
 ---
 
-*Follower — Arquitectura v0.9 | Sesión 33 | 17 Julio 2026*
+*Follower — Arquitectura v0.9 | Sesión 35 | 20 Julio 2026*

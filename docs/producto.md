@@ -313,7 +313,7 @@ El Prompt Maestro v2.7 (narrador único) tiene versiones en español e inglés. 
 | DT-64 | Brújula (DA-84, S31, diseño cerrado sin código): permiso de orientación silencioso dentro del gesto ya existente (`_unlockAudioOnFirstTap`/wizard paso 4 o primer tap del title card) — sin ícono ni estados reposo/latido/activo. Cono visual en el mapa condicionado a `AppState.activePOI` (solo con POI activo en diástole), no a un botón manual. Elimina `#btnCompass` y `_activateCompass()`/`_deactivateCompass()` manuales; conserva el cono SVG combinado del marcador de usuario (BUG-027) y el listener de `DeviceOrientationEvent`. Retoma y redefine el alcance de DT-20 | Alta |
 | DT-65 | Curaduría cinematográfica — rama Wikipedia (Fase 2, S32): la compuerta de DA-73 solo filtra OSM; los POIs wiki entran sin filtro y ganan toda fusión. Evidencia: estaciones MIO narradas como capítulos (muchas estaciones de transporte tienen artículo; también bocas de metro en Lisboa/Barcelona). Alcance: blacklist de Nivel D (`manifiesto_pois.md`: metro, MIO, paradas, cajeros, bancos, farmacias, gasolineras, parqueaderos) en la rama wiki por patrón de título y/o categoría, espejo de la blacklist OSM. Implica `POI_CACHE_VERSION++`. Pregunta abierta anexa: tensión Filosofía de Escasez vs. `COMPOSITE_THRESHOLD=8` de DA-72 — decidir en la sesión de este ticket | Alta |
 | DT-66 | Autor/fecha fuera del intro (heredero de DT-51, S32): en artículos CON secciones, `exintro` nunca entrega datos que el editor puso en "Historia" (caso Maceta: Pombo/2015 tras el encabezado — verificado por triple consola, extracto determinista de 1332 chars). Candidatas a evaluar en sesión propia: **(a)** fetch del extracto completo solo para el POI activado al narrar (request extra; en artículos largos 2500 chars podrían tampoco alcanzar); **(b)** Wikidata claims — los POIs ya heredan `wikidata` id en la fusión (DT-49); P170 (creador), P84 (arquitecto), P571 (fecha de creación) son datos estructurados, independientes de dónde vive la prosa. Instinto de sesión: (b) es la definitiva | Media |
-| DT-67 | Tarjeta narrativa persistente (DA-85, S33): el title card se contrae a una tarjeta con ciudad + tesis + "Por descubrir · N" (POIs cercanos detectados AHORA por GPS — evidencias variables bajo tesis fija; jamás capítulos/actos/rutas: tráiler, no índice). Sesión de diseño propia con mockup antes de tocar código. Banderas a resolver: qué aporta la lista de nombres que el mapa no aporta ya; qué cuenta el N (Detectados ≠ Visibles ≠ Narrables — manifiesto POIs); relación con DA-81/DT-16 | Media |
+| DT-67 | Tarjeta narrativa persistente (DA-85, S33) — **ABSORBIDA (S35):** el rediseño completo del tab de ciudad (3 estados — closed/peek/expanded — con ciudad+tesis+prólogo siempre presente e iconos de POI bajo "Por descubrir · N" solo cuando hay alguno) cumple el propósito de este ticket. No necesitó sesión de diseño propia con mockup por separado — se resolvió como parte natural de implementar DA-85 §1. Ver arquitectura.md, "Estado de implementación (S35)" bajo DA-85 | Media |
 | DT-68 | Acumulación de capítulos narrados en memoria de sesión (DA-85, S33): guardar título + idea central de cada capítulo de la caminata actual — hoy solo se conserva el último (DT-39/DA-52). Habilitador del insumo del Epílogo. Memoria de sesión, no IndexedDB: cada caminata es única | Media |
 
 ### Bugs de interfaz — reportados Sesión 31
@@ -508,9 +508,32 @@ resta de este ticket: el caso multi-ciudad (Barcelona → Lisboa de un día
 a otro — la detección debe refrescarse) y la sensación de espera del
 recurrente con red lenta real (barra retenida en 45%/90%).
 
+**Nota S35 — desactualización de este ticket:** el wizard ya NO tiene 4
+pasos (Paso 4 "corazón" eliminado — ver DA-77 extendida en arquitectura.md
+y bitácora S35); son 3 (GPS, idioma, nombre). El title card tampoco es
+una sola pantalla — son 2 etapas (carga sin corazón → corazón latiendo +
+"toca para escucharme"). El texto de arriba describe el flujo pre-S35;
+sigue sirviendo como referencia histórica, no como estado actual.
+
 Prioridad: Alta — es el único camino de entrada a la app para ambos tipos
 de usuario; cualquier regresión aquí bloquea el uso completo.
 
+### Bugs — Sesión 35
+
+| ID | Descripción | Causa | Prioridad |
+|----|-------------|-------|-----------|
+| ~~BUG-063~~ | *(Sesión 35, sw.js v57)* **CAUSA CONFIRMADA + FIX APLICADO.** El `setInterval` de `_showTitleCard()` nunca se detenía al llegar al estado de espera de tap ("toca para escucharme") — seguía corriendo cada 480ms y sobrescribía el label de vuelta a "casi listo..." una y otra vez, así que el texto de instrucción nunca se alcanzaba a leer. Expuesto por la eliminación del Paso 4 del wizard (S35): antes solo lo pisaba el usuario recurrente, ahora le pasa a todo el mundo. Fix: `clearInterval(iv)` al llegar al punto de decisión, antes de bifurcar entre auto-avance y espera de tap | Alta |
+| ~~BUG-064~~ | *(Sesión 35, sw.js v58)* **CAUSA CONFIRMADA + FIX APLICADO.** `welcomeCity()` consultaba `getFreshCityWelcome()` en el mismo instante en que la ciudad se resuelve — pero `prefetchCityThesis()` recién arranca en ese instante (Wikipedia + Haiku, toma segundos). La consulta siempre llegaba antes de tiempo: no era "a veces pierde la carrera", era pérdida garantizada. Fix: la resolución de tesis/prólogo se pospone hasta `_flushPendingWelcome()`/`_resolveAndSpeakCityWelcome()` — el momento REAL en que la voz va a sonar, normalmente varios segundos después de que la ciudad se resolvió, margen real para que Haiku responda | Alta |
+| ~~BUG-065~~ | *(Sesión 35, sw.js v56)* **CAUSA CONFIRMADA + FIX APLICADO.** `Config.isFirstTime()` en `_showTitleCard()` siempre contestaba `false`, incluso para un usuario que acababa de completar el wizard por primera vez en su vida — porque la persistencia del wizard (`Config.setLang()` etc.) ya había escrito `localStorage` momentos antes de que el title card preguntara. Bug preexistente a S35 (no introducido esta sesión), pero recién visible al eliminar el Paso 4: hacía que el title card siempre re-pidiera GPS aunque el wizard ya lo hubiera conseguido, y contaminaba la métrica de debug ("returning-user" incluso en primera vez real). Fix: flag explícito `AppState._justCompletedWizard`, no depende del timing de `Config` | Media |
+| ~~BUG-066~~ | *(Sesión 35, sw.js v61)* **CAUSA CONFIRMADA + FIX APLICADO.** `Debug.retestCityWelcome()` pasaba `AppState.cityName` ("Cali, CO", con país) a `welcomeCity()` en vez del nombre crudo ("Cali") que usa `prefetchCityThesis()` — mismatch de clave de cache entre lo que se generaba y lo que se consultaba, así que el botón de debug nunca podía mostrar lo que Haiku acababa de generar. Además no esperaba a que la generación terminara antes de consultar. Fix: nombre crudo consistente + `await` real sobre `prefetchCityThesis()` antes de llamar `welcomeCity()` | Media |
+| ~~BUG-067~~ | *(Sesión 35, sw.js v60)* **CAUSA CONFIRMADA + FIX APLICADO.** Los botones de acción del panel de debug (Cache, Test, Worker, y los nuevos de esta sesión) vivían en `renderStatus()` — una pestaña sin botón visible en la barra de tabs desde hacía tiempo (huérfana, código legado de una versión anterior del panel). Nunca fueron alcanzables por tap, ni siquiera el viejo "🗑️ Cache". Fix: movidos a `renderSearch()` (la pestaña "POIs", la que sí tiene botón) | Media |
+
+### Herramientas de debug — nuevas Sesión 35
+
+Cuatro botones nuevos en la pestaña POIs del panel: **🏙️ Ciudad** (borra la tesis de la ciudad actual y re-dispara la bienvenida sin recargar), **🗑️ Todas las tesis** (borra tesis de todas las ciudades probadas, sin tocar POIs), **🔄 Actualizar app** (fuerza `skipWaiting()` bajo demanda vía `postMessage`, evita cerrar pestañas manualmente en cada deploy), **🆕 Primera vez** (`Config.reset()` + borrado de IndexedDB, para probar el flujo completo — wizard, title card, tesis fresca — como lo vería un usuario nuevo real).
+
+**Hallazgo de infraestructura (preexistente, no introducido en S35):** `index.html` se sirve cache-first y `skipWaiting()` está deshabilitado a propósito ("no interrumpir audio activo" en producción). Un F5 normal NO trae el HTML/CSS más reciente — solo cerrar todas las pestañas del sitio, o el nuevo botón "Actualizar app", fuerzan la versión nueva. Explica buena parte de la confusión al probar cambios que "no aparecían" durante esta sesión.
+
 ---
 
-*Follower — Documento de Producto v0.9 | Sesión 34 | 18 Julio 2026*
+*Follower — Documento de Producto v0.9 | Sesión 35 | 20 Julio 2026*

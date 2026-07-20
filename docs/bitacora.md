@@ -5528,4 +5528,193 @@ ratificación B (app.js) · sw.js v51 · docs.
 
 ---
 
-*Follower — Bitácora v0.9 | Sesión 34 | 18 Julio 2026*
+---
+
+## Sesión 35 — 20 Julio 2026 — DA-85 §1 completo: tesis, prólogo, wizard, title card, tab de ciudad
+
+**Alcance real vs. planeado:** se abrió como Commit 2 (Tesis de ciudad,
+solo `narration.js`). Terminó fusionando Commit 2 y 3 (Prólogo) en una
+sola llamada a Haiku, y creciendo hacia wizard, title card y el sheet de
+POIs — todo en la misma sesión, sin volver a abrir chat. Documentado así
+a propósito: mejor que el registro refleje lo que pasó, no el plan
+original.
+
+### Tesis + Prólogo (narration.js)
+
+`THESIS_PROMPT_VERSION` nace en v1. Mini-prompt de 3 partes: scratchpad
+de verificación → tesis (separador `---`) → prólogo (separador `===`).
+
+Iteración de campo sobre el prompt: la v1 pedía "carácter + invitación a
+caminar, 15-25 palabras" — Jaime reportó que salía "demasiado larga, con
+filosofía de cierre". Diagnóstico: la cláusula de invitación era la
+puerta de escape hacia la reflexión extra. Fix: se quitó la invitación,
+se bajó el presupuesto a 3-8 palabras (epíteto, no oración), y se agregó
+regla explícita "una sola idea, nunca una segunda reflexión". Resultado
+validado en campo: "la ciudad sorpresa" (Pasto), "una ciudad que baila"
+(Cali).
+
+Tesis en idioma local de la ciudad (`getLocalLang`); prólogo en el
+idioma que el usuario eligió en el wizard — pueden diferir, el prompt lo
+declara explícito por partes (línea "Idioma:" separada para cada una).
+
+Cache: mismo store `narrations`, clave
+`thesis_${THESIS_PROMPT_VERSION}_${cityName}_${tesisLang}_${prologoLang}`.
+Sin fingerprint de extracto — solo `THESIS_PROMPT_VERSION` invalida.
+
+Nuevas funciones públicas: `prefetchCityThesis`, `getFreshCityWelcome`
+(consumo único, para la voz), `getCachedCityWelcome` (lectura no
+consumible, para el encabezado persistente), `clearCityThesisCache`
+(debug).
+
+### Wizard simplificado a 3 pasos
+
+Se elimina el Paso 4 ("Toca para escucharme", el corazón). El
+desbloqueo de audio deja de vivir en el wizard — pasa a ser
+responsabilidad única del title card, igual para primera vez y
+recurrentes (extensión de DA-77: "una sola puerta").
+
+`_wizFinish()` reemplazada por `_wizComplete()`, llamada desde el Paso 3
+(nombre). `_showTitleCard()` no necesitó cambios propios para esto — ya
+tenía la rama "esperar tap si audio no desbloqueado", antes solo
+alcanzada por usuarios recurrentes.
+
+### Title card en 2 etapas
+
+Etapa 1 (carga): wordmark + slogan + barra de progreso, sin corazón.
+Etapa 2 (tap): corazón-brújula latiendo (mismas animaciones
+`titlecard-heartbeat`/`titlecard-ring-pulse` que ya existían) + "toca
+para escucharme", sin techo de tiempo. Cross-fade entre etapas vía
+clases `.titlecard-stage`/`.visible`.
+
+Idea de Jaime, mockeada antes de tocar código (patrón de la sesión:
+visualizar antes de programar, tras dos asunciones equivocadas
+tempranas — el pill de "modo libre" inventado y el diseño del tab que
+no correspondía al real). El pulso del corazón ya existía en el CSS
+(usado siempre en el title card viejo, junto con el resto) — solo se
+reordenó cuándo aparece cada pieza en el tiempo, sin animación nueva.
+
+### Tab de ciudad — rediseño completo (reemplaza "Historias cerca")
+
+Se elimina el pill `bar-pill-right` ("próxima historia") — confirmado
+en el HTML real que no existía un pill de "modo libre" (invención de un
+mockup temprano, corregida al verificar contra el código). El sheet es
+ahora la única fuente de identidad de ciudad y POIs cercanos.
+
+3 estados vía clase en `#nearbySelector`:
+- `state-closed` — solo la manija dorada mínima.
+- `state-peek` — ciudad + tesis/texto genérico + fila de iconos de POI
+  con distancia, sin nombres (Variante B, elegida sobre tarjetas
+  completas por criterio cinematográfico: "sugiere, no resume" — mismo
+  principio ya aplicado a la tesis).
+- `state-expanded` — + prólogo + lista completa.
+
+Tap en un icono del peek → expande y resalta la tarjeta correspondiente
+(Opción C de 3 evaluadas) — no narra directo, por seguridad caminando
+(iconos de 38px, un toque accidental narraría sin querer).
+
+Degradación total (ciudad sin artículo de Wikipedia) → el peek aparece
+igual, con el mismo texto que ya suena hablado (`getCityWelcome`,
+reusado — nunca se desincroniza texto hablado de texto mostrado),
+estilo visual distinto (`.welcome-generic`, sin cursiva dorada) para no
+confundir con tesis real.
+
+El peek se puede cerrar (tap en botón dedicado) y reabrir (tap en la
+manija) — decisión explícita de simplificar de swipe real a tap, para
+reducir riesgo de conflicto con el pan del mapa y bajar superficie de
+bugs en una sesión ya larga.
+
+`updateHistCount()` reescrita: ya no actualiza el pill viejo, ahora
+puebla `icon-row` (peek) y `style-list` (expandido). "Por descubrir"
+solo aparece si hay POIs.
+
+**Bug encontrado en el camino:** con el pill fuera, `#bottomBar` (mini-
+player de diástole) y `#nearbySelector` quedaban ambos anclados a
+`bottom:0` — se hubieran superpuesto al narrar un POI desde la lista.
+Fix: el sheet se oculta del todo mientras dura la narración y se
+restaura a peek (o closed, si el usuario lo había cerrado a mano) al
+volver a sístole.
+
+### Bugs encontrados y cerrados en campo (BUG-063 a 067)
+
+- **BUG-063**: el `setInterval` de `_showTitleCard()` nunca se detenía
+  al llegar al estado de espera de tap — el label se autosobrescribía
+  cada 480ms, "toca para escucharme" no se alcanzaba a leer. Expuesto
+  por quitar el Paso 4 del wizard (antes solo lo pisaba el recurrente).
+- **BUG-064**: `welcomeCity()` resolvía tesis/prólogo en el mismo
+  instante en que la ciudad se resuelve, antes de que
+  `prefetchCityThesis()` tuviera margen real de responder — perdía la
+  carrera siempre, no a veces. Fix: resolución movida a
+  `_flushPendingWelcome()` (momento real de hablar, con margen).
+- **BUG-065**: `Config.isFirstTime()` en `_showTitleCard()` siempre
+  contestaba "false" — el wizard ya había escrito `localStorage`
+  momentos antes de preguntar. Afectaba a *todo* usuario que completaba
+  el wizard, no solo a recurrentes — preexistente, recién visible al
+  quitar el Paso 4. Fix: flag explícito `AppState._justCompletedWizard`.
+- **BUG-066**: `Debug.retestCityWelcome()` pasaba `AppState.cityName`
+  ("Cali, CO") a `welcomeCity()` en vez del nombre crudo ("Cali") —
+  mismatch de clave de cache entre el prefetch y la consulta. Además no
+  esperaba a que Haiku respondiera antes de consultar.
+- **BUG-067**: los botones de acción del panel de debug (Cache, Test,
+  Worker, etc.) vivían en `renderStatus()`, una pestaña sin botón
+  visible en la UI desde hacía tiempo — nunca fueron alcanzables, ni el
+  viejo "🗑️ Cache". Movidos a `renderSearch()` (pestaña POIs).
+
+### Herramientas de debug nuevas
+
+- **🏙️ Ciudad** — borra la tesis de la ciudad actual y re-dispara la
+  bienvenida, sin recargar.
+- **🗑️ Todas las tesis** — borra tesis de todas las ciudades probadas,
+  sin tocar POIs.
+- **🔄 Actualizar app** — fuerza `skipWaiting()` bajo demanda (mensaje
+  al Service Worker), evita cerrar pestañas manualmente en cada deploy.
+- **🆕 Primera vez** — `Config.reset()` + borrado de IndexedDB, para
+  probar el flujo completo (wizard + title card + tesis fresca) como
+  usuario nuevo real.
+
+### Hallazgo de infraestructura (preexistente, no bug de esta sesión)
+
+`index.html` se sirve cache-first y `skipWaiting()` está deshabilitado a
+propósito ("no interrumpir audio activo"). Cualquier deploy requería
+cerrar todas las pestañas para que el HTML nuevo tomara efecto — un
+simple F5 no alcanzaba. Explica gran parte de la confusión de esta
+sesión al probar cambios que "no aparecían". Resuelto para el futuro con
+el botón "Actualizar app" (arriba).
+
+### Deuda técnica — cambios de estado
+
+- **DT-67 (tarjeta persistente "Por descubrir")**: absorbida por el
+  rediseño de hoy — cerrada, superada por el sistema de 3 estados.
+- Cierre "swipe real" del peek: se simplificó a tap por seguridad de
+  esta sesión — swipe queda como mejora futura opcional, no bug.
+- CSS huérfano detectado: `.bar-pill-left`, `.bar-heart-wrap`
+  (explore.css) — nunca usado en HTML, candidato a limpieza menor.
+- Logo con "ticks más gruesos" (mencionado por Jaime, sesión de
+  rediseño de interfaz) — sigue sin ticket formal.
+- DT-58 (configuración post-wizard) — se revisó la propuesta existente
+  en bitácora S25b, sin ratificar todavía. Ítems ya identificados:
+  idioma, nombre, volVoice (huérfano de UI), y sirve de casa a DT-56.
+
+### Decisión de documentación
+
+El wizard de 3 pasos, el title card de 2 etapas, y el rediseño del tab
+de ciudad no estaban en el texto original de DA-85 (que solo cubría
+tesis + prólogo). Se decidieron y construyeron en esta misma sesión por
+necesidad orgánica. Se documentan como extensión de DA-85 (no como
+DA-86 separada): las tres piezas existen únicamente para entregar la
+experiencia que §1 ya había diseñado, no son decisiones narrativas
+nuevas — son la interfaz que las sostiene. Ver arquitectura.md, "Estado
+de implementación (S35)".
+
+**Commits de la sesión:** DA-85 S1 (narration.js, gps.js, app.js,
+index.html, css/explore.css) · sw.js v52 → siete rondas de bugfix y
+herramientas de debug (v53 a v61) · rediseño final del tab (v62) ·
+botón Primera vez (v63).
+
+**Próximo paso:** DA-85 §3 — lente narrativa en capítulos (tesis como
+lente débil en el system prompt de cada POI, sin scratchpad).
+Prerrequisito ya cumplido: tesis y prólogo en producción y validados en
+campo.
+
+---
+
+*Follower — Bitácora v0.9 | Sesión 35 | 20 Julio 2026*

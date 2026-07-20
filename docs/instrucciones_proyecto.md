@@ -8,17 +8,19 @@ Stack: HTML+CSS+JS Vanilla · Leaflet.js · Claude Haiku (Cloudflare Worker `clo
 
 ## Regla de Oro
 
-El panel es fotografía estática; el árbitro es GitHub (`raw.githubusercontent.com/follower-app/follower/main/...`). Ante cualquier "ya quedó hecho", el árbitro es el código, no el resumen (DA-68; DT-60 S31; BUG-060 S32).
+El panel es fotografía estática; el árbitro es GitHub (`raw.githubusercontent.com/follower-app/follower/main/...`). Ante cualquier "ya quedó hecho", el árbitro es el código, no el resumen.
 
 **Protocolo de cierre:** commit → panel → estas instrucciones → chat nuevo. En ese orden.
 
+**Deploys:** `index.html` se sirve cache-first y `skipWaiting()` está deshabilitado a propósito (no interrumpir audio activo). Un F5 normal NO trae el HTML más reciente — usar el botón **🔄 Actualizar app** del panel de debug (fuerza `skipWaiting()` bajo demanda) o cerrar todas las pestañas.
+
 ## Documentos del proyecto
 
-README · REGLAS_IA · docs/: contexto_maestro · producto (a S34) · **arquitectura (DA-1 a 85)** · bitacora (a S34) · **manifiesto_narrativo v3.1** (Estado actualizado S33: Fase 3 = diseño cerrado) · **manifiesto_pois v1.0** (Detectado ≠ Visible ≠ Narrable, Niveles A-D) · manifiesto_care_strip · prompt_maestro **v3.7** · dt42 · dt45/dt47 · registro_s24 · restauracion_poi_js
+README · REGLAS_IA · docs/: contexto_maestro · producto (a S35) · **arquitectura (DA-1 a 85)** · bitacora (a S35) · **manifiesto_narrativo v3.1** · **manifiesto_pois v1.0** · manifiesto_care_strip · prompt_maestro **v3.7** (capítulos) · dt42 · dt45/dt47 (⚠️ dt47 describe wizard de 4 pasos — desactualizado, wizard real ahora tiene 3) · registro_s24 · restauracion_poi_js
 
 ## Arquitectura de archivos
 
-index.html · sw.js **v51** (siempre último en commits) · manifest.json · css/ · js/ (app, config, gps, poi, narration, voice, weather, care, walkmode, routes, debug, debug-sim; music.js stubbed) · assets/ · docs/ · cloudflare/worker.js
+index.html · sw.js **v63** (siempre último en commits) · manifest.json · css/ · js/ (app, config, gps, poi, narration, voice, weather, care, walkmode, routes, debug, debug-sim; music.js stubbed) · assets/ · docs/ · cloudflare/worker.js
 
 ## Reglas críticas
 
@@ -26,56 +28,69 @@ index.html · sw.js **v51** (siempre último en commits) · manifest.json · css
 - GPS nunca se interrumpe · Offline obligatorio · Nunca mostrar errores al usuario
 - DA-76: Modo Libre default (DT-56 pendiente; modal-mode sin llamador, NO eliminar)
 - POIs: cascada DA-72 — wiki local+es → neto<8 → Overpass curado → <3 → en.wiki → IndexedDB. Curar antes de exponer (DA-73). Dedup DT-49: wiki gana, perdedor lega inscription/wikidata
-- BUG-060 (cerrado): TextExtracts recorta `exchars`>1200 EN SILENCIO → sin `exchars`, truncado cliente `EXTRACT_MAX_CHARS=2500` al último punto. `exintro` nunca cruza encabezados de sección → DT-66
-- BUG-062 (cerrado S34): `voice._finish` no distinguía el motivo de cierre → `narration.js` marcaba `visited=true` también en `visibility-recovery`. Fix: `_finish(source)` pasa el motivo a `onEnd(source)`; `visited` se excluye si `source==='visibility-recovery'`
-- BUG-061 (cerrado S34): rama principal de `detectPOI()` en poi.js no chequeaba `poi.visited` antes de `activatePOI()` (a diferencia de `enqueuePOI`) → reactivaba POIs ya narrados cuando `activePOI` volvía a `null`. Fix: `!closestPOI.visited` agregado a la condición. `activateFromBar()` queda SIN chequeo a propósito — re-escuchar manual es feature, no bug
+- BUG-060 (cerrado): TextExtracts recorta silencioso >1200 → truncado cliente `EXTRACT_MAX_CHARS=2500`. Misma lección aplicada al extracto de ciudad (`THESIS_EXTRACT_MAX_CHARS`)
+- BUG-062/061 (cerrados S34): ver bitácora S34
+- **BUG-063 a 067 (cerrados S35):** ver bitácora S35 — interval del title card, carrera de bienvenida resuelta demasiado temprano, `isFirst` contaminado por orden del wizard, mismatch de nombre en debug, botones en pestaña huérfana
 - **DA-71:** cambio en query/filtros/normalización POIs → `POI_CACHE_VERSION++` MISMO commit (actual: **v5**)
-- **DT-50:** cambio al Prompt Maestro → `PROMPT_VERSION++` MISMO commit (actual: **v3.7**). Clave narración: `${PROMPT_VERSION}_${poiId}_${lang}_${topic}_${extractFingerprint}`
-- **v3.7 (VALIDADA 16/16 S32):** scratchpad en grounding wiki — "Verificación obligatoria:"/"Mandatory first check:" + autor/fecha/motivo + presupuesto 90-130 + `---` + capítulo. `sanitizeNarration()` corta el borrador (strip BUG-059 — NO quitar). `MAX_TOKENS=550` (andamiaje, NO longitud). Regla 8 = CIERRE (sin promesa adelante ni pregunta genérica). Anti-regaño en LÍMITES ESTRICTOS. Espejo es/en
-- **El scratchpad es LA herramienta probada de cumplimiento.** Reglas que aún fallan (personificación en capítulos, una-metáfora) = candidatas v3.8 con evidencia nueva, NO más redacción
-- **DA-85 (S33, diseño cerrado, SIN código):** Arquitectura Narrativa v1 — ver sección propia abajo
-- DA-75: userName solo welcome/farewell, nunca a Worker · DA-77 + matiz S34: saludo 100% voz PERO siempre suena en explore (flush único `_flushPendingWelcome()`, llamado por `initExplore()` y por el unlock solo si `AppState.screen==='explore'`); el genérico "Tu ciudad te espera" ya NO se habla (fallback = solo log) · `_unlockAudioOnFirstTap()` puerta única, unlock iOS exige gesto DIRECTO · DA-78: intro solo primera vez · DA-84: brújula sin ícono (impl. = DT-64)
-- Patrón freeze-while-open (BUG-058): nunca `innerHTML` sobre lista con panel abierto en iOS
-- Care y cola narrativa independientes · Narración 90-130 palabras (excepcional 150)
+- **DT-50:** cambio al Prompt Maestro de capítulos → `PROMPT_VERSION++` MISMO commit (actual: **v3.7**). Clave: `${PROMPT_VERSION}_${poiId}_${lang}_${topic}_${extractFingerprint}`
+- **v3.7 (VALIDADA 16/16 S32):** scratchpad en grounding wiki — ver docs/prompt_maestro_follower.md
+- **DA-75:** userName solo welcome/farewell, nunca a Worker (tampoco al mini-prompt de tesis/prólogo)
+- **DA-77 (extendida S35):** una sola puerta de desbloqueo de audio — el tap en la Etapa 2 del title card, igual para primera vez y recurrentes. El Paso 4 del wizard ("corazón") **ya no existe** — wizard de 3 pasos (GPS, idioma, nombre)
+- **DA-78:** intro solo primera vez ("Soy Follower") — se antepone al saludo de tesis cuando coinciden (ver DA-85 §1)
+- Patrón freeze-while-open (BUG-058): `updateHistCount()` congela rebuild mientras el sheet está `state-expanded`; `force=true` es la única excepción (colapsos/aperturas deliberadas)
+- Care y cola narrativa independientes · Narración de capítulos 90-130 palabras (excepcional 150)
 - ¿Archivo servido cambió? → sw.js bump, commit final aparte
 - Pregunta rectora: ¿cinematográfico o audioguía?
 
-## DA-85 — Arquitectura Narrativa v1 (diseño ratificado S33, implementación pendiente)
+## DA-85 — Arquitectura Narrativa v1 (§1 completo S35, §3 pendiente)
 
-- **Tesis de ciudad:** frase insignia, 100% Haiku + scratchpad sobre extracto wiki de la ciudad (canal BUG-060-safe). Tráiler no índice. Personificación SOLO en prólogo/tesis (prohibida en capítulos). Cache `${THESIS_PROMPT_VERSION}_${cityName}_${lang}` (nace v1). Degradación en cascada sin cachear, nunca error. **El saludo nunca espera a Haiku**
-- **Actos:** NO se modelan en v1 — la tesis es el único arco. Continuidad sigue capítulo-a-capítulo (DT-39/DA-52)
-- **Capítulos:** tesis como lente débil en system prompt (nunca literal, nunca forzada), SIN línea de scratchpad. Fingerprint de tesis en clave de cache de narración
-- **Epílogo (absorbe DT-53):** disparador ÚNICO = cierre confirmado DT-46, jamás inferencia. Haiku + scratchpad, insumo = capítulos de la caminata (DT-68), bookend con tesis (único lugar donde citarla literal), userName ok (DA-75), sin cache, degradación fija, 0 capítulos → despedida simple
-- **Prerequisitos:** ~~DT-60~~ CUMPLIDO (S34) → Prólogo listo para arrancar · DT-46 + DT-68 → Epílogo
-- Derivados: DT-67 (tarjeta "Por descubrir", diseño propio con mockup) · DT-68 (acumular capítulos en sesión)
-- Aparcado: pregunta 6 (curaduría) → Fase 2 · Modo Curado = nota v2.0
+**§1 — Tesis + Prólogo + Prólogo, EN PRODUCCIÓN (S35):**
+- Una sola llamada a Haiku, 3 partes: scratchpad de verificación → tesis (`---`) → prólogo (`===`). `THESIS_PROMPT_VERSION` = v1
+- Tesis: epíteto 3-8 palabras, idioma local de la ciudad (`getLocalLang`). Prólogo: 40-60 palabras, idioma del usuario (wizard) — pueden diferir
+- Personificación SOLO aquí (única excepción en Follower) · Prohibidos datos literales en ambas piezas
+- Cache: store `narrations`, clave `thesis_v1_${cityName}_${tesisLang}_${prologoLang}`, sin fingerprint
+- Funciones: `prefetchCityThesis` · `getFreshCityWelcome` (consumo único, voz) · `getCachedCityWelcome` (lectura repetible, tab) · `clearCityThesisCache` (debug)
+- **Regla de carrera:** resolución de tesis/prólogo pospuesta hasta el momento REAL de hablar (`_flushPendingWelcome`/`_resolveAndSpeakCityWelcome`), nunca al resolver la ciudad — margen real para que Haiku responda (BUG-064)
+
+**Wizard (3 pasos) → Title card (2 etapas) → Tab de ciudad (3 estados):**
+- Wizard: GPS → idioma → nombre. Sin paso de audio — ver DA-77 extendida arriba
+- Title card Etapa 1: wordmark+slogan+barra, sin corazón. Etapa 2: corazón latiendo + "toca para escucharme", sin techo. Cross-fade vía `.titlecard-stage`/`.visible`
+- Tab (`#nearbySelector`), 3 estados vía clase: `state-closed` (manija) / `state-peek` (ciudad+tesis/genérico+iconos de POI, Variante B sin nombres) / `state-expanded` (+prólogo+lista completa). Sin pill — `bar-pill-right` eliminado
+- Primera vez en ciudad: abre expandido narrando (POIs ocultos), colapsa a peek al terminar o con tap. Visitas siguientes: peek directo, sin narrar. Degradación total (sin wiki): peek con texto genérico (`getCityWelcome` reusado), estilo `.welcome-generic`
+- Tap en icono de POI → expande + resalta (no narra directo — seguridad caminando)
+- Sheet se oculta del todo durante diástole (mini-player), restaura a peek/closed según `AppState._sheetUserClosed`
+
+**Pendiente:** §3 lente narrativa en capítulos (tesis como lente débil, sin scratchpad, en system prompt) · DT-68 (acumular capítulos) · DT-46 (cierre de caminata) → Epílogo
+
+**Derivados:** DT-67 **absorbida** por el rediseño del tab (considerar cerrada) · Pregunta 6 (curaduría) → Fase 2
 
 ## Funciones únicas — nunca duplicar
 
-poi.js: detectNearby · enqueuePOI · processQueue · fetchWikipediaPOIs · _attachExtracts (truncado BUG-060) · fetchPOIsFromOSM · classifyOSMElement · dedupOSMPOIs · fuseWithWikipedia · markVisited · resetVisited
-narration.js: trigger · getCareMessage · getLocalLang (única fuente idioma, DT-41) · cleanPOIName · getCityWelcome · getCityIntroFallback · sanitizeNarration (strip BUG-059) · buildGroundingBlock (scratchpad wiki) · _dt51VerifyAutorFecha
-care.js: checkCareContext · checkSpecialZone · gps.js: distanceMeters · getRadiusConfig · fetchCityName · updateUserPosition · walkmode.js: start · stop · onMove · isActive · app.js: setPhase · navigateTo · welcomeCity · _unlockAudioOnFirstTap · _flushPendingWelcome (S34, único flush del saludo) · _startWizard · _showTitleCard · voice.js: speak · stop · unlockFromGesture · recuperación visibilitychange · SAFETY_MAX_MS=120s
-(getFarewell() aún no existe — nace con el Epílogo DA-85/DT-53)
+poi.js: detectNearby · enqueuePOI · processQueue · fetchWikipediaPOIs · _attachExtracts · fetchPOIsFromOSM · classifyOSMElement · dedupOSMPOIs · fuseWithWikipedia · markVisited · resetVisited · activatePOI · activateFromBar · showPOICard/hidePOICard (mini-player diástole, NO narrationText) · renderExpanded/onMarkerTap (screen-poi, SÍ narrationText — pantallas distintas)
+narration.js: trigger · getCareMessage · getLocalLang · cleanPOIName · getCityWelcome · getCityIntroFallback · getCityIntroPrefix · sanitizeNarration · buildGroundingBlock · _dt51VerifyAutorFecha · **prefetchCityThesis · getFreshCityWelcome · getCachedCityWelcome · clearCityThesisCache**
+care.js: checkCareContext · checkSpecialZone · gps.js: distanceMeters · getRadiusConfig · fetchCityName · updateUserPosition · walkmode.js: start · stop · onMove · isActive
+app.js: setPhase · updateExplorePhase · navigateTo · welcomeCity · _resolveAndSpeakCityWelcome · _speakCityWelcome · **_sheetShow · _sheetReopenFromHandle · _sheetExpand · _sheetCollapseToPeek · _sheetUserClose · _showCityWelcomeSheet · _collapseCityWelcomeSheet · _populatePersistentCityHeader · _expandAndHighlightPOI** · updateHistCount · _unlockAudioOnFirstTap · _flushPendingWelcome · _wizComplete (reemplaza a _wizFinish) · _showTitleCard · _showTitleCardTapStage
+voice.js: speak · stop · unlockFromGesture · recuperación visibilitychange · SAFETY_MAX_MS=120s
+debug.js: **retestCityWelcome · clearAllThesisCache · forceUpdateApp · resetToFirstTime** (nuevas S35)
 
 ## Estado actual
 
-v0.9 — **Sesión 34 (18 julio 2026), dos partes.** Mañana: BUG-062 y BUG-061 cerrados (voice.js, narration.js, poi.js; sw v49) + README corregido. Tarde: **DT-60 CERRADA y validada en campo ambos caminos** (Opción A: dataPromise GPS→fetchCityName ahora exportada, barra de compuertas reales 45/90/95%, onPosition sin doble hit a Nominatim; sw v50) + **doble matiz DA-77** (genérico silenciado; saludo siempre en explore vía `_flushPendingWelcome()` nueva — hallazgo de campo: sonaba en el tap del title card; sw v51). BUG-052 muere con DT-60. Regresión atrapada en diseño: fallback solo se agenda si `!AppState.cityName`. Próximo paso: **tesis de ciudad (commit 2 de DA-85, narration.js) en chat nuevo**.
+v0.9 — **Sesión 35 (20 julio 2026).** DA-85 §1 completo y en producción: tesis+prólogo (una llamada, 3 partes), wizard de 3 pasos, title card de 2 etapas, tab de ciudad rediseñado por completo (3 estados, sin pill, iconos de POI). 5 bugs de campo cerrados (BUG-063 a 067, ver bitácora). 4 herramientas de debug nuevas (Ciudad, Todas las tesis, Actualizar app, Primera vez). sw.js v52→v63. Hallazgo de infraestructura: cache-first de index.html sin skipWaiting explica confusión de pruebas durante toda la sesión — resuelto con botón Actualizar app.
 
 ## Pendientes críticos (orden sugerido)
 
-1. **Implementación DA-85** (DT-60 ya cumplida): tesis de ciudad + prólogo (narration.js, `THESIS_PROMPT_VERSION` nace v1) → lente en capítulos → DT-68 → epílogo (requiere DT-46)
-2. **DT-67** (tarjeta persistente, sesión de diseño con mockup) · **DT-46** (cierre de caminata)
-3. **DT-65** (curaduría wiki Nivel D — Fase 2; `POI_CACHE_VERSION++`; pregunta Escasez vs DA-72) · **DT-66** (autor/fecha fuera del intro — instinto: Wikidata P170/P84/P571)
-4. **DT-64** (brújula) · **DT-63** (campo flujo completo) · **DT-61 [ticket de interfaz, no confundir con el BUG-061 ya cerrado]** (+parques, vara Niveles A/B/C)
-5. v3.8 candidatas (NO abrir sin evidencia): personificación en capítulos y una-metáfora como líneas de scratchpad; extensión scratchpad a OSM
-6. Vigilar: voz tardía en escritorio (43-48s, safety rescata) · bienvenida idioma cruzado Safari (¿fuga DT-41?) · background iOS (doc pendiente: análisis Capacitor)
+1. **DA-85 §3** — lente narrativa en capítulos (tesis como lente débil, system prompt de POI, sin scratchpad)
+2. **DT-68** (acumular capítulos de sesión) → **DT-46** (cierre de caminata) → Epílogo
+3. **DT-58** (config post-wizard, sin ratificar) — ítems ya identificados: idioma, nombre, volVoice, casa de DT-56
+4. **DT-64** (brújula) · **DT-63** (campo flujo completo) · **DT-61** (+parques, vara Niveles A/B/C)
+5. Swipe real para cerrar el peek (hoy: tap, simplificación deliberada de S35) · limpieza CSS huérfano (`.bar-pill-left`, `.bar-heart-wrap`) · logo con ticks más gruesos (sesión de rediseño de interfaz)
+6. v3.8 candidatas capítulos (NO abrir sin evidencia): personificación, una-metáfora
 
 ## El Narrador
 
-Una sola voz. Prompt Maestro **v3.7** en narration.js (es+en espejo). Grounding dinámico por `_source` + scratchpad en rama wiki. Ver docs/prompt_maestro_follower.md. La tesis (DA-85) se sumará como lente débil al implementarse.
+Una sola voz. Prompt Maestro **v3.7** en narration.js (capítulos, es+en espejo). Tesis+prólogo: mini-prompt propio v1 (S35), invariante + idioma por línea en el user prompt, no espejo es/en. Ver docs/prompt_maestro_follower.md.
 
 ## Identidad
 
 Corazón C2 con brújula · "your city soundtrack" · DM Serif Display + Inter
 App: follower-app.github.io/follower · Worker: followernarration.jaimeand.workers.dev
-

@@ -506,6 +506,7 @@ body.phase-diastole .heart-compass {
   border-radius: var(--radius-2xl) var(--radius-2xl) 0 0;
   padding: var(--space-md) var(--space-xl) 48px;
   animation: card-rise 0.38s cubic-bezier(0.34, 1.2, 0.64, 1) both;
+  transition: padding 0.25s ease;
 }
 
 .style-selector.hidden {
@@ -523,6 +524,7 @@ body.phase-diastole .heart-compass {
   background: var(--color-border);
   border-radius: 3px;
   margin: 0 auto var(--space-lg);
+  cursor: pointer;
 }
 
 .style-title {
@@ -535,11 +537,15 @@ body.phase-diastole .heart-compass {
   margin-bottom: var(--space-lg);
 }
 
+.style-title.hidden { display: none !important; }
+
 .style-list {
   display: flex;
   flex-direction: column;
   gap: var(--space-sm);
 }
+
+.style-list.hidden { display: none !important; }
 
 .style-card {
   display: flex;
@@ -561,6 +567,12 @@ body.phase-diastole .heart-compass {
 .style-card.active {
   border-color: var(--color-systole);
   background: rgba(26, 82, 118, 0.1);
+}
+
+.style-card.highlight-flash {
+  border-color: var(--color-gold);
+  background: rgba(240, 200, 122, 0.08);
+  transition: border-color 0.3s ease, background 0.3s ease;
 }
 
 .style-emoji {
@@ -585,12 +597,94 @@ body.phase-diastole .heart-compass {
   letter-spacing: 0.02em;
 }
 
-/* ── DA-85 (S35+): BLOQUE DE BIENVENIDA — dentro del mismo style-selector ──
-   Estado expandido: solo este bloque, POIs ocultos (style-title + style-list
-   quedan hidden aparte). Estado colapsado: welcome-tesis toma .compact,
-   welcome-prologo se oculta, y title/list reaparecen debajo. */
+/* ── DA-85 (S35+, rediseño final): 3 ESTADOS DEL SHEET ──
+   closed   → solo la manija minima (.tab-handle-pull)
+   peek     → ciudad + tesis/generico + iconos de POI (.icon-row)
+   expanded → + prólogo + lista completa (.style-list)
+   El pill viejo (bar-pill-right) se elimina — este sheet es la unica
+   fuente de identidad de ciudad y POIs cercanos. */
 
-.welcome-block.hidden { display: none !important; }
+.tab-handle-pull {
+  display: none;
+  width: 40px;
+  height: 4px;
+  border-radius: 3px;
+  background: var(--color-gold);
+  opacity: 0.55;
+  margin: 0 auto;
+  cursor: pointer;
+}
+
+.peek-close-btn {
+  display: none;
+  position: absolute;
+  top: 10px;
+  right: var(--space-lg);
+  background: none;
+  border: none;
+  color: var(--color-smoke-2);
+  font-size: 14px;
+  line-height: 1;
+  padding: 4px 8px;
+  cursor: pointer;
+}
+
+#nearbySelector.state-closed {
+  padding: 14px 0 18px;
+}
+#nearbySelector.state-closed .style-handle,
+#nearbySelector.state-closed .welcome-block,
+#nearbySelector.state-closed .icon-row,
+#nearbySelector.state-closed .style-title,
+#nearbySelector.state-closed .style-list,
+#nearbySelector.state-closed .peek-close-btn {
+  display: none;
+}
+#nearbySelector.state-closed .tab-handle-pull { display: block; }
+
+#nearbySelector.state-peek .welcome-prologo,
+#nearbySelector.state-peek .style-list {
+  display: none;
+}
+#nearbySelector.state-peek .peek-close-btn { display: block; }
+
+#nearbySelector.state-expanded .icon-row {
+  display: none;
+}
+
+.icon-row {
+  display: flex;
+  gap: var(--space-sm);
+  padding-bottom: var(--space-md);
+  overflow-x: auto;
+}
+
+.icon-row.hidden { display: none !important; }
+
+.icon-chip {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  border: 0.5px solid var(--color-border);
+  background: rgba(255, 255, 255, 0.03);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  flex-shrink: 0;
+  position: relative;
+  cursor: pointer;
+}
+
+.icon-chip-dist {
+  position: absolute;
+  bottom: -14px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 8px;
+  color: var(--color-smoke-2);
+  white-space: nowrap;
+}
 
 .welcome-city {
   font-family: var(--font-ui);
@@ -612,9 +706,15 @@ body.phase-diastole .heart-compass {
   margin-bottom: 12px;
 }
 
-.welcome-tesis.compact {
+/* Degradación total (sin artículo de Wikipedia) — mismo texto que ya
+   suena hablado (getCityWelcome), estilo distinto para no confundirse
+   con una tesis real: sin cursiva dorada, tono más discreto. */
+.welcome-tesis.welcome-generic {
+  font-family: var(--font-ui);
+  font-style: italic;
+  font-weight: var(--weight-light);
   font-size: 14px;
-  margin-bottom: 4px;
+  color: var(--color-smoke);
 }
 
 .welcome-prologo {
@@ -625,8 +725,6 @@ body.phase-diastole .heart-compass {
   color: var(--color-smoke);
   margin-bottom: var(--space-lg);
 }
-
-.welcome-prologo.hidden { display: none !important; }
 
 /* ── MODO RECORRIDO ── */
 

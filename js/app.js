@@ -138,18 +138,37 @@ function updateCareStrip() {
   // los usa el debug (metricas de caminata), solo dejaron de mostrarse.
 }
 
-/* ── ACTUALIZAR FASE EN BOTTOM BAR ── */
+/* ── ACTUALIZAR FASE EN BOTTOM BAR ──
+   DA-85 (S35+): sin el pill, barSystole queda vacío mientras se camina —
+   se oculta el bottomBar entero en sístole (el sheet, en peek, ya cubre
+   identidad de ciudad + POIs cercanos) y solo reaparece en diástole
+   (mini-player de narración). Al volver a sístole, el sheet se restaura a
+   peek — salvo que el usuario lo haya cerrado manualmente antes. */
 function updateExplorePhase(phase) {
-  const barSys = document.getElementById('barSystole');
-  const barDia = document.getElementById('barDiastole');
+  const barSys    = document.getElementById('barSystole');
+  const barDia    = document.getElementById('barDiastole');
+  const bottomBar = document.getElementById('bottomBar');
+  const sel       = document.getElementById('nearbySelector');
   if (!barSys || !barDia) return;
 
   if (phase === 'diastole') {
     barSys.classList.add('hidden');
     barDia.classList.remove('hidden');
+    if (bottomBar) bottomBar.classList.remove('hidden');
+    // Ambos anclados a bottom:0 — ocultar el sheet del todo mientras narra
+    // evita que la manija (o mas) se solape con el mini-player.
+    if (sel) sel.classList.add('hidden');
   } else {
-    barSys.classList.remove('hidden');
     barDia.classList.add('hidden');
+    if (bottomBar) bottomBar.classList.add('hidden');
+
+    // Restaurar el sheet si ya tenia contenido real antes de narrar.
+    // Respeta si el usuario lo habia cerrado el mismo (state-closed) —
+    // en ese caso solo se quita el "hidden" temporal, sin forzar peek.
+    if (sel && AppState._sheetHasContent) {
+      sel.classList.remove('hidden');
+      if (!AppState._sheetUserClosed) _sheetShow('peek');
+    }
   }
 }
 
@@ -159,6 +178,12 @@ function updateExplorePhase(phase) {
    queremos forzar un rebuild con el sheet ya abierto: el colapso de la
    bienvenida (_collapseCityWelcomeSheet), que no es un tick de fondo a
    mitad de un gesto sino una transicion deliberada de una sola vez. */
+/* ── ACTUALIZAR SHEET DE CIUDAD (icon-row peek + lista expandida) ──
+   DA-85 (S35+): el pill viejo (barNextIcon/barNextName) se elimina — el
+   sheet es la unica fuente de POIs cercanos ahora. parametro force —
+   bypassa el guard BUG-058 (rebuild congelado mientras el sheet esta
+   expandido) para los casos deliberados de una sola vez: colapso/apertura
+   de la bienvenida, o expandir al tocar un icono. */
 function updateHistCount(force) {
   const nearby = AppState.nearbyPOIs || [];
   const sorted = [...nearby]
@@ -172,61 +197,47 @@ function updateHistCount(force) {
     amenity: '☕', park: '🌳', default: '📍'
   };
 
-  // Pill derecho — muestra el más cercano
-  const iconEl = document.getElementById('barNextIcon');
-  const nameEl = document.getElementById('barNextName');
-  if (iconEl && nameEl) {
-    if (sorted.length === 0) {
-      iconEl.textContent = '📍';
-      nameEl.textContent = 'buscando';
-      nameEl.classList.add('muted');
-    } else {
-      const closest = sorted[0];
-      iconEl.textContent = OSM_ICONS[closest.type] || OSM_ICONS.default;
-      nameEl.textContent = closest.name;
-      nameEl.classList.remove('muted');
-    }
-  }
-
-  // Nearby selector list
-  const listEl = document.getElementById('nearbySelectorList');
-  if (!listEl) return;
-
-  // BUG-058 CAUSA REAL (S31): este innerHTML se reescribia en CADA tick de
-  // stats. En iOS un tap tarda ~200ms entre touchstart y click; si el
-  // elemento tocado es destruido y recreado a mitad del gesto (simulador en
-  // movimiento => distancias cambian => rebuild constante), Safari CANCELA
-  // el click por completo — no burbujea, no llega ni al contenedor. Todos
-  // los taps dentro del panel morian contra un DOM que ya no existia:
-  // pantalla "secuestrada". Fix: con el panel ABIERTO, congelar el rebuild
-  // (contenido levemente desactualizado mientras esta abierto — aceptable);
-  // se reconstruye en el siguiente tick tras cerrarse. force=true (DA-85,
-  // solo desde el colapso de la bienvenida) es la unica excepcion.
+  const iconRowEl = document.getElementById('poiIconRow');
+  const listEl    = document.getElementById('nearbySelectorList');
+  const titleEl   = document.getElementById('nearbySelectorTitle');
   const selectorEl = document.getElementById('nearbySelector');
-  if (!force && selectorEl && !selectorEl.classList.contains('hidden')) return;
+  if (!iconRowEl || !listEl || !titleEl) return;
 
-  // DA-85 (S35+): tras el colapso de la bienvenida, el titulo del sheet
-  // pasa de "Historias cerca" a "Por descubrir · N" para el resto de la
-  // caminata — mismo sheet, mismo listado, solo cambia el encabezado.
-  const titleEl = document.getElementById('nearbySelectorTitle');
-  if (titleEl) {
-    titleEl.textContent = AppState._cityWelcomeCollapsed
-      ? `Por descubrir · ${sorted.length}`
-      : 'Historias cerca';
-  }
+  // BUG-058: mismo guard de siempre, ahora sobre el estado 'expanded'
+  // (antes era "no hidden"). force=true es la excepcion deliberada.
+  const isExpanded  = selectorEl && selectorEl.classList.contains('state-expanded');
+  if (!force && isExpanded) return;
 
-  if (sorted.length === 0) {
-    listEl.innerHTML = `<div class="style-card" style="justify-content:center;">
-      <span style="font-size:11px;color:var(--color-smoke-2);">Sin historias cercanas por ahora</span>
+  // POIs ocultos mientras dura la bienvenida fresca narrando (ratificación
+  // S35+), sin importar cuantos haya.
+  const isNarrating = selectorEl && selectorEl.classList.contains('welcome-narrating');
+  const hasPois = sorted.length > 0 && !isNarrating;
+
+  // "Por descubrir" solo existe si hay algo que descubrir (ratificación S35+)
+  titleEl.textContent = `Por descubrir · ${sorted.length}`;
+  titleEl.classList.toggle('hidden', !hasPois);
+  iconRowEl.classList.toggle('hidden', !hasPois);
+  listEl.classList.toggle('hidden', !hasPois);
+
+  if (!hasPois) { iconRowEl.innerHTML = ''; listEl.innerHTML = ''; return; }
+
+  // Fila compacta de iconos (peek) — Variante B ratificada: solo icono +
+  // distancia, sin nombre. Tap expande la lista completa con ese resaltado
+  // (más seguro caminando que narrar directo desde un icono de 38px).
+  iconRowEl.innerHTML = sorted.map(poi => {
+    const icon = OSM_ICONS[poi.type] || OSM_ICONS.default;
+    const dist = poi._distanceMeters != null ? `${poi._distanceMeters}m` : '';
+    return `<div class="icon-chip" onclick="_expandAndHighlightPOI('${poi.id}')">
+      ${icon}<span class="icon-chip-dist">${dist}</span>
     </div>`;
-    return;
-  }
+  }).join('');
 
+  // Lista completa (expandido)
   listEl.innerHTML = sorted.map(poi => {
     const icon     = OSM_ICONS[poi.type] || OSM_ICONS.default;
     const dist     = poi._distanceMeters ? `· ${poi._distanceMeters}m` : '';
     const isActive = AppState.activePOI?.id === poi.id;
-    return `<div class="style-card${isActive ? ' active' : ''}"
+    return `<div class="style-card${isActive ? ' active' : ''}" data-poi-id="${poi.id}"
                  onclick="POI.activateFromBar('${poi.id}');document.getElementById('nearbySelector').classList.add('hidden');">
       <div class="style-emoji">${icon}</div>
       <div class="style-info">
@@ -640,9 +651,22 @@ function _resolveAndSpeakCityWelcome({ city, isFallback }) {
           if (typeof Debug !== 'undefined') {
             Debug.log('info', `Encabezado persistente: poblado desde cache — ${city}: "${cachedValue.tesis}"`);
           }
-          _populatePersistentCityHeader(city, cachedValue.tesis);
-        } else if (typeof Debug !== 'undefined') {
-          Debug.log('info', `Encabezado persistente: sin tesis cacheada para ${city} — nada que poblar`);
+          _populatePersistentCityHeader(city, cachedValue.tesis, false);
+        } else {
+          // DA-85 (S35+): degradación total — ciudad sin artículo de
+          // Wikipedia, nunca hubo tesis que cachear. Ratificación: el peek
+          // aparece igual, con el mismo texto genérico que ya suena
+          // hablado (reusa getCityWelcome — nunca se desincroniza texto
+          // hablado vs. texto mostrado).
+          const generic = (typeof Narration !== 'undefined' && typeof Narration.getCityWelcome === 'function')
+            ? Narration.getCityWelcome(city, null, localLang, false)
+            : null;
+          if (generic) {
+            if (typeof Debug !== 'undefined') {
+              Debug.log('info', `Encabezado persistente: sin tesis para ${city} — usando texto genérico`);
+            }
+            _populatePersistentCityHeader(city, generic, true);
+          }
         }
       });
     }
@@ -673,97 +697,125 @@ function _speakCityWelcome(text, lang, isIntro, sheetData) {
   Voice.speak(text, lang, onSpoken);
 }
 
-/* ── DA-85 (S35+): SHEET DE BIENVENIDA — reutiliza el bottom sheet real
-   (.style-selector / #nearbySelector, hoy "Historias cerca"). Se abre
-   EXPANDIDO con ciudad+tesis+prólogo, POIs ocultos, y se colapsa al
-   terminar de narrar la tesis o con un tap — lo que ocurra primero
-   (ratificación S35+). Alcance de esta sesión: el sheet queda ABIERTO
-   tras colapsar (título + tesis compacta + "Por descubrir" + POIs) — el
-   pulido visual de esa tarjeta persistente (animación de contracción,
-   contorno propio) es DT-67, deliberadamente fuera de este commit. */
-function _showCityWelcomeSheet(cityName, tesis, prologo) {
+/* ═══════════════════════════════════════════
+   DA-85 (S35+, rediseño final) — 3 ESTADOS DEL SHEET DE CIUDAD
+   closed   → solo la manija mínima (tab-handle-pull)
+   peek     → ciudad + tesis (o texto genérico) + iconos de POI
+   expanded → + prólogo + lista completa de POIs
+   El pill viejo (bar-pill-right) se elimina — el sheet es la única
+   fuente de identidad de ciudad y de POIs cercanos.
+   ═══════════════════════════════════════════ */
+
+function _sheetShow(state) {
   const sel = document.getElementById('nearbySelector');
   if (!sel) return;
+  sel.classList.remove('hidden', 'state-closed', 'state-peek', 'state-expanded');
+  sel.classList.add(`state-${state}`);
+  AppState._sheetHasContent = true; // ya hubo contenido real — updateExplorePhase puede restaurarlo tras narrar
+}
 
-  const block   = document.getElementById('welcomeBlock');
+/* Tap en la manija minima (closed) — reabre a peek, el usuario decidio
+   verlo de nuevo. */
+function _sheetReopenFromHandle() {
+  AppState._sheetUserClosed = false;
+  _sheetShow('peek');
+}
+
+/* Tap en el chevron/fondo del peek — expande a vista completa. */
+function _sheetExpand() {
+  const sel = document.getElementById('nearbySelector');
+  if (!sel || !sel.classList.contains('state-peek')) return;
+  _sheetShow('expanded');
+}
+
+/* Tap en el chevron/fondo del expandido (fuera de una tarjeta de POI) —
+   colapsa a peek. Interactuar con el sheet siempre vuelve a peek, nunca
+   a closed — cerrar del todo es una decision aparte (ver abajo). */
+function _sheetCollapseToPeek() {
+  const sel = document.getElementById('nearbySelector');
+  if (!sel || !sel.classList.contains('state-expanded')) return;
+  sel.classList.remove('welcome-narrating');
+  _sheetShow('peek');
+  if (typeof updateHistCount === 'function') updateHistCount(true);
+}
+
+/* Tap explicito para cerrar del todo (ratificacion: "se puede cerrar si
+   el usuario quiere") — simplificado a tap en vez de gesto de swipe real,
+   para evitar conflicto con el pan del mapa y reducir riesgo de bugs. */
+function _sheetUserClose() {
+  AppState._sheetUserClosed = true;
+  _sheetShow('closed');
+}
+
+/* ── BIENVENIDA FRESCA — abre EXPANDIDO, narrando, POIs ocultos ──
+   Se colapsa a peek al terminar de narrar (onEnd) o con un tap — lo que
+   ocurra primero (ratificación S35+). */
+function _showCityWelcomeSheet(cityName, tesis, prologo) {
+  const sel     = document.getElementById('nearbySelector');
   const cityEl  = document.getElementById('welcomeCityName');
   const tesisEl = document.getElementById('welcomeTesis');
   const prolEl  = document.getElementById('welcomePrologo');
-  const titleEl = document.getElementById('nearbySelectorTitle');
-  const listEl  = document.getElementById('nearbySelectorList');
-  if (!block || !cityEl || !tesisEl || !prolEl) return;
+  if (!sel || !cityEl || !tesisEl || !prolEl) return;
 
   cityEl.textContent  = cityName;
   tesisEl.textContent = `"${tesis}"`;
-  tesisEl.classList.remove('compact');
+  tesisEl.classList.remove('welcome-generic');
   prolEl.textContent  = prologo;
-  prolEl.classList.remove('hidden');
-  block.classList.remove('hidden');
 
-  // POIs ocultos hasta el colapso (ratificación S35+)
-  if (titleEl) titleEl.classList.add('hidden');
-  if (listEl)  listEl.classList.add('hidden');
-
-  sel.classList.add('welcome-expanded'); // marca de estado — leida por los listeners de tap-to-close
-  sel.classList.remove('hidden');
+  sel.classList.add('welcome-narrating'); // POIs ocultos mientras dura (ver updateHistCount)
+  _sheetShow('expanded');
+  if (typeof updateHistCount === 'function') updateHistCount(true);
 }
 
 function _collapseCityWelcomeSheet() {
   const sel = document.getElementById('nearbySelector');
-  if (!sel || !sel.classList.contains('welcome-expanded')) return; // ya colapsado o nunca se abrió
+  if (!sel || !sel.classList.contains('welcome-narrating')) return; // ya colapsado o no fue una bienvenida fresca
 
-  sel.classList.remove('welcome-expanded');
-
-  const tesisEl = document.getElementById('welcomeTesis');
-  const prolEl  = document.getElementById('welcomePrologo');
-  const titleEl = document.getElementById('nearbySelectorTitle');
-  const listEl  = document.getElementById('nearbySelectorList');
-
-  if (tesisEl) tesisEl.classList.add('compact');
-  if (prolEl)  prolEl.classList.add('hidden');
-  if (titleEl) titleEl.classList.remove('hidden');
-  if (listEl)  listEl.classList.remove('hidden');
-
-  // A partir de aqui, "Por descubrir" reemplaza a "Historias cerca" por
-  // el resto de la caminata (ver updateHistCount).
-  AppState._cityWelcomeCollapsed = true;
+  sel.classList.remove('welcome-narrating');
+  _sheetShow(AppState._sheetUserClosed ? 'closed' : 'peek');
 
   // BUG-058: updateHistCount() congela el rebuild mientras el sheet esta
-  // abierto (evita el tap-cancel de iOS). Excepcion deliberada: este es el
-  // unico rebuild que necesitamos forzar en el instante del colapso, no un
-  // tick de fondo a mitad de un gesto — por eso pasa force=true.
+  // expandido (evita el tap-cancel de iOS). force=true porque este es un
+  // colapso deliberado de una sola vez, no un tick de fondo a mitad de un
+  // gesto.
   if (typeof updateHistCount === 'function') updateHistCount(true);
 }
 
-/* ── DA-85 (S35+): ENCABEZADO PERSISTENTE DESDE CACHE (sin narración) ──
-   Aunque la ciudad ya se haya visitado antes en este dispositivo (cache
-   hit, sin bienvenida fresca que hablar), el nombre+tesis deberían seguir
-   presentes en el sheet para el resto de la caminata — no son un anuncio
-   de una sola vez, son la identidad de la ciudad. Se puebla en silencio,
-   directo en forma compacta (sin pasar por expandir→narrar→colapsar):
-   solo prepara el contenido para cuando el usuario abra el sheet vía el
-   pill. El prólogo nunca aparece aquí — solo acompaña la narración fresca. */
-function _populatePersistentCityHeader(cityName, tesis) {
-  const block   = document.getElementById('welcomeBlock');
+/* ── ENCABEZADO PERSISTENTE (sin narración) ──
+   Ciudad ya visitada (cache hit) o degradación total (sin tesis nunca
+   cacheada, isGeneric=true) — el nombre + tesis/texto genérico deberían
+   seguir presentes para el resto de la caminata. Se puebla directo en
+   peek (o closed, si el usuario ya lo había cerrado antes). */
+function _populatePersistentCityHeader(cityName, tesis, isGeneric) {
+  const sel     = document.getElementById('nearbySelector');
   const cityEl  = document.getElementById('welcomeCityName');
   const tesisEl = document.getElementById('welcomeTesis');
-  const prolEl  = document.getElementById('welcomePrologo');
-  if (!block || !cityEl || !tesisEl) return;
+  if (!sel || !cityEl || !tesisEl) return;
 
-  // No pisar un sheet que ya está en bienvenida expandida en este instante
-  // (fresca, con su propio ciclo de vida) — esto es solo para el caso sin
-  // bienvenida fresca.
-  const sel = document.getElementById('nearbySelector');
-  if (sel && sel.classList.contains('welcome-expanded')) return;
+  // No pisar un sheet ya en bienvenida fresca (narrando) en este instante
+  if (sel.classList.contains('welcome-narrating')) return;
 
   cityEl.textContent  = cityName;
-  tesisEl.textContent = `"${tesis}"`;
-  tesisEl.classList.add('compact');
-  if (prolEl) prolEl.classList.add('hidden');
-  block.classList.remove('hidden');
+  tesisEl.textContent = isGeneric ? tesis : `"${tesis}"`;
+  tesisEl.classList.toggle('welcome-generic', !!isGeneric);
 
-  AppState._cityWelcomeCollapsed = true; // "Por descubrir" en vez de "Historias cerca"
+  _sheetShow(AppState._sheetUserClosed ? 'closed' : 'peek');
   if (typeof updateHistCount === 'function') updateHistCount(true);
+}
+
+/* Tap en un icono del peek (Variante B ratificada) — expande la vista
+   completa y resalta la tarjeta correspondiente, en vez de narrar directo
+   (mas seguro: iconos de 38px son faciles de tocar sin querer caminando). */
+function _expandAndHighlightPOI(poiId) {
+  _sheetShow('expanded');
+  if (typeof updateHistCount === 'function') updateHistCount(true);
+  requestAnimationFrame(() => {
+    const card = document.querySelector(`.style-card[data-poi-id="${poiId}"]`);
+    if (!card) return;
+    card.scrollIntoView({ block: 'nearest' });
+    card.classList.add('highlight-flash');
+    setTimeout(() => card.classList.remove('highlight-flash'), 1200);
+  });
 }
 
 /* ── FALLBACK DE BIENVENIDA — matiz a DA-77 (S34, con DT-60) ──
@@ -1095,47 +1147,47 @@ function initExploreListeners() {
     if (typeof Narration !== 'undefined') Narration.resume();
   });
 
-  // Pill derecho — abrir lista de historias cercanas
-  const btnNearby    = document.getElementById('btnNearbyStories');
+  // DA-85 (S35+, rediseño final): sin pill — el sheet vive siempre en
+  // peek/closed/expanded. Tap en la manija minima (closed) reabre a peek;
+  // tap en el boton de cerrar (peek) cierra del todo; tap en cualquier
+  // otro punto del sheet alterna expandir/colapsar.
   const nearbySelect = document.getElementById('nearbySelector');
-  if (btnNearby && nearbySelect) {
-    btnNearby.addEventListener('click', (e) => {
+  const tabHandle     = document.getElementById('tabHandlePull');
+  const peekCloseBtn  = document.getElementById('peekCloseBtn');
+
+  if (tabHandle) {
+    tabHandle.addEventListener('click', (e) => {
       e.stopPropagation();
-      // Cerrar style selector si está abierto
-      // styleSelector eliminado DA-50
-      nearbySelect.classList.toggle('hidden');
+      _sheetReopenFromHandle();
     });
   }
 
-  // Cerrar nearby selector al tocar el mapa
-  // DA-85 (S35+): si el sheet esta en bienvenida expandida, un tap fuera
-  // colapsa (tesis+prologo -> compacto+POIs) en vez de ocultar del todo —
-  // ratificacion S35+: "al terminar de narrar o con un tap".
+  if (peekCloseBtn) {
+    peekCloseBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      _sheetUserClose();
+    });
+  }
+
+  // Tap en el mapa (fuera del sheet) — si esta expandido, colapsa a peek.
+  // En peek/closed no hace nada (el sheet ya es parte permanente de la
+  // pantalla, no algo que "cerrar sin querer" al tocar el mapa).
   document.getElementById('map')?.addEventListener('click', () => {
-    if (nearbySelect?.classList.contains('welcome-expanded')) {
-      _collapseCityWelcomeSheet();
-    } else {
-      nearbySelect?.classList.add('hidden');
-    }
+    if (nearbySelect?.classList.contains('state-expanded')) _sheetCollapseToPeek();
   });
 
-  // BUG-054: cerrar tambien con tap en el propio panel. Con el panel
-  // abierto la franja de mapa visible es minima (evidencia de campo
-  // 15-jul: panel cubre ~80% de pantalla y no habia donde tocar para
-  // salir). Un tap en un item primero activa el POI (su onclick inline
-  // corre antes en la fase de burbujeo) y luego esto cierra — sin
-  // conflicto. Un tap en cualquier otra zona del panel solo cierra.
-  // DA-85 (S35+): misma logica — durante bienvenida expandida, colapsa en
-  // vez de cerrar del todo (el sheet colapsado queda abierto a proposito).
+  // Tap en el propio sheet: en peek expande, en expandido colapsa — salvo
+  // que el tap haya sido en el boton de cerrar (ya con su propio handler
+  // y stopPropagation arriba) o en una tarjeta/icono de POI (los suyos
+  // ya manejan su propia accion inline y no deben burbujear a esto).
   if (nearbySelect) {
-    nearbySelect.addEventListener('click', () => {
-      if (nearbySelect.classList.contains('welcome-expanded')) {
-        _collapseCityWelcomeSheet();
-      } else {
-        nearbySelect.classList.add('hidden');
-      }
+    nearbySelect.addEventListener('click', (e) => {
+      if (e.target.closest('.icon-chip, .style-card, #peekCloseBtn, #tabHandlePull')) return;
+      if (nearbySelect.classList.contains('state-peek')) _sheetExpand();
+      else if (nearbySelect.classList.contains('state-expanded')) _sheetCollapseToPeek();
     });
   }
+
 
   // Corazón-brújula — centrar mapa
   document.getElementById('btnCenter')?.addEventListener('click', () => {

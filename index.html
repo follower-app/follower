@@ -202,27 +202,33 @@
       </div>
     </div>
 
-    <!-- Nearby stories selector — bottom sheet sobre el mapa -->
+    <!-- Nearby stories / ciudad — bottom sheet sobre el mapa.
+         DA-85 (S35+, rediseño final): 3 estados via clase en el propio
+         #nearbySelector — closed (solo manija), peek (ciudad+tesis+iconos
+         de POI), expanded (+ prólogo + lista completa). El pill viejo
+         (bar-pill-right) se elimina — el sheet es ahora la única fuente
+         de identidad de ciudad y de POIs cercanos. -->
     <div class="style-selector hidden" id="nearbySelector">
-      <div class="style-handle"></div>
 
-      <!-- DA-85 (S35+): bloque de bienvenida — oculto por defecto. Estado
-           expandido: JS lo puebla y oculta title+list (POIs ocultos hasta
-           el colapso). Estado colapsado: queda visible compacto, junto al
-           title ("Por descubrir · N") y la lista, ya con POIs. -->
-      <div class="welcome-block hidden" id="welcomeBlock">
+      <!-- Manija minima — SOLO visible en estado closed -->
+      <div class="tab-handle-pull" id="tabHandlePull"></div>
+
+      <div class="style-handle" id="peekChevron"></div>
+      <button class="peek-close-btn" id="peekCloseBtn" aria-label="Cerrar">︿</button>
+
+      <div class="welcome-block" id="welcomeBlock">
         <div class="welcome-city" id="welcomeCityName"></div>
         <div class="welcome-tesis" id="welcomeTesis"></div>
         <div class="welcome-prologo" id="welcomePrologo"></div>
       </div>
 
-      <p class="style-title" id="nearbySelectorTitle">Historias cerca</p>
-      <div class="style-list" id="nearbySelectorList">
-        <div class="style-card" style="justify-content:center;">
-          <span style="font-size:11px;color:var(--color-smoke-2);">Buscando historias cercanas...</span>
-        </div>
-      </div>
+      <!-- Fila compacta de iconos — SOLO visible en estado peek -->
+      <div class="icon-row" id="poiIconRow"></div>
+
+      <p class="style-title hidden" id="nearbySelectorTitle">Por descubrir</p>
+      <div class="style-list hidden" id="nearbySelectorList"></div>
     </div>
+
 
     <!-- Controles de zoom + brújula — columna derecha del mapa -->
     <div class="map-zoom-controls">
@@ -263,19 +269,10 @@
     <!-- Bottom bar sólida — sin gradiente, sin blur -->
     <div class="bottom-bar" id="bottomBar">
 
-      <!-- Estado sístole: [estilo]  ·  [próxima historia] -->
-      <div class="bar-systole" id="barSystole">
-
-        <!-- Pill derecho — próxima historia -->
-        <button class="bar-pill bar-pill-right" id="btnNearbyStories">
-          <span class="bar-pill-icon" id="barNextIcon">📍</span>
-          <span class="bar-pill-name" id="barNextName">buscando</span>
-          <svg class="bar-pill-chevron" width="8" height="6" viewBox="0 0 8 6" fill="none">
-            <path d="M1 4.5L4 1.5L7 4.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-          </svg>
-        </button>
-
-      </div>
+      <!-- Estado sístole: DA-85 (S35+) — el pill de "próxima historia" se
+           elimina; el sheet (#nearbySelector, siempre visible en peek)
+           es ahora la única fuente de POIs cercanos. -->
+      <div class="bar-systole" id="barSystole"></div>
 
       <!-- Estado diástole: mini-player -->
       <div class="bar-diastole hidden" id="barDiastole">

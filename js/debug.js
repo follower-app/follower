@@ -703,6 +703,7 @@ const Debug = (() => {
         <button class="dbg-poi-action map" onclick="Debug.testNarration()">🎙️ Test</button>
         <button class="dbg-poi-action map" onclick="Debug.checkWorker()">☁️ Worker</button>
         <button class="dbg-poi-action map" onclick="Debug.clearCache()">🗑️ Cache</button>
+        <button class="dbg-poi-action map" onclick="Debug.resetToFirstTime()">🆕 Primera vez</button>
         <button class="dbg-poi-action map" onclick="Debug.retestCityWelcome()">🏙️ Ciudad</button>
         <button class="dbg-poi-action map" onclick="Debug.clearAllThesisCache()">🗑️ Todas las tesis</button>
         <button class="dbg-poi-action map" onclick="Debug.forceUpdateApp()">🔄 Actualizar app</button>
@@ -1842,6 +1843,21 @@ const Debug = (() => {
     setTimeout(() => location.reload(), 300);
   }
 
+  /* ── DEBUG: resetear a "primera vez" de verdad ──
+   clearCache() solo borra IndexedDB (POIs + tesis) — Config (localStorage:
+   idioma, nombre, introHeard) sobrevive, así que el wizard nunca vuelve a
+   aparecer. Este boton borra AMBOS, para experimentar el flujo completo
+   desde cero (wizard de 3 pasos → title card en 2 etapas → tesis fresca
+   narrando) tal como lo veria un usuario nuevo real. */
+  function resetToFirstTime() {
+    if (typeof Config !== 'undefined' && typeof Config.reset === 'function') {
+      Config.reset();
+    }
+    indexedDB.deleteDatabase('follower_db');
+    log('info', 'Config + IndexedDB eliminados — recargando como primera vez...');
+    setTimeout(() => location.reload(), 300);
+  }
+
   function clearLogs() {
     _logs = [];
     persistState();
@@ -1948,6 +1964,7 @@ const Debug = (() => {
     testNarration,
     checkWorker,
     clearCache,
+    resetToFirstTime,
     retestCityWelcome,
     forceUpdateApp,
     clearAllThesisCache,

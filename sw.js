@@ -8,7 +8,7 @@
 
 // Incrementar CACHE_VERSION fuerza descarga de todos los archivos
 // en el proximo arranque — incluso si el navegador tiene version cacheada.
-const CACHE_VERSION = 'follower-v62';  // DA-85 S35+ rediseno final del tab de ciudad: 3 estados (closed/peek/expanded), icon-row de POIs (Variante B), sin pill, degradacion con texto generico, tap para cerrar/reabrir
+const CACHE_VERSION = 'follower-v63';  // Debug: boton Primera vez (Config.reset + IndexedDB) para probar el flujo completo desde cero
 
 const STATIC_ASSETS = [
   './',

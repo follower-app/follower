@@ -8,7 +8,7 @@
 
 // Incrementar CACHE_VERSION fuerza descarga de todos los archivos
 // en el proximo arranque — incluso si el navegador tiene version cacheada.
-const CACHE_VERSION = 'follower-v61';  // BUGFIX: retestCityWelcome() pasaba AppState.cityName ("Cali, CO") a welcomeCity() en vez del nombre crudo, y no esperaba a que prefetchCityThesis terminara antes de consultar el cache
+const CACHE_VERSION = 'follower-v62';  // DA-85 S35+ rediseno final del tab de ciudad: 3 estados (closed/peek/expanded), icon-row de POIs (Variante B), sin pill, degradacion con texto generico, tap para cerrar/reabrir
 
 const STATIC_ASSETS = [
   './',

@@ -27,7 +27,7 @@ const GPS = (() => {
     POI_RADIUS_METERS:  120,     // radio para activar narración (era 80 — muy estricto con GPS urbano)
     NEARBY_RADIUS:      300,     // radio para mostrar pin como "cercano"
     STEPS_PER_METER:    1.3,     // pasos por metro (estimado)
-    CITY_UPDATE_KM:     0.5,     // actualizar nombre de ciudad cada 500m
+    CITY_ANCHOR_KM:     10,      // DA-86 B: re-resolver ciudad solo a >10km del ancla donde se fijó
     MAP_ZOOM:           17,      // zoom inicial del mapa
     MAP_ZOOM_MIN:       14,
     MAP_ZOOM_MAX:       19,
@@ -211,11 +211,20 @@ const GPS = (() => {
     return name.replace(CITY_GENERIC_SUFFIXES, '').trim();
   }
 
+  let _cityFetchInFlight = false;  // DA-86: el ancla puede disparar en cada lectura GPS — un solo hit a Nominatim a la vez (politica 1 req/s)
+
   async function fetchCityName(lat, lng) {
     // Instrumentacion puente S25d — sin esta visibilidad no se puede
     // diagnosticar por que Nominatim no resuelve (red, CORS, sin campo de
     // ciudad). Diseño DT-60 (mover esta llamada al wizard) depende de saber
     // cuanto tarda esto en la practica.
+    if (_cityFetchInFlight) return;
+    _cityFetchInFlight = true;
+    try { return await _fetchCityNameInner(lat, lng); }
+    finally { _cityFetchInFlight = false; }
+  }
+
+  async function _fetchCityNameInner(lat, lng) {
     if (AppState.offline) {
       if (typeof Debug !== 'undefined') {
         Debug.log('warn', 'fetchCityName: abortado — AppState.offline=true');
@@ -242,28 +251,46 @@ const GPS = (() => {
       const country = data.address?.country_code?.toUpperCase() || '';
 
       if (city) {
-        const isFirst = !AppState.cityName;
-        AppState.cityName   = country ? `${city}, ${country}` : city;
+        // DA-86: el gate ya no es "primera ciudad de la sesión" (isFirst)
+        // sino "ciudad DISTINTA a la actual" — cubre tanto la apertura de
+        // la app (cityName en memoria siempre nace null) como el cambio de
+        // ciudad en caliente detectado por el ancla (ver ancla más abajo).
+        const resolved = country ? `${city}, ${country}` : city;
+        const changed  = AppState.cityName !== resolved;
+
+        AppState.cityName    = resolved;
+        AppState.cityShort   = city;     // DA-86: nombre sin país — clave de tesis y de marca durable
         AppState.countryCode = country;  // DT-41: para getLocalLang en bienvenida
         updateCareStrip();  // BUG-048: updateTopPill no existe desde v0.6 (refactor v0.6 incompleto)
 
-        // DA-85 §1 (S35+): prefetch de la bienvenida (tesis+prólogo) — en
-        // paralelo, no bloqueante. Mismo gate temporal que welcomeCity()
-        // (isFirst). El saludo NUNCA espera esto (regla de carrera, DA-85).
-        // Tesis en idioma local de la ciudad (DT-41); prólogo en el idioma
-        // que el usuario eligió en el wizard (ratificación S35+).
-        if (isFirst && typeof Narration !== 'undefined' && typeof Narration.prefetchCityThesis === 'function') {
-          const tesisLang   = (typeof Narration.getLocalLang === 'function') ? Narration.getLocalLang(country) : 'en';
-          const prologoLang = (typeof AppState !== 'undefined' && AppState.lang) ? AppState.lang : 'es';
-          Narration.prefetchCityThesis(city, tesisLang, prologoLang);
+        // DA-86 B: ancla — punto donde se fijó la ciudad. Se re-ancla en
+        // CADA resolución exitosa (aunque la ciudad no cambie): en ciudades
+        // grandes evita martillar Nominatim al cruzar el umbral repetidas
+        // veces sin cambiar de ciudad.
+        AppState.cityAnchor = { lat, lng };
+
+        if (changed) {
+          // DA-86 §4: ciudad nueva → bienvenida propia. Se libera el
+          // candado de una-vez-por-sesión de welcomeCity para que la nueva
+          // ciudad pueda saludar (narrada o no lo decide la marca durable).
+          AppState._cityWelcomeDone = false;
+
+          // DA-85 §1 + DA-86: prefetch de la bienvenida (tesis+prólogo) —
+          // en paralelo, no bloqueante. El title card espera este resultado
+          // antes de habilitar la Etapa 2 (el tap es la pista — DA-86).
+          if (typeof Narration !== 'undefined' && typeof Narration.prefetchCityThesis === 'function') {
+            const tesisLang   = (typeof Narration.getLocalLang === 'function') ? Narration.getLocalLang(country) : 'en';
+            const prologoLang = (typeof AppState !== 'undefined' && AppState.lang) ? AppState.lang : 'es';
+            Narration.prefetchCityThesis(city, tesisLang, prologoLang);
+          }
         }
 
         if (typeof Debug !== 'undefined') {
-          Debug.log('info', `fetchCityName: OK "${city}, ${country}" · ${_ms}ms · status=${res.status}`);
+          Debug.log('info', `fetchCityName: OK "${city}, ${country}" · ${_ms}ms · status=${res.status}${changed ? ' · ciudad nueva (DA-86)' : ''}`);
         }
 
-        // Bienvenida de ciudad — solo la primera vez que se detecta
-        if (isFirst && typeof welcomeCity === 'function') {
+        // Bienvenida de ciudad — cada vez que la ciudad CAMBIA (DA-86)
+        if (changed && typeof welcomeCity === 'function') {
           welcomeCity(city, country);
         }
       } else if (typeof Debug !== 'undefined') {
@@ -346,13 +373,19 @@ const GPS = (() => {
       // DA-55: velocidad sostenida — necesita _lastPos ANTES de sobreescribirlo abajo
       _updateTransitState(lat, lng, Date.now());
 
-      // Actualizar ciudad si nos movimos más de CITY_UPDATE_KM
-      const kmMoved = distanceMeters(
-        _lastPos.lat, _lastPos.lng, lat, lng
-      ) / 1000;
-
-      if (kmMoved > CONFIG.CITY_UPDATE_KM) {
-        fetchCityName(lat, lng);
+      // DA-86 B: re-resolver ciudad solo al alejarse >CITY_ANCHOR_KM del
+      // punto donde se fijó (ancla), no entre lecturas consecutivas — el
+      // chequeo anterior (CITY_UPDATE_KM entre lecturas) solo se disparaba
+      // con saltos de GPS, nunca caminando ni conduciendo. El ancla cubre
+      // viaje por tierra real sin rebotar en frontera metropolitana (el
+      // rebote de reverse-geocoding ocurre a metros, no a kilómetros).
+      if (AppState.cityAnchor) {
+        const kmFromAnchor = distanceMeters(
+          AppState.cityAnchor.lat, AppState.cityAnchor.lng, lat, lng
+        ) / 1000;
+        if (kmFromAnchor > CONFIG.CITY_ANCHOR_KM) {
+          fetchCityName(lat, lng);  // re-ancla al resolver, cambie o no la ciudad
+        }
       }
     }
 

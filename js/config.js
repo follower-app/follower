@@ -13,7 +13,11 @@ const Config = (() => {
     volVoice:   1.0,
     unitSystem: 'metric',
     userName:   '',       // DA-75: solo welcome/farewell, nunca viaja al Worker
-    introHeard: false     // ratificacion S25c: "Soy Follower" solo se dice una vez en la vida
+    introHeard: false,    // ratificacion S25c: "Soy Follower" solo se dice una vez en la vida
+    narratedCities: []    // DA-86: ciudades cuya tesis ya se narro — marca durable en
+                          // localStorage (sobrevive al desalojo de IndexedDB en iOS) e
+                          // independiente de idioma/userName: cambiar la config en el
+                          // wizard NO vuelve a narrar. Gate de NARRAR, no de MOSTRAR.
   };
 
   /* ── CLAVE EN LOCALSTORAGE ── */
@@ -86,6 +90,25 @@ const Config = (() => {
     return !localStorage.getItem(STORAGE_KEY);
   }
 
+  /* ── DA-86: MARCA DE CIUDAD NARRADA ──
+     La tesis se MUESTRA siempre (identidad de la ciudad, viene del cache);
+     se NARRA solo la primera vez en esa ciudad. Esta marca es la fuente de
+     verdad de "primera vez": por nombre de ciudad (sin pais), en
+     localStorage — no en IndexedDB, que iOS desaloja y re-narraria. */
+  function isCityNarrated(city) {
+    if (!city) return false;
+    const list = _config.narratedCities || [];
+    return list.includes(city);
+  }
+
+  function markCityNarrated(city) {
+    if (!city) return;
+    const list = _config.narratedCities || [];
+    if (list.includes(city)) return;
+    _config.narratedCities = [...list, city];
+    save();
+  }
+
   /* ── RESET ── */
   function reset() {
     _config = { ...DEFAULTS };
@@ -104,6 +127,8 @@ const Config = (() => {
     setMode,
     setVolVoice,
     isFirstTime,
+    isCityNarrated,   // DA-86
+    markCityNarrated, // DA-86
     reset
   };
 

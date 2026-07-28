@@ -288,7 +288,7 @@ function requestGPSPermission() {
    y porque nada garantiza que ya haya resuelto. */
 
 const TITLECARD_MIN_MS     = 1800;  // piso: que no sea un flash aunque los datos ya esten listos
-const TITLECARD_TIMEOUT_MS = 8000;  // techo: mismo valor que tenia el splash viejo para GPS
+const TITLECARD_TIMEOUT_MS = 15000; // techo de seguridad final (DA-86): ahora cubre GPS + ciudad + bienvenida (Haiku ~4-6s tras la ciudad; campo mostró Worker hasta 15s). Si vence, la Etapa 2 aparece igual y el tap narra el genérico — el title card jamás se cuelga.
 // DT-60: los mensajes de la barra ya no se indexan por porcentaje (mentia) —
 // se eligen por estado real en el interval: GPS pendiente / ciudad pendiente / listo.
 
@@ -332,8 +332,9 @@ function _showTitleCard(onDone) {
   // DT-60: la promesa ahora tiene dos etapas reales — GPS y ciudad.
   // fetchCityName solo necesita AppState.gps (no depende de Leaflet) y
   // nunca lanza (try/catch interno): la cadena siempre resuelve.
-  let gpsReady  = isFirst;  // primera vez: el wizard paso 1 ya resolvio GPS
-  let cityReady = false;
+  let gpsReady     = isFirst;  // primera vez: el wizard paso 1 ya resolvio GPS
+  let cityReady    = false;
+  let welcomeReady = false;    // DA-86: tesis+prologo resueltos (o degradados)
 
   const gpsPromise = isFirst ? Promise.resolve(true) : requestGPSPermission();
 
@@ -347,19 +348,41 @@ function _showTitleCard(onDone) {
     // Sin posicion no habra ciudad (o ya la teniamos) — no retener la barra
     cityReady = true;
     return ok;
+  }).then((ok) => {
+    // DA-86: la Etapa 2 ("toca para escucharme") solo aparece cuando la
+    // bienvenida está resuelta — el tap es la pista, se elimina la carrera
+    // de DA-85. whenCityWelcomeReady() se asienta también en degradación
+    // (sin artículo, Haiku caído): el title card nunca se cuelga — en ese
+    // caso la Etapa 2 aparece igual y el tap narra el texto genérico. El
+    // techo del Promise.race (abajo) sigue siendo la red de seguridad
+    // final contra cuelgues de red.
+    if (AppState.cityShort && typeof Narration !== 'undefined'
+        && typeof Narration.whenCityWelcomeReady === 'function') {
+      const localLang   = (typeof Narration.getLocalLang === 'function')
+        ? Narration.getLocalLang(AppState.countryCode) : 'en';
+      const prologoLang = AppState.lang || 'es';
+      return Narration.whenCityWelcomeReady(AppState.cityShort, localLang, prologoLang)
+        .then(() => { welcomeReady = true; return ok; })
+        .catch(() => { welcomeReady = true; return ok; });
+    }
+    welcomeReady = true;  // sin ciudad no hay bienvenida que esperar
+    return ok;
   });
 
   // DT-60: compuertas — la barra anima suave pero no puede adelantar a la
   // realidad: techo 45% hasta GPS, 90% hasta ciudad, 95% a la espera del race.
   let pct = 0;
   iv = setInterval(() => {
-    const cap = !gpsReady ? 45 : (!cityReady ? 90 : 95);
+    // DA-86: tercera compuerta real — la bienvenida (tesis+prólogo). La
+    // barra informa explícitamente que se está componiendo, como ratificado.
+    const cap = !gpsReady ? 45 : (!cityReady ? 75 : (!welcomeReady ? 92 : 95));
     const increment = pct < 80 ? Math.random() * 16 + 7 : Math.random() * 4 + 1;
     pct = Math.min(pct + increment, cap);
     if (fill)  fill.style.width = pct + '%';
     if (label) label.textContent = !gpsReady
       ? (pct < 15 ? 'iniciando...' : 'obteniendo ubicación...')
-      : (!cityReady ? 'preparando tu soundtrack...' : 'casi listo...');
+      : (!cityReady ? 'preparando tu soundtrack...'
+      : (!welcomeReady ? 'componiendo la bienvenida...' : 'casi listo...'));
   }, 480);
 
   Promise.race([
@@ -571,14 +594,11 @@ function welcomeCity(city) {
   // DT-45: el saludo vive 100% en el canal de voz — la pantalla titula, la voz saluda
   if (typeof Voice === 'undefined' || !Voice.isSupported || !Voice.isSupported()) return;
 
-  // BUGFIX (S35+): antes esta función resolvía tesis/prólogo AQUÍ MISMO,
-  // en el instante en que la ciudad se resuelve — pero prefetchCityThesis()
-  // recién arranca en ese instante (Wikipedia + Haiku, toma segundos). El
-  // resultado: getFreshCityWelcome() siempre volvía null, SIEMPRE perdía
-  // la carrera, nunca "a veces". Fix: solo guardamos los insumos aquí; la
-  // resolución real se pospone hasta el momento en que la voz vaya a
-  // sonar de verdad (_flushPendingWelcome, normalmente tras el tap del
-  // title card + entrada a explore) — ahí sí hubo tiempo real para Haiku.
+  // DA-86 (S36): la resolución sigue pospuesta hasta el momento real de
+  // hablar (_flushPendingWelcome, tras el tap) — pero ya no hay carrera
+  // que perder: el title card espera whenCityWelcomeReady() antes de
+  // habilitar la Etapa 2, así que al llegar aquí la bienvenida está
+  // resuelta o degradada. El tap del usuario es la pista.
   const params = { city, isFallback, ts: Date.now() };
 
   if (_audioUnlocked && AppState.screen === 'explore') {
@@ -588,8 +608,9 @@ function welcomeCity(city) {
   }
 }
 
-/* ── DA-85 (S35+ fix): RESOLUCIÓN TARDÍA — se llama justo antes de hablar,
-   nunca al componer. Aquí sí conviene consultar getFreshCityWelcome(). ── */
+/* ── DA-86: RESOLUCIÓN TARDÍA — se llama justo antes de hablar. Semántica:
+   mostrar SIEMPRE (identidad de ciudad), narrar UNA VEZ (marca durable en
+   Config), genérico SOLO en degradación real. ── */
 function _resolveAndSpeakCityWelcome({ city, isFallback }) {
   // DT-41: saludo en idioma local de la ciudad, no del usuario
   const localLang = (AppState.countryCode && typeof Narration !== 'undefined' && Narration.getLocalLang)
@@ -603,81 +624,75 @@ function _resolveAndSpeakCityWelcome({ city, isFallback }) {
   const includeIntro = (typeof Config !== 'undefined') ? !Config.get('introHeard') : false;
 
   let text = city;
-  let sheetData = null; // DA-85 (S35+): {city, tesis, prologo} si hay bienvenida fresca
+  let sheetData = null; // {city, tesis, prologo} si la tesis se va a narrar
 
   if (isFallback) {
     text = (includeIntro && typeof Narration !== 'undefined' && typeof Narration.getCityIntroFallback === 'function')
       ? Narration.getCityIntroFallback(name, AppState.lang || 'es')
       : city;
-  } else {
-    // DA-85 §1 (S35+): la bienvenida se consulta siempre que hay ciudad real.
-    // getFreshCityWelcome() solo devuelve algo si se generó DE CERO en esta
-    // sesión (cache miss) y llegó antes de este punto (regla de carrera —
-    // ahora con margen real, ver nota de BUGFIX arriba).
-    const userLang = AppState.lang || 'es';
-    const fresh = (typeof Narration !== 'undefined' && typeof Narration.getFreshCityWelcome === 'function')
-      ? Narration.getFreshCityWelcome(city, localLang, userLang)
-      : null;
-
-    if (fresh && includeIntro) {
-      // Escenario 2: primerísima vez del usuario Y bienvenida lista a
-      // tiempo — se conserva "Hola, [name]. Soy Follower." (prefijo
-      // aislado) y se reemplaza solo el tramo genérico por la tesis.
-      const prefix = (typeof Narration !== 'undefined' && typeof Narration.getCityIntroPrefix === 'function')
-        ? Narration.getCityIntroPrefix(name, localLang)
-        : '';
-      text = `${prefix} ${city}. ${fresh.tesis}`;
-      sheetData = { city, tesis: fresh.tesis, prologo: fresh.prologo };
-    } else if (fresh) {
-      // Escenario 3: ya pasó la presentación, primera vez en ESTA ciudad.
-      text = `${city}. ${fresh.tesis}`;
-      sheetData = { city, tesis: fresh.tesis, prologo: fresh.prologo };
-    } else if (typeof Narration !== 'undefined' && typeof Narration.getCityWelcome === 'function') {
-      // Escenarios 1/4/5: sin bienvenida fresca — comportamiento actual intacto.
-      text = Narration.getCityWelcome(city, name, localLang, includeIntro);
+    if (typeof Debug !== 'undefined') {
+      Debug.log('info', `Bienvenida (voz${includeIntro ? ', con intro' : ''}): "${text}"`);
     }
-
-    // DA-85 (S35+): aunque no haya bienvenida FRESCA (ya se visitó esta
-    // ciudad antes en este dispositivo), el encabezado — ciudad + tesis
-    // compacta — debería seguir presente en el sheet para el resto de la
-    // caminata. Es la identidad de la ciudad, no un anuncio de una sola
-    // vez; separar "hablar la tesis" (una vez) de "mostrar el encabezado"
-    // (siempre) era la pieza que faltaba. Lectura no consumible, en
-    // paralelo, nunca bloquea la voz — si tarda, el encabezado aparece
-    // un instante después, sin narración de por medio.
-    if (!sheetData && typeof Narration !== 'undefined' && typeof Narration.getCachedCityWelcome === 'function') {
-      Narration.getCachedCityWelcome(city, localLang, userLang).then((cachedValue) => {
-        if (cachedValue) {
-          if (typeof Debug !== 'undefined') {
-            Debug.log('info', `Encabezado persistente: poblado desde cache — ${city}: "${cachedValue.tesis}"`);
-          }
-          _populatePersistentCityHeader(city, cachedValue.tesis, false);
-        } else {
-          // DA-85 (S35+): degradación total — ciudad sin artículo de
-          // Wikipedia, nunca hubo tesis que cachear. Ratificación: el peek
-          // aparece igual, con el mismo texto genérico que ya suena
-          // hablado (reusa getCityWelcome — nunca se desincroniza texto
-          // hablado vs. texto mostrado).
-          const generic = (typeof Narration !== 'undefined' && typeof Narration.getCityWelcome === 'function')
-            ? Narration.getCityWelcome(city, null, localLang, false)
-            : null;
-          if (generic) {
-            if (typeof Debug !== 'undefined') {
-              Debug.log('info', `Encabezado persistente: sin tesis para ${city} — usando texto genérico`);
-            }
-            _populatePersistentCityHeader(city, generic, true);
-          }
-        }
-      });
-    }
+    _speakCityWelcome(text, AppState.lang || 'es', includeIntro, null, null);
+    return;
   }
 
-  if (typeof Debug !== 'undefined') {
-    Debug.log('info', `Bienvenida (voz${includeIntro ? ', con intro' : ''}): "${text}"`);
-  }
+  // ── DA-86: MOSTRAR SIEMPRE, NARRAR UNA VEZ ──
+  // La bienvenida ya está resuelta (el title card la esperó — el tap fue
+  // la pista); whenCityWelcomeReady() aquí se asienta de inmediato.
+  // · welcome + ciudad NO marcada  → narrar tesis + sheet expandido; marcar
+  // · welcome + ciudad marcada    → solo mostrar (encabezado persistente), sin voz
+  // · sin welcome (degradación)   → genérico NARRADO (ratificación DA-86)
+  const userLang = AppState.lang || 'es';
+  const welcomePromise = (typeof Narration !== 'undefined' && typeof Narration.whenCityWelcomeReady === 'function')
+    ? Narration.whenCityWelcomeReady(city, localLang, userLang)
+    : Promise.resolve(null);
 
-  const speakLang = isFallback ? (AppState.lang || 'es') : localLang;
-  _speakCityWelcome(text, speakLang, includeIntro, sheetData);
+  welcomePromise.then((welcome) => {
+    const alreadyNarrated = (typeof Config !== 'undefined' && typeof Config.isCityNarrated === 'function')
+      ? Config.isCityNarrated(city)
+      : false;
+
+    if (welcome && !alreadyNarrated) {
+      // Primera vez en ESTA ciudad — se narra la tesis.
+      if (includeIntro) {
+        const prefix = (typeof Narration !== 'undefined' && typeof Narration.getCityIntroPrefix === 'function')
+          ? Narration.getCityIntroPrefix(name, localLang)
+          : '';
+        text = `${prefix} ${city}. ${welcome.tesis}`;
+      } else {
+        text = `${city}. ${welcome.tesis}`;
+      }
+      sheetData = { city, tesis: welcome.tesis, prologo: welcome.prologo };
+      if (typeof Debug !== 'undefined') {
+        Debug.log('info', `Bienvenida (voz${includeIntro ? ', con intro' : ''}, primera vez en ciudad): "${text}"`);
+      }
+      _speakCityWelcome(text, localLang, includeIntro, sheetData, city);
+
+    } else if (welcome) {
+      // Ciudad ya narrada — la tesis es identidad, no anuncio: se muestra
+      // siempre en el encabezado, sin repetir la narración (DA-86).
+      if (typeof Debug !== 'undefined') {
+        Debug.log('info', `Bienvenida: ${city} ya narrada — encabezado con tesis, sin voz (DA-86)`);
+      }
+      _populatePersistentCityHeader(city, welcome.tesis, false);
+
+    } else {
+      // Degradación REAL: ciudad sin artículo / Haiku caído / offline.
+      // Único caso donde el genérico existe — y se narra (ratificación).
+      text = (typeof Narration !== 'undefined' && typeof Narration.getCityWelcome === 'function')
+        ? Narration.getCityWelcome(city, name, localLang, includeIntro)
+        : city;
+      if (typeof Debug !== 'undefined') {
+        Debug.log('info', `Bienvenida (voz${includeIntro ? ', con intro' : ''}, degradación genérica): "${text}"`);
+      }
+      const generic = (typeof Narration !== 'undefined' && typeof Narration.getCityWelcome === 'function')
+        ? Narration.getCityWelcome(city, null, localLang, false)
+        : null;
+      if (generic) _populatePersistentCityHeader(city, generic, true);
+      _speakCityWelcome(text, localLang, includeIntro, null, null);
+    }
+  });
 }
 
 /* ── DA-85 (S35+): HABLAR + ABRIR EL SHEET, PUNTO ÚNICO ──
@@ -686,11 +701,21 @@ function _resolveAndSpeakCityWelcome({ city, isFallback }) {
    hay sheetData, el sheet se abre EXPANDIDO en el mismo instante en que
    arranca la voz, y se colapsa al terminar de narrar (onEnd) o con un tap
    manual — lo que ocurra primero. */
-function _speakCityWelcome(text, lang, isIntro, sheetData) {
+function _speakCityWelcome(text, lang, isIntro, sheetData, cityToMark) {
   if (sheetData) _showCityWelcomeSheet(sheetData.city, sheetData.tesis, sheetData.prologo);
 
   const onSpoken = (source) => {
     if (isIntro && typeof Config !== 'undefined') Config.set('introHeard', true);
+    // DA-86: marca durable de "tesis ya narrada en esta ciudad" — misma
+    // doctrina que BUG-062: una recuperación por visibilitychange NO cuenta
+    // como narración completada, no marca (la próxima apertura re-narra).
+    if (cityToMark && source !== 'visibility-recovery'
+        && typeof Config !== 'undefined' && typeof Config.markCityNarrated === 'function') {
+      Config.markCityNarrated(cityToMark);
+      if (typeof Debug !== 'undefined') {
+        Debug.log('info', `DA-86: "${cityToMark}" marcada como narrada (fuente: ${source || 'onEnd'})`);
+      }
+    }
     if (sheetData) _collapseCityWelcomeSheet();
   };
 

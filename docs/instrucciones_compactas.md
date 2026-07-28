@@ -20,7 +20,7 @@ README · REGLAS_IA · docs/: contexto_maestro · producto (a S36) · **arquitec
 
 ## Arquitectura de archivos
 
-index.html · sw.js **v64** (último en commits) · manifest.json · css/ · js/ (app, config, gps, poi, narration, voice, weather, care, walkmode, routes, debug, debug-sim; music.js stub) · assets/ · cloudflare/worker.js
+index.html · sw.js **v66** (último en commits) · manifest.json · css/ · js/ (app, config, gps, poi, narration, voice, weather, care, walkmode, routes, debug, debug-sim; music.js stub) · assets/ · cloudflare/worker.js
 
 ## Reglas críticas
 
@@ -30,7 +30,7 @@ index.html · sw.js **v64** (último en commits) · manifest.json · css/ · js/
 - POIs: cascada DA-72 — wiki local+es → neto<8 → Overpass curado → <3 → en.wiki → IndexedDB (DA-73). Dedup DT-49
 - BUG-060 (cerrado): TextExtracts trunca silencioso >1200 → cliente `EXTRACT_MAX_CHARS=2500`. Misma lección en `THESIS_EXTRACT_MAX_CHARS`
 - **BUG-063 a 067 (cerrados S35):** interval del title card · carrera de bienvenida · `isFirst` contaminado · mismatch nombre debug · botones en pestaña huérfana
-- **BUG-068 (cerrado S36):** tesis alucinaba ciudad homónima (Palmira CO → Palmira Siria) — `THESIS_PROMPT_VERSION` v2, prohibición explícita + línea Pertenencia en scratchpad
+- **BUG-068 (ABIERTO S36b):** 4 versiones prompt fallaron — sesgo entrenamiento Haiku supera cualquier instrucción con título corto. Fix: `cityLabel` desde URL canónica Wikipedia. `THESIS_PROMPT_VERSION`=v4, sw v66
 - **BUG-069 (absorbida S36 → DA-86):** tesis hablada saltada en returning-user — carrera eliminada, `whenCityWelcomeReady()`
 - **DA-71:** query/filtros POIs → `POI_CACHE_VERSION++` mismo commit (v5)
 - **DT-50:** Prompt Maestro capítulos → `PROMPT_VERSION++` mismo commit (v3.7)
@@ -44,7 +44,7 @@ index.html · sw.js **v64** (último en commits) · manifest.json · css/ · js/
 
 ## DA-85 — Arquitectura Narrativa v1 (§1 S35, en producción)
 
-**Tesis + Prólogo:** una llamada a Haiku, 3 partes — scratchpad → tesis (`---`, 3-8 palabras, idioma local) → prólogo (`===`, 40-60 palabras, idioma del usuario). `THESIS_PROMPT_VERSION`=v2 (S36: anti-homónimo). Personificación SOLO aquí · sin datos literales. Cache: store `narrations`, clave `thesis_v2_${city}_${tesisLang}_${prologoLang}`.
+**Tesis + Prólogo:** una llamada a Haiku, 3 partes — scratchpad → tesis (`---`, 3-8 palabras, idioma local) → prólogo (`===`, 40-60 palabras, idioma del usuario). `THESIS_PROMPT_VERSION`=v4 (S36: anti-homónimo). Personificación SOLO aquí · sin datos literales. Cache: store `narrations`, clave `thesis_v2_${city}_${tesisLang}_${prologoLang}`.
 
 **DA-86 (S36) — enmienda a DA-85 §1:**
 - **Mostrar siempre** (tesis es identidad de ciudad, no anuncio): fuente `whenCityWelcomeReady()` — resolvedor esperable, no consumible.
@@ -72,12 +72,13 @@ debug.js: **retestCityWelcome · clearAllThesisCache · forceUpdateApp · resetT
 
 ## Estado actual
 
-v0.9 — **Sesión 36 (27 jul 2026).** DA-86 implementada: tesis persistente por ciudad (mostrar siempre/narrar una vez), marca durable `narratedCities`, `whenCityWelcomeReady()`, ancla `CITY_ANCHOR_KM=10`. BUG-068 cerrado: `THESIS_PROMPT_VERSION` v2 anti-homónimo. BUG-069 absorbida por DA-86. sw.js v63→v64.
+v0.9 — **Sesión 36b (28 jul 2026).** DA-86 validada en campo. BUG-068 REABIERTO: 4 versiones de prompt fallaron (v1→v4) — causa raíz = sesgo entrenamiento Haiku con título corto "Palmira". Fix definitivo pendiente: `cityLabel` desde URL canónica Wikipedia. `THESIS_PROMPT_VERSION`=v4, sw v66.
 
 ## Pendientes críticos (orden sugerido)
 
-1. **Validación de campo DA-86** — primera apertura real en cada ciudad (n≥4) antes de cerrar
-2. **DA-85 §3** — lente narrativa en capítulos (system prompt, sin scratchpad). Prerrequisito: DA-86 validada
+1. **BUG-068 fix definitivo** — `cityLabel` desde URL canónica Wikipedia (no `page.title`)
+2. **Validación DA-86 en Cali** — ciudad con POIs reales, sin homónima
+3. **DA-85 §3** — lente narrativa en capítulos. Prerrequisito: DA-86 + BUG-068 cerrados
 3. **DT-68** (acumular capítulos) → **DT-46** (cierre) → Epílogo
 4. **DT-58** (config post-wizard, sin ratificar) — idioma, nombre, volVoice, casa de DT-56
 5. DT-64 (brújula) · DT-63 (campo completo) · DT-61 (+parques, niveles A/B/C)

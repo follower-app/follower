@@ -5731,9 +5731,9 @@ Sesión de revisión iniciada con evidencia de campo real (logs exportados desde
 
 ### Bugs detectados y resueltos
 
-**BUG-068 — Alucinación de ciudad homónima (CERRADO, narration.js)**
+**BUG-068 — Alucinación de ciudad homónima (REABIERTO en validación de campo S36)**
 
-Palmira, Colombia (log 23 jul) generó tesis y prólogo sobre Palmira/Palmyra de Siria: "La gloria que el desierto recuerda", oasis, ruinas, reina que desafió imperios. El scratchpad no tenía instrucción explícita de anclarse exclusivamente al extracto dado e ignorar conocimiento previo de otras ciudades con el mismo nombre. Fix: sección "PROHIBIDO — OTRA CIUDAD CON EL MISMO NOMBRE" añadida al `THESIS_SYSTEM_PROMPT` + línea "Pertenencia:" en el scratchpad + bump `THESIS_PROMPT_VERSION` v1 → v2 (invalida caches con alucinación automáticamente).
+Palmira, Colombia generó tesis sobre Palmira/Palmyra de Siria en todas las pruebas de campo. Se probaron 4 versiones de prompt sin éxito — ver entrada de sesión 36b (28 jul) para el detalle completo. Causa raíz confirmada: el título corto "Palmira" (sin desambiguación) que llega a Haiku activa su sesgo de entrenamiento sin importar las instrucciones del prompt. Fix definitivo pendiente: usar el título canónico de Wikipedia ("Palmira (Colombia)" / "Palmira, Valle del Cauca") como nombre de ciudad en el user prompt.
 
 **BUG-069 — Tesis hablada saltada en ciudades nuevas para returning-user (ABSORBIDA por DA-86)**
 
@@ -5772,3 +5772,51 @@ Se confirmó que el SKILL.md en `.claude/skills/follower/` ya estaba subido al r
 ---
 
 *Follower — Bitácora v0.9 | Sesión 36 | 27 Julio 2026*
+
+---
+
+## Sesión 36b — 28 Julio 2026
+
+**Foco:** validación de campo DA-86 + investigación activa BUG-068.
+
+### DA-86 — Validación de campo (parcial)
+
+**Palmira (Km 7, Ingenio Manuelita):** DA-86 funcionó correctamente — `whenCityWelcomeReady()` esperó la tesis, el tap narró, la marca durable quedó registrada (`DA-86: "Palmira" marcada como narrada`). POIs: 0 en radio (zona industrial/rural, esperado). Overpass: todos los mirrors fallaron o timeout.
+
+**PC Chrome (simulado desde Palmira):** DA-86 confirmada — `cache hit` correcto en segunda apertura, `Palmira ya narrada — encabezado con tesis, sin voz` en siguientes. Mecánica de DA-86 validada.
+
+**Pendiente:** validación en Cali (ciudad con POIs reales y sin homónima famosa).
+
+### BUG-068 — Investigación activa: 4 versiones de prompt, ninguna funcionó
+
+Sesión de laboratorio exhaustiva. Todas las versiones generaron tesis sobre Palmira Siria:
+
+- **v1** (original): "La gloria que el desierto recuerda" — ruinas, oasis
+- **v2** (S36 mañana): "una ciudad que el desierto no pudo olvidar", "La ciudad que el desierto no pudo olvidar"
+- **v3** (S36b): evidencia textual obligatoria + user prompt con país + negación dinámica → "La gloria que solo vive en ruinas", "Lo que fue, ahora es ruina", "lo que permanece entre ruinas", "La ciudad que sobrevive en ruinas", "La ciudad que desapareció dos veces", "ruinas que hablan más que piedras"
+- **v4** (S36b): título canónico Wikipedia desde `page.title` → "La ciudad que sobrevive en ruinas", "La ciudad que desafió y fue desafiada" — el log NO mostró `BUG-068 v4: nombre canónico` — `page.title` en es.wikipedia devuelve `"Palmira"` sin paréntesis (el artículo en español no tiene desambiguación en el título de página)
+
+**Causa raíz confirmada:** el sesgo de entrenamiento de Haiku sobre "Palmira = ruinas de Siria" es más fuerte que cualquier instrucción de prompt. El título corto `"Palmira"` activa la asociación sin importar el extracto.
+
+**Fix definitivo identificado (pendiente de implementar):** usar el título canónico real del artículo de Wikipedia como `cityLabel`, NO el nombre de Nominatim. En español el artículo es `Palmira_(Colombia)` (URL), en inglés es `Palmira, Valle del Cauca`. Ambos son inequívocos para Haiku. El fix está en `_fetchCityExtract`: en vez de devolver solo el extracto, construir el `cityLabel` desde la URL del artículo (no desde `page.title` que puede ser solo `"Palmira"`).
+
+**Estado:** `THESIS_PROMPT_VERSION` = v4 en producción (sw v66). BUG-068 sigue abierto.
+
+### Commits de la sesión 36b
+
+1. `DA-86: tesis persistente por ciudad - mostrar siempre, narrar una vez` (v64)
+2. `BUG-068: prompt de tesis v2 anti-homonimo + DA-86 whenCityWelcomeReady` (v64)
+3. `BUG-068 v3: evidencia textual en scratchpad + user prompt con pais + negacion dinamica` (v65)
+4. `BUG-068 v4: titulo canonico Wikipedia en user prompt - Palmira→Palmira (Colombia)` (v66)
+5. `sw v64`, `sw v65`, `sw v66`
+
+### Pendientes actualizados
+
+1. **BUG-068 fix definitivo** — `cityLabel` desde URL del artículo Wikipedia, no desde `page.title`
+2. **Validación DA-86 en Cali** — ciudad con POIs reales, sin homónima
+3. **DA-85 §3** — lente narrativa en capítulos. Prerrequisito: DA-86 + BUG-068 cerrados
+4. **DT-9** — único riesgo de seguridad activo
+
+---
+
+*Follower — Bitácora v0.9 | Sesión 36b | 28 Julio 2026*

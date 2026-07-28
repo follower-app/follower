@@ -20,7 +20,7 @@ README · REGLAS_IA · docs/: contexto_maestro · producto (a S35) · **arquitec
 
 ## Arquitectura de archivos
 
-index.html · sw.js **v64** (siempre último en commits) · manifest.json · css/ · js/ (app, config, gps, poi, narration, voice, weather, care, walkmode, routes, debug, debug-sim; music.js stubbed) · assets/ · docs/ · cloudflare/worker.js
+index.html · sw.js **v66** (siempre último en commits) · manifest.json · css/ · js/ (app, config, gps, poi, narration, voice, weather, care, walkmode, routes, debug, debug-sim; music.js stubbed) · assets/ · docs/ · cloudflare/worker.js
 
 ## Reglas críticas
 
@@ -31,7 +31,7 @@ index.html · sw.js **v64** (siempre último en commits) · manifest.json · css
 - BUG-060 (cerrado): TextExtracts recorta silencioso >1200 → truncado cliente `EXTRACT_MAX_CHARS=2500`. Misma lección aplicada al extracto de ciudad (`THESIS_EXTRACT_MAX_CHARS`)
 - BUG-062/061 (cerrados S34): ver bitácora S34
 - **BUG-063 a 067 (cerrados S35):** ver bitácora S35 — interval del title card, carrera de bienvenida resuelta demasiado temprano, `isFirst` contaminado por orden del wizard, mismatch de nombre en debug, botones en pestaña huérfana
-- **BUG-068 (cerrado S36):** tesis alucinaba ciudad homónima (Palmira CO → Palmira Siria) — `THESIS_PROMPT_VERSION` v2, prohibición explícita + línea Pertenencia en scratchpad
+- **BUG-068 (ABIERTO S36b):** 4 versiones de prompt fallaron — causa raíz = sesgo entrenamiento Haiku con título corto. Fix pendiente: `cityLabel` desde URL canónica Wikipedia. `THESIS_PROMPT_VERSION`=v4, sw v66
 - **BUG-069 (absorbida S36 → DA-86):** tesis hablada saltada en returning-user — carrera eliminada, reemplazada por `whenCityWelcomeReady()`
 - **DA-71:** cambio en query/filtros/normalización POIs → `POI_CACHE_VERSION++` MISMO commit (actual: **v5**)
 - **DT-50:** cambio al Prompt Maestro de capítulos → `PROMPT_VERSION++` MISMO commit (actual: **v3.7**). Clave: `${PROMPT_VERSION}_${poiId}_${lang}_${topic}_${extractFingerprint}`
@@ -47,7 +47,7 @@ index.html · sw.js **v64** (siempre último en commits) · manifest.json · css
 ## DA-85 — Arquitectura Narrativa v1 (§1 completo S35, §3 pendiente)
 
 **§1 — Tesis + Prólogo + Prólogo, EN PRODUCCIÓN (S35):**
-- Una sola llamada a Haiku, 3 partes: scratchpad de verificación → tesis (`---`) → prólogo (`===`). `THESIS_PROMPT_VERSION` = v2
+- Una sola llamada a Haiku, 3 partes: scratchpad de verificación → tesis (`---`) → prólogo (`===`). `THESIS_PROMPT_VERSION` = v4
 - Tesis: epíteto 3-8 palabras, idioma local de la ciudad (`getLocalLang`). Prólogo: 40-60 palabras, idioma del usuario (wizard) — pueden diferir
 - Personificación SOLO aquí (única excepción en Follower) · Prohibidos datos literales en ambas piezas
 - Cache: store `narrations`, clave `thesis_v1_${cityName}_${tesisLang}_${prologoLang}`, sin fingerprint
@@ -77,12 +77,13 @@ debug.js: **retestCityWelcome · clearAllThesisCache · forceUpdateApp · resetT
 
 ## Estado actual
 
-v0.9 — **Sesión 36 (27 julio 2026).** DA-86 implementada: tesis persistente por ciudad (mostrar siempre, narrar una vez), marca durable `narratedCities` en Config/localStorage independiente de idioma/userName, `whenCityWelcomeReady()` como resolvedor esperable que elimina la carrera de DA-85, ancla `CITY_ANCHOR_KM=10` reemplaza `CITY_UPDATE_KM`. BUG-068 cerrado: `THESIS_PROMPT_VERSION` v2 con prohibición de ciudad homónima y línea Pertenencia en scratchpad. BUG-069 absorbida por DA-86. sw.js v63→v64.
+v0.9 — **Sesión 36b (28 julio 2026).** DA-86 validada en campo (Palmira, PC Chrome). BUG-068 reabierto: 4 versiones de prompt probadas (v1→v4), todas alucinan Palmira Siria — causa raíz confirmada (sesgo entrenamiento Haiku supera el prompt con `cityLabel="Palmira"` sin desambiguación). Fix definitivo: título canónico Wikipedia como `cityLabel`. `THESIS_PROMPT_VERSION`=v4, sw v66.
 
 ## Pendientes críticos (orden sugerido)
 
-1. **Validación de campo DA-86** — primera apertura real en cada ciudad tras el deploy. n≥4 antes de cerrar.
-2. **DA-85 §3** — lente narrativa en capítulos (tesis como lente débil, system prompt de POI, sin scratchpad). Prerrequisito: DA-86 validada en campo.
+1. **BUG-068 fix definitivo** — `cityLabel` desde URL canónica Wikipedia (no `page.title`)
+2. **Validación DA-86 en Cali** — ciudad con POIs reales, sin homónima
+3. **DA-85 §3** — lente narrativa en capítulos (tesis como lente débil, system prompt de POI, sin scratchpad). Prerrequisito: DA-86 validada en campo.
 3. **DT-68** (acumular capítulos de sesión) → **DT-46** (cierre de caminata) → Epílogo
 4. **DT-58** (config post-wizard, sin ratificar) — ítems ya identificados: idioma, nombre, volVoice, casa de DT-56
 5. **DT-64** (brújula) · **DT-63** (campo flujo completo) · **DT-61** (+parques, vara Niveles A/B/C)

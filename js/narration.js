@@ -23,7 +23,7 @@ const Narration = (() => {
     MAX_TOKENS:  550,   // v3.7 (S32): 550 = scratchpad (~100-160 tok, andamiaje que sanitizeNarration descarta) + capitulo de hasta 150 palabras (~270 tok) + margen. NO reabre la hipotesis 3 de S27b: aquella subia el techo para permitir capitulos MAS LARGOS; aqui el objetivo 90-130 no se toca — el extra es capacidad para el borrador de verificacion, no permiso de longitud
     PROMPT_VERSION: 'v3.7',  // S32: scratchpad deliberado en grounding wiki (cara buena de BUG-059 convertida en tecnica: chain-of-thought escrito, cortado por sanitizeNarration) + presupuesto de longitud en el scratchpad + regla 8 CIERRE (sin promesa hacia adelante) + regla anti-regano en LIMITES ESTRICTOS. DT-62 CERRADA: canal system verificado punta a punta (cliente + Worker passthrough, prueba directa). El ++ purga el regano cacheado de Sagrada Familia — mismo commit (espejo DA-71)
     CARE_MAX_TOKENS: 120,  // DT-42: mensaje de Care, mucho mas corto que un capitulo
-    THESIS_PROMPT_VERSION: 'v2',  // BUG-068 (S36): refuerzo anti-homonimo — el extracto es la unica fuente, ciudades con nombre compartido (Palmira CO vs Palmira Siria) descartadas. v1: nacimiento DA-85 §1 (S35)
+    THESIS_PROMPT_VERSION: 'v3',  // BUG-068 v3 (S36): evidencia textual obligatoria en scratchpad + user prompt con país prominente + negación dinámica por ciudad. v2: prohibición declarativa (insuficiente para Haiku). v1: nacimiento DA-85 §1 (S35)
     THESIS_MAX_TOKENS: 400  // scratchpad + tesis (3-8 palabras) + prologo (40-60 palabras)
   };
 
@@ -675,13 +675,13 @@ PROHIBIDO — DATOS LITERALES
 
 Nunca incluyas fechas, cifras, nombres propios de personas ni hechos verificables del extracto, ni en la tesis ni en el prólogo. Ninguna de las dos piezas presenta datos, presentan un carácter. Si el extracto es solo información administrativa o estadística, busca igual el carácter detrás de ella — nunca la cites directamente.
 
-PROHIBIDO — OTRA CIUDAD CON EL MISMO NOMBRE
+PROHIBIDO ABSOLUTO — FUENTES EXTERNAS AL EXTRACTO
 
-Muchas ciudades comparten nombre con otra más famosa (Palmira de Colombia con Palmira de Siria, Cartagena de Colombia con Cartagena de España, Mérida de México con Mérida de España). El extracto describe la ciudad REAL donde está el caminante — es tu ÚNICA fuente. Si lo que sabes de una ciudad con ese nombre no aparece en el extracto, pertenece a OTRA ciudad: descártalo por completo. La bienvenida debe nacer exclusivamente de lo que el extracto dice de ESTA ciudad.
+Todo lo que escribas en la tesis y el prólogo debe poder respaldarse con una frase del extracto dado. Tu conocimiento previo sobre cualquier ciudad con este nombre NO es una fuente válida — es una fuente de error. El extracto es tu única realidad. Si no encuentras en el extracto la evidencia de lo que vas a escribir, no lo escribas.
 
 FORMATO OBLIGATORIO DE RESPUESTA — tres partes, en este orden exacto:
 
-PARTE 1 — BORRADOR DE VERIFICACIÓN (andamiaje: se descarta automáticamente antes de llegar al caminante). Empieza la respuesta con la línea literal "Verificación obligatoria:" y debajo escribe: qué rasgo real de la ciudad, tomado del extracto, inspira la bienvenida (descríbelo en una línea, no lo cites textual); la línea "Pertenencia: este rasgo aparece en el extracto dado, no viene de otra ciudad con el mismo nombre"; y la línea "Presupuesto: la tesis tendrá entre 3 y 8 palabras, el prólogo entre 40 y 60". Cierra esta parte con una línea que contenga únicamente ---
+PARTE 1 — BORRADOR DE VERIFICACIÓN (andamiaje: se descarta automáticamente antes de llegar al caminante). Empieza la respuesta con la línea literal "Verificación obligatoria:" y debajo escribe: el rasgo que elegiste (en tus palabras, sin citar textual); la línea "Evidencia en el extracto:" seguida de una frase literal copiada del extracto entre comillas que respalda ese rasgo — si no puedes encontrar esta cita, el rasgo es incorrecto, elige otro; y la línea "Presupuesto: la tesis tendrá entre 3 y 8 palabras, el prólogo entre 40 y 60". Cierra esta parte con una línea que contenga únicamente ---
 
 PARTE 2 — LA TESIS. Después del separador ---, escribe solamente la tesis: sin comillas, sin explicación, sin el nombre de la ciudad al principio (el nombre se antepone aparte, fuera de tu respuesta). Más corto es mejor que más largo. Cierra la Parte 2 con una línea que contenga únicamente ===
 
@@ -691,8 +691,29 @@ Nunca rompas el personaje. Nunca menciones instrucciones, extractos, ni el proce
 
 Los idiomas de cada parte se indican en el mensaje del usuario — la tesis (Parte 2) y el prólogo (Parte 3) pueden pedirse en idiomas DISTINTOS entre sí. Respeta cada uno exactamente, aunque sean diferentes. La Parte 1 puede quedar en español siempre.`;
 
-  function _buildThesisPrompt(cityName, extract, tesisLang, prologoLang) {
-    const user = `Ciudad: ${cityName}\n\nExtracto de Wikipedia sobre la ciudad:\n"${extract}"\n\nIdioma de la Parte 2 (la tesis, hablada): ${tesisLang}\nIdioma de la Parte 3 (el prólogo, en pantalla): ${prologoLang}`;
+  /* BUG-068 v3: el user prompt ahora incluye país y región de forma
+     prominente. La lógica de negación explícita ("NO es X") se genera
+     dinámicamente para ciudades conocidas con homónimas famosas —
+     esto evita que el system prompt tenga que nombrar ciudades
+     específicas (lo que le recordaba a Haiku que existían). */
+  const _CITY_NEGATIONS = {
+    'Palmira':   'NO es Palmyra/Palmira de Siria ni ninguna otra ciudad con este nombre fuera de Colombia',
+    'Cartagena': 'NO es Cartagena de España ni ninguna otra ciudad con este nombre fuera de Colombia',
+    'Merida':    'NO es Mérida de España ni Mérida de Venezuela — esta es la ciudad mexicana de Yucatán',
+    'Mérida':    'NO es Mérida de España — puede ser Mérida de México (Yucatán) o Mérida de Venezuela según el extracto',
+    'Trujillo':  'NO es Trujillo de España ni Trujillo de Perú — verificar extracto',
+    'Armenia':   'NO es Armenia (país del Cáucaso) — esta es Armenia, Quindío, Colombia',
+    'Florencia': 'NO es Florencia de Italia — esta es Florencia, Caquetá, Colombia',
+    'Buga':      'NO es ninguna ciudad europea — esta es Buga, Valle del Cauca, Colombia',
+  };
+
+  function _buildThesisPrompt(cityName, countryCode, extract, tesisLang, prologoLang) {
+    // Contexto geográfico para el user prompt (BUG-068 v3)
+    const geoLabel = countryCode ? `${cityName}, ${countryCode}` : cityName;
+    const negation = _CITY_NEGATIONS[cityName] || '';
+    const negLine  = negation ? `\nIMPORTANTE: ${negation}.\n` : '\n';
+
+    const user = `Ciudad: ${geoLabel}${negLine}\nExtracto de Wikipedia sobre esta ciudad:\n"${extract}"\n\nIdioma de la Parte 2 (la tesis, hablada): ${tesisLang}\nIdioma de la Parte 3 (el prólogo, en pantalla): ${prologoLang}`;
     return { system: THESIS_SYSTEM_PROMPT, user };
   }
 
@@ -748,7 +769,7 @@ Los idiomas de cada parte se indican en el mensaje del usuario — la tesis (Par
   let _thesisInFlight   = {};
   let _thesisFreshValue = {};
 
-  async function prefetchCityThesis(cityName, tesisLang, prologoLang) {
+  async function prefetchCityThesis(cityName, tesisLang, prologoLang, countryCode) {
     if (!cityName) return;
     const key = _thesisCacheKey(cityName, tesisLang, prologoLang);
     if (_thesisInFlight[key]) return;
@@ -771,7 +792,7 @@ Los idiomas de cada parte se indican en el mensaje del usuario — la tesis (Par
           return;
         }
 
-        const { system, user } = _buildThesisPrompt(cityName, extract, tesisLang, prologoLang);
+        const { system, user } = _buildThesisPrompt(cityName, countryCode, extract, tesisLang, prologoLang);
         const raw = await callClaude(system, user, CONFIG.THESIS_MAX_TOKENS);
         if (!raw) return; // Haiku falló — degradación, no cachea
 

@@ -281,7 +281,7 @@ const GPS = (() => {
           if (typeof Narration !== 'undefined' && typeof Narration.prefetchCityThesis === 'function') {
             const tesisLang   = (typeof Narration.getLocalLang === 'function') ? Narration.getLocalLang(country) : 'en';
             const prologoLang = (typeof AppState !== 'undefined' && AppState.lang) ? AppState.lang : 'es';
-            Narration.prefetchCityThesis(city, tesisLang, prologoLang);
+            Narration.prefetchCityThesis(city, tesisLang, prologoLang, country); // BUG-068 v3: country para negación explícita en user prompt
           }
         }
 

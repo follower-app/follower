@@ -23,7 +23,7 @@ const Narration = (() => {
     MAX_TOKENS:  550,   // v3.7 (S32): 550 = scratchpad (~100-160 tok, andamiaje que sanitizeNarration descarta) + capitulo de hasta 150 palabras (~270 tok) + margen. NO reabre la hipotesis 3 de S27b: aquella subia el techo para permitir capitulos MAS LARGOS; aqui el objetivo 90-130 no se toca — el extra es capacidad para el borrador de verificacion, no permiso de longitud
     PROMPT_VERSION: 'v3.7',  // S32: scratchpad deliberado en grounding wiki (cara buena de BUG-059 convertida en tecnica: chain-of-thought escrito, cortado por sanitizeNarration) + presupuesto de longitud en el scratchpad + regla 8 CIERRE (sin promesa hacia adelante) + regla anti-regano en LIMITES ESTRICTOS. DT-62 CERRADA: canal system verificado punta a punta (cliente + Worker passthrough, prueba directa). El ++ purga el regano cacheado de Sagrada Familia — mismo commit (espejo DA-71)
     CARE_MAX_TOKENS: 120,  // DT-42: mensaje de Care, mucho mas corto que un capitulo
-    THESIS_PROMPT_VERSION: 'v4',  // BUG-068 v4 (S36): título canónico Wikipedia como nombre de ciudad en user prompt — Palmira→Palmira (Colombia), Haiku reconoce la distinción. v3: evidencia textual + negación dinámica (insuficiente). v2/v1: anteriores
+    THESIS_PROMPT_VERSION: 'v5',  // BUG-068 v5 (S36c) — FIX DEFINITIVO, causa raíz corregida: el extracto se pedía con el nombre corto de Nominatim ("Palmira"), que en Wikipedia resuelve al artículo de Siria — ningún prompt podía compensar un extracto de origen incorrecto. v5 usa el tag OSM `wikipedia` (vía Nominatim zoom=10+extratags=1) para pedir el extracto correcto desde el origen. El bump invalida cache de tesis generadas con extractos equivocados en v1-v4. v4/v3/v2/v1: intentos previos sobre el prompt, insuficientes por atacar el síntoma y no la causa
     THESIS_MAX_TOKENS: 400  // scratchpad + tesis (3-8 palabras) + prologo (40-60 palabras)
   };
 
@@ -605,10 +605,23 @@ Idioma: ${lang}`;
      (getLocalLang, DT-41), fallback en.wiki. */
   const THESIS_EXTRACT_MAX_CHARS = 2500;
 
-  async function _fetchCityExtract(cityName, localLang) {
-    const langs = (localLang && localLang !== 'en') ? [localLang, 'en'] : ['en'];
+  async function _fetchCityExtract(cityName, localLang, wikiHint) {
+    // BUG-068 v5: si hay hint (título canónico desde el tag OSM `wikipedia`),
+    // se intenta PRIMERO, en su propio idioma+título exactos — sin cascada
+    // de adivinanza. Si falla (página movida, tag desactualizado, etc.), cae
+    // a la cascada de siempre. wikiHint = {lang, title} | null.
+    const attempts = [];
+    if (wikiHint && wikiHint.lang && wikiHint.title) {
+      attempts.push({ lang: wikiHint.lang, title: wikiHint.title });
+    }
+    const guessLangs = (localLang && localLang !== 'en') ? [localLang, 'en'] : ['en'];
+    for (const lang of guessLangs) {
+      // Evitar repetir la misma combinación lang+title que ya probó el hint
+      if (wikiHint && wikiHint.lang === lang && wikiHint.title === cityName) continue;
+      attempts.push({ lang, title: cityName });
+    }
 
-    for (const lang of langs) {
+    for (const { lang, title } of attempts) {
       try {
         const baseUrl = `https://${lang}.wikipedia.org/w/api.php`;
         const params = new URLSearchParams({
@@ -617,7 +630,7 @@ Idioma: ${lang}`;
           exintro:     'true',
           explaintext: 'true',
           redirects:   '1',
-          titles:      cityName,
+          titles:      title,
           format:      'json',
           origin:      '*',
         });
@@ -640,11 +653,10 @@ Idioma: ${lang}`;
             const lastDot = ext.lastIndexOf('.');
             if (lastDot > THESIS_EXTRACT_MAX_CHARS * 0.6) ext = ext.slice(0, lastDot + 1);
           }
-          // BUG-068 v4: titulo canonico de Wikipedia junto al extracto.
-          // "Palmira" (Nominatim) → "Palmira (Colombia)" (Wikipedia).
-          // Haiku entreno con Wikipedia y reconoce esta distincion — usarlo
-          // en el user prompt es mas fiable que cualquier instruccion en el
-          // system prompt.
+          // BUG-068 v5: page.title es el titulo canonico REAL post-redirect
+          // de la pagina que efectivamente respondio — coincide con el hint
+          // de OSM cuando el hint acerto, y sirve de titulo correcto igual
+          // si se cayo a la cascada de adivinanza.
           return { extract: ext, wikiTitle: page.title || cityName };
         }
       } catch (e) {
@@ -696,11 +708,14 @@ Nunca rompas el personaje. Nunca menciones instrucciones, extractos, ni el proce
 
 Los idiomas de cada parte se indican en el mensaje del usuario — la tesis (Parte 2) y el prólogo (Parte 3) pueden pedirse en idiomas DISTINTOS entre sí. Respeta cada uno exactamente, aunque sean diferentes. La Parte 1 puede quedar en español siempre.`;
 
-  /* BUG-068 v3: el user prompt ahora incluye país y región de forma
-     prominente. La lógica de negación explícita ("NO es X") se genera
-     dinámicamente para ciudades conocidas con homónimas famosas —
-     esto evita que el system prompt tenga que nombrar ciudades
-     específicas (lo que le recordaba a Haiku que existían). */
+  /* BUG-068 v3 (conservada como red secundaria tras v5): negación
+     explícita ("NO es X") para ciudades con homónimas famosas. Con v5 el
+     extracto ya viene del artículo correcto en el caso normal (hint OSM),
+     así que esta tabla deja de ser la defensa primaria — queda como
+     último resguardo si el hint falta o el extracto igual se confunde por
+     alguna otra vía no anticipada. No se retira en este commit: cambio de
+     una sola variable (BUG-068 v5), retiro de esta tabla queda pendiente
+     de ratificación aparte tras validar v5 en campo. */
   const _CITY_NEGATIONS = {
     'Palmira':   'NO es Palmyra/Palmira de Siria ni ninguna otra ciudad con este nombre fuera de Colombia',
     'Cartagena': 'NO es Cartagena de España ni ninguna otra ciudad con este nombre fuera de Colombia',
@@ -774,8 +789,11 @@ Los idiomas de cada parte se indican en el mensaje del usuario — la tesis (Par
   let _thesisInFlight   = {};
   let _thesisFreshValue = {};
 
-  async function prefetchCityThesis(cityName, tesisLang, prologoLang, countryCode) {
+  async function prefetchCityThesis(cityName, tesisLang, prologoLang, countryCode, wikiHint) {
     if (!cityName) return;
+    // BUG-068 v5: cityName sigue siendo la clave de cache/inflight (DA-86:
+    // AppState.cityShort, sin tocar) — wikiHint {lang,title}|null SOLO
+    // decide qué artículo de Wikipedia se consulta, nunca la clave.
     const key = _thesisCacheKey(cityName, tesisLang, prologoLang);
     if (_thesisInFlight[key]) return;
 
@@ -789,7 +807,7 @@ Los idiomas de cada parte se indican en el mensaje del usuario — la tesis (Par
           return;
         }
 
-        const cityResult = await _fetchCityExtract(cityName, tesisLang);
+        const cityResult = await _fetchCityExtract(cityName, tesisLang, wikiHint);
         if (!cityResult) {
           if (typeof Debug !== 'undefined') {
             Debug.log('info', `Bienvenida: sin artículo de ciudad para "${cityName}" — degradación silenciosa, no se cachea`);
@@ -797,13 +815,13 @@ Los idiomas de cada parte se indican en el mensaje del usuario — la tesis (Par
           return;
         }
 
-        // BUG-068 v4: usar título canónico de Wikipedia ("Palmira (Colombia)")
-        // en vez del nombre corto de Nominatim ("Palmira") — Haiku reconoce
-        // la distinción porque entrenó con Wikipedia.
+        // BUG-068 v5: cityLabel viene del artículo REAL que respondió a la
+        // consulta (hint de OSM si acertó, cascada de adivinanza si no) —
+        // ya no es una adivinanza basada en el nombre corto de Nominatim.
         const { extract, wikiTitle } = cityResult;
         const cityLabel = wikiTitle || cityName;
         if (typeof Debug !== 'undefined' && wikiTitle && wikiTitle !== cityName) {
-          Debug.log('info', `BUG-068 v4: nombre canónico Wikipedia "${wikiTitle}" (Nominatim: "${cityName}")`);
+          Debug.log('info', `BUG-068 v5: nombre canónico Wikipedia "${wikiTitle}" (Nominatim: "${cityName}")${wikiHint ? ' · hint OSM usado' : ' · cascada de adivinanza'}`);
         }
 
         const { system, user } = _buildThesisPrompt(cityLabel, countryCode, extract, tesisLang, prologoLang);

@@ -211,6 +211,25 @@ const GPS = (() => {
     return name.replace(CITY_GENERIC_SUFFIXES, '').trim();
   }
 
+  /* BUG-068 v5: título canónico de Wikipedia desde el tag OSM `wikipedia`
+     (extratags), en vez de adivinarlo con el nombre corto de Nominatim.
+     Formato del tag: "es:Palmira (Colombia)" — idioma:título. Verificado en
+     campo (S36c): con zoom=10 el objeto principal es la relación admin de
+     la ciudad (no una calle), y su extratags trae wikipedia+wikidata reales.
+     Sin este parseo, _fetchCityExtract adivinaba el título con el nombre
+     corto ("Palmira") y caía en el artículo equivocado (Palmira, Siria)
+     cuando ese es el título que domina en Wikipedia — ninguna versión del
+     prompt (v1-v4) podía compensar un extracto de origen incorrecto. */
+  function _parseWikiTag(tag) {
+    if (!tag || typeof tag !== 'string') return null;
+    const idx = tag.indexOf(':');
+    if (idx <= 0) return null; // sin prefijo de idioma — formato no reconocido, degradar
+    const lang  = tag.slice(0, idx).trim();
+    const title = tag.slice(idx + 1).trim();
+    if (!lang || !title) return null;
+    return { lang, title };
+  }
+
   let _cityFetchInFlight = false;  // DA-86: el ancla puede disparar en cada lectura GPS — un solo hit a Nominatim a la vez (politica 1 req/s)
 
   async function fetchCityName(lat, lng) {
@@ -235,7 +254,13 @@ const GPS = (() => {
     const _t0 = performance.now();
 
     try {
-      const url  = `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json`;
+      // BUG-068 v5: zoom=10 fuerza que el objeto principal sea la relación
+      // admin de la ciudad (no una calle/way de detalle máximo, que es lo
+      // que Nominatim devuelve sin zoom) — necesario para que extratags
+      // refleje los tags de la CIUDAD y no los de una vía cualquiera.
+      // address.city/town/village sigue viniendo igual que antes (la bolsa
+      // de address se mantiene completa independientemente del zoom).
+      const url  = `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&zoom=10&extratags=1`;
       const res  = await fetch(url);
       const data = await res.json();
       const _ms  = Math.round(performance.now() - _t0);
@@ -248,7 +273,8 @@ const GPS = (() => {
         || ''
       );
 
-      const country = data.address?.country_code?.toUpperCase() || '';
+      const country  = data.address?.country_code?.toUpperCase() || '';
+      const wikiHint = _parseWikiTag(data.extratags?.wikipedia); // BUG-068 v5: {lang,title} | null — degrada a null si el tag no existe
 
       if (city) {
         // DA-86: el gate ya no es "primera ciudad de la sesión" (isFirst)
@@ -281,7 +307,10 @@ const GPS = (() => {
           if (typeof Narration !== 'undefined' && typeof Narration.prefetchCityThesis === 'function') {
             const tesisLang   = (typeof Narration.getLocalLang === 'function') ? Narration.getLocalLang(country) : 'en';
             const prologoLang = (typeof AppState !== 'undefined' && AppState.lang) ? AppState.lang : 'es';
-            Narration.prefetchCityThesis(city, tesisLang, prologoLang, country); // BUG-068 v3: country para negación explícita en user prompt
+            // BUG-068 v5: wikiHint viaja aparte de `city` — `city` sigue
+            // siendo la clave de cache (AppState.cityShort, sin tocar DA-86);
+            // wikiHint solo mejora qué artículo de Wikipedia se consulta.
+            Narration.prefetchCityThesis(city, tesisLang, prologoLang, country, wikiHint);
           }
         }
 

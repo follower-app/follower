@@ -23,7 +23,7 @@ const Narration = (() => {
     MAX_TOKENS:  550,   // v3.7 (S32): 550 = scratchpad (~100-160 tok, andamiaje que sanitizeNarration descarta) + capitulo de hasta 150 palabras (~270 tok) + margen. NO reabre la hipotesis 3 de S27b: aquella subia el techo para permitir capitulos MAS LARGOS; aqui el objetivo 90-130 no se toca — el extra es capacidad para el borrador de verificacion, no permiso de longitud
     PROMPT_VERSION: 'v3.7',  // S32: scratchpad deliberado en grounding wiki (cara buena de BUG-059 convertida en tecnica: chain-of-thought escrito, cortado por sanitizeNarration) + presupuesto de longitud en el scratchpad + regla 8 CIERRE (sin promesa hacia adelante) + regla anti-regano en LIMITES ESTRICTOS. DT-62 CERRADA: canal system verificado punta a punta (cliente + Worker passthrough, prueba directa). El ++ purga el regano cacheado de Sagrada Familia — mismo commit (espejo DA-71)
     CARE_MAX_TOKENS: 120,  // DT-42: mensaje de Care, mucho mas corto que un capitulo
-    THESIS_PROMPT_VERSION: 'v1',  // DA-85 §1 (S35): tesis de ciudad — nace v1, independiente de PROMPT_VERSION (capitulos)
+    THESIS_PROMPT_VERSION: 'v2',  // BUG-068 (S36): refuerzo anti-homonimo — el extracto es la unica fuente, ciudades con nombre compartido (Palmira CO vs Palmira Siria) descartadas. v1: nacimiento DA-85 §1 (S35)
     THESIS_MAX_TOKENS: 400  // scratchpad + tesis (3-8 palabras) + prologo (40-60 palabras)
   };
 
@@ -675,9 +675,13 @@ PROHIBIDO — DATOS LITERALES
 
 Nunca incluyas fechas, cifras, nombres propios de personas ni hechos verificables del extracto, ni en la tesis ni en el prólogo. Ninguna de las dos piezas presenta datos, presentan un carácter. Si el extracto es solo información administrativa o estadística, busca igual el carácter detrás de ella — nunca la cites directamente.
 
+PROHIBIDO — OTRA CIUDAD CON EL MISMO NOMBRE
+
+Muchas ciudades comparten nombre con otra más famosa (Palmira de Colombia con Palmira de Siria, Cartagena de Colombia con Cartagena de España, Mérida de México con Mérida de España). El extracto describe la ciudad REAL donde está el caminante — es tu ÚNICA fuente. Si lo que sabes de una ciudad con ese nombre no aparece en el extracto, pertenece a OTRA ciudad: descártalo por completo. La bienvenida debe nacer exclusivamente de lo que el extracto dice de ESTA ciudad.
+
 FORMATO OBLIGATORIO DE RESPUESTA — tres partes, en este orden exacto:
 
-PARTE 1 — BORRADOR DE VERIFICACIÓN (andamiaje: se descarta automáticamente antes de llegar al caminante). Empieza la respuesta con la línea literal "Verificación obligatoria:" y debajo escribe: qué rasgo real de la ciudad, tomado del extracto, inspira la bienvenida (descríbelo en una línea, no lo cites textual), y la línea "Presupuesto: la tesis tendrá entre 3 y 8 palabras, el prólogo entre 40 y 60". Cierra esta parte con una línea que contenga únicamente ---
+PARTE 1 — BORRADOR DE VERIFICACIÓN (andamiaje: se descarta automáticamente antes de llegar al caminante). Empieza la respuesta con la línea literal "Verificación obligatoria:" y debajo escribe: qué rasgo real de la ciudad, tomado del extracto, inspira la bienvenida (descríbelo en una línea, no lo cites textual); la línea "Pertenencia: este rasgo aparece en el extracto dado, no viene de otra ciudad con el mismo nombre"; y la línea "Presupuesto: la tesis tendrá entre 3 y 8 palabras, el prólogo entre 40 y 60". Cierra esta parte con una línea que contenga únicamente ---
 
 PARTE 2 — LA TESIS. Después del separador ---, escribe solamente la tesis: sin comillas, sin explicación, sin el nombre de la ciudad al principio (el nombre se antepone aparte, fuera de tu respuesta). Más corto es mejor que más largo. Cierra la Parte 2 con una línea que contenga únicamente ===
 
@@ -754,7 +758,7 @@ Los idiomas de cada parte se indican en el mensaje del usuario — la tesis (Par
         const cached = await loadThesisFromCache(cityName, tesisLang, prologoLang);
         if (cached) {
           if (typeof Debug !== 'undefined') {
-            Debug.log('info', `Bienvenida: cache hit — ${cityName}/${tesisLang}-${prologoLang}, sesión no es la primera, no se habla`);
+            Debug.log('info', `Bienvenida: cache hit — ${cityName}/${tesisLang}-${prologoLang} (DA-86: mostrar viene del cache; narrar lo decide la marca durable)`);
           }
           return;
         }
@@ -802,9 +806,10 @@ Los idiomas de cada parte se indican en el mensaje del usuario — la tesis (Par
     })();
   }
 
-  /* Consumo de un solo uso (para la voz + el sheet visual): si
-     welcomeCity() lo toma, se borra — una segunda caminata en la misma
-     pestaña/ciudad ya no lo vuelve a hablar/mostrar. */
+  /* Consumo de un solo uso. DA-86 (S36): app.js ya NO la usa — el flujo
+     migró a whenCityWelcomeReady() (no consumible) + marca durable en
+     Config. Se conserva exportada solo por compatibilidad de debug;
+     candidata a limpieza en una sesión futura. */
   function getFreshCityWelcome(cityName, tesisLang, prologoLang) {
     const key   = _thesisCacheKey(cityName, tesisLang, prologoLang);
     const value = _thesisFreshValue[key] || null;
@@ -818,6 +823,31 @@ Los idiomas de cada parte se indican en el mensaje del usuario — la tesis (Par
      vez que se generó. */
   function getCachedCityWelcome(cityName, tesisLang, prologoLang) {
     return loadThesisFromCache(cityName, tesisLang, prologoLang); // Promise<{tesis,prologo}|null>
+  }
+
+  /* ── DA-86: RESOLVEDOR ESPERABLE — sustituye la carrera de DA-85 ──
+     Devuelve la bienvenida cuando ESTÉ (fresca, cacheada, o al terminar la
+     generación en vuelo) o null si la degradación es real (sin artículo,
+     Haiku caído). El title card la espera antes de mostrar la Etapa 2
+     ("toca para escucharme") — el tap del usuario es la pista, no un
+     timeout: la bienvenida ya no puede perder la carrera porque no hay
+     carrera. NO consumible y NO decide si se narra — esa decisión vive en
+     Config.isCityNarrated (DA-86, marca durable). */
+  async function whenCityWelcomeReady(cityName, tesisLang, prologoLang) {
+    if (!cityName) return null;
+    const key = _thesisCacheKey(cityName, tesisLang, prologoLang);
+
+    // 1. Generada de cero en esta sesión y aún en memoria
+    if (_thesisFreshValue[key]) return _thesisFreshValue[key];
+
+    // 2. Generación en vuelo — esperar a que termine (éxito o degradación)
+    if (_thesisInFlight[key]) {
+      try { await _thesisInFlight[key]; } catch (e) { /* degradación silenciosa */ }
+      if (_thesisFreshValue[key]) return _thesisFreshValue[key];
+    }
+
+    // 3. Cache de sesiones anteriores (o nada — degradación real)
+    return loadThesisFromCache(cityName, tesisLang, prologoLang);
   }
 
   /* ── DEBUG: borrar SOLO la tesis+prólogo de una ciudad puntual ──
@@ -1291,6 +1321,6 @@ Los idiomas de cada parte se indican en el mensaje del usuario — la tesis (Par
   function isNarrating()    { return _isNarrating; }
   function isPaused()       { return _isPaused; }
 
-  return { trigger, stop, pause, resume, getCurrentText, isNarrating, isPaused, getCityWelcome, getCityIntroFallback, getCityIntroPrefix, getLocalLang, getCareMessage, prefetchCityThesis, getFreshCityWelcome, getCachedCityWelcome, clearCityThesisCache };
+  return { trigger, stop, pause, resume, getCurrentText, isNarrating, isPaused, getCityWelcome, getCityIntroFallback, getCityIntroPrefix, getLocalLang, getCareMessage, prefetchCityThesis, getFreshCityWelcome, getCachedCityWelcome, whenCityWelcomeReady, clearCityThesisCache };
 
 })();

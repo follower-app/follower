@@ -5718,3 +5718,57 @@ campo.
 ---
 
 *Follower — Bitácora v0.9 | Sesión 35 | 20 Julio 2026*
+
+---
+
+## Sesión 36 — 27 Julio 2026
+
+**Foco:** revisión narrativa de campo + DA-86 (tesis persistente por ciudad) + BUG-068 (prompt anti-homónimo).
+
+### Punto de partida
+
+Sesión de revisión iniciada con evidencia de campo real (logs exportados desde iPhone, capturas de pantalla). Se detectaron dos fallos distintos en el pipeline de tesis+prólogo de DA-85 §1, ambos documentados y corregidos en la misma sesión.
+
+### Bugs detectados y resueltos
+
+**BUG-068 — Alucinación de ciudad homónima (CERRADO, narration.js)**
+
+Palmira, Colombia (log 23 jul) generó tesis y prólogo sobre Palmira/Palmyra de Siria: "La gloria que el desierto recuerda", oasis, ruinas, reina que desafió imperios. El scratchpad no tenía instrucción explícita de anclarse exclusivamente al extracto dado e ignorar conocimiento previo de otras ciudades con el mismo nombre. Fix: sección "PROHIBIDO — OTRA CIUDAD CON EL MISMO NOMBRE" añadida al `THESIS_SYSTEM_PROMPT` + línea "Pertenencia:" en el scratchpad + bump `THESIS_PROMPT_VERSION` v1 → v2 (invalida caches con alucinación automáticamente).
+
+**BUG-069 — Tesis hablada saltada en ciudades nuevas para returning-user (ABSORBIDA por DA-86)**
+
+Bogotá (log 23 jul): app arrancó como returning-user, usó saludo genérico aunque la tesis se generó correctamente 2 s después. Causa real: el camino returning-user tenía ~3 s de pista contra ~4-6 s de Haiku — perdía siempre, no a veces. La tesis generada quedaba en memoria sin que nadie la consumiera. Absorbida por DA-86.
+
+### DA-86 — Tesis persistente por ciudad (IMPLEMENTADA)
+
+Enmienda formal a DA-85 §1. Diseño cerrado a través de 15+ decisiones sucesivas con evidencia de campo:
+
+1. **Separación mostrar/narrar**: la tesis se muestra siempre (identidad de ciudad, no anuncio), se narra solo la primera vez. El texto genérico pasa a ser degradación real exclusivamente.
+2. **El tap como pista**: `whenCityWelcomeReady()` (nuevo en narration.js) — resolvedor esperable. El title card espera la bienvenida antes de habilitar la Etapa 2. Sin carrera, sin timeout ciego.
+3. **Marca durable** `narratedCities` en Config/localStorage — independiente de idioma/userName, sobrevive desalojo de IndexedDB de iOS.
+4. **Cambio de ciudad por ancla**: `CITY_ANCHOR_KM = 10` reemplaza `CITY_UPDATE_KM = 0.5` (nunca se disparaba caminando). Guard de reentrada en `fetchCityName`.
+
+### SKILL.md — infraestructura cross-surface
+
+Se confirmó que el SKILL.md en `.claude/skills/follower/` ya estaba subido al repo antes de esta sesión. Cubre contexto para Claude Code y Claude Design. Se mantendrá como artefacto fijo del proyecto — no se duplica estado dinámico (el SKILL apunta a los docs vivos).
+
+### Archivos modificados
+
+`config.js` · `gps.js` · `narration.js` · `app.js` · `sw.js` v63 → v64
+
+### Commits
+
+1. `DA-86: tesis persistente por ciudad - mostrar siempre, narrar una vez`
+2. `BUG-068: prompt de tesis v2 anti-homonimo + DA-86 whenCityWelcomeReady`
+3. `sw v64`
+
+### Pendientes críticos (orden actualizado)
+
+1. **DA-85 §3** — lente narrativa en capítulos (tesis como lente débil en system prompt de POI, sin scratchpad). Prerrequisito: DA-86 en campo validada.
+2. **DT-68** → **DT-46** → Epílogo
+3. **DT-58** — config post-wizard (sin ratificar)
+4. **DT-9** — único ítem con riesgo de seguridad activo (key en historial de git)
+
+---
+
+*Follower — Bitácora v0.9 | Sesión 36 | 27 Julio 2026*

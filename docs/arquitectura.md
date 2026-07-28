@@ -2938,3 +2938,52 @@ cumplido: tesis y prólogo en producción y validados en campo.
 ---
 
 *Follower — Arquitectura v0.9 | Sesión 35 | 20 Julio 2026*
+
+---
+
+## DA-86 — Tesis persistente por ciudad: mostrar siempre, narrar una vez
+
+*Sesión 36. Enmienda a DA-85 §1. Absorbe BUG-069.*
+
+**Problema.** DA-85 §1 fusionó "mostrar tesis" y "narrar tesis" en un solo consumo (`getFreshCityWelcome`, un solo uso) y protegió el saludo con la regla "nunca esperar a Haiku". Consecuencia comprobada en campo (Bogotá, 23 jul, log exportado iPhone): el camino returning-user tiene ~3 s de pista contra ~4-6 s de Haiku — **pierde siempre**, no a veces. La ciudad caía a texto genérico aunque su tesis se generara correctamente 2 s después.
+
+**Principio rector.** La tesis es la identidad de la ciudad, no un anuncio de una sola vez. El texto genérico deja de ser premio de consolación por perder una carrera y pasa a ser exclusivamente degradación real (ciudad sin artículo de Wikipedia, Haiku caído, offline).
+
+### §1 — Separación mostrar / narrar
+
+- **Mostrar** (tesis + prólogo en el tab): siempre que la ciudad esté identificada y tenga artículo. Sesión 1 o sesión 50. Fuente: `getCachedCityWelcome` (lectura repetible, no consumible).
+- **Narrar**: solo la primera vez en esa ciudad. Gate: `Config.isCityNarrated(city)` (marca durable, ver §3).
+- **Genérico**: solo si la ciudad no es identificable o no tiene artículo. Se narra igual (no silencioso).
+
+### §2 — El tap es la pista, se elimina la carrera
+
+`whenCityWelcomeReady(cityName, tesisLang, prologoLang)` — nuevo resolvedor esperable en `narration.js`: devuelve la bienvenida cuando esté (fresca en `_thesisFreshValue`, en vuelo `_thesisInFlight`, o cacheada en IndexedDB) o `null` en degradación real.
+
+El title card espera `whenCityWelcomeReady()` como tercera compuerta real de la barra ("componiendo la bienvenida...") antes de mostrar la Etapa 2 ("toca para escucharme"). El tap del usuario es la pista — no hay carrera que perder porque el tap no puede llegar antes. Techo de seguridad `TITLECARD_TIMEOUT_MS` ampliado 8 s → 15 s (campo mostró Worker hasta 15 s).
+
+- *Degradación*: si la bienvenida no llega (ciudad sin artículo, Haiku caído, offline), la Etapa 2 aparece igual y el tap narra el texto genérico. El title card jamás se cuelga.
+
+### §3 — Marca durable de ciudad narrada
+
+`narratedCities` (array) en Config/localStorage — independiente de idioma y de `userName` (cambiar la configuración en el wizard no vuelve a narrar). Sobrevive al desalojo de IndexedDB que hace iOS.
+
+- API: `Config.isCityNarrated(city)` / `Config.markCityNarrated(city)`.
+- La marca se escribe en `_speakCityWelcome` solo cuando `source !== 'visibility-recovery'` — doctrina BUG-062: una recuperación por foco no cuenta como narración completada.
+- *Ciudad marcada pero caché desalojado (iOS)*: se regenera en silencio (`prefetchCityThesis` → `saveThesisToCache`), se muestra en el encabezado, no se narra.
+
+### §4 — Detección de ciudad: ancla de 10 km, gate por cambio real
+
+- `isFirst = !AppState.cityName` retirado. El gate pasa a comparación real: `changed = AppState.cityName !== resolved`.
+- Ciudad distinta → libera `AppState._cityWelcomeDone = false`, dispara nuevo prefetch y `welcomeCity`.
+- `AppState.cityShort` — nombre sin país, clave canónica de tesis y de la marca durable.
+- **Ancla A**: la ciudad se valida al abrir la app y al volver de background — por diseño, Follower es "abrir al llegar a una ciudad nueva", no "mantener abierto cruzando fronteras a pie".
+- **Ancla B** (`CITY_ANCHOR_KM = 10`): reemplaza `CITY_UPDATE_KM` (0.5 km entre lecturas — nunca se disparaba caminando). Solo re-resuelve el nombre de ciudad si el usuario se aleja > 10 km del punto donde se fijó. Cubre viaje por tierra sin rebotar en frontera metropolitana (el rebote de reverse-geocoding ocurre a metros, no a kilómetros). Se re-ancla en cada resolución exitosa.
+- Guard de reentrada `_cityFetchInFlight` en `fetchCityName` — la ancla puede dispararse en cada lectura GPS; Nominatim tiene política de 1 req/s.
+
+**Archivos modificados:** `config.js`, `gps.js`, `narration.js`, `app.js`, `sw.js` v64.
+
+**Relacionado:** BUG-068 (prompt de tesis v2, mismo commit de narration.js).
+
+---
+
+*Follower — Arquitectura v0.9 | Sesión 36 | 27 Julio 2026*

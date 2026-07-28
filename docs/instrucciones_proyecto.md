@@ -20,7 +20,7 @@ README · REGLAS_IA · docs/: contexto_maestro · producto (a S35) · **arquitec
 
 ## Arquitectura de archivos
 
-index.html · sw.js **v63** (siempre último en commits) · manifest.json · css/ · js/ (app, config, gps, poi, narration, voice, weather, care, walkmode, routes, debug, debug-sim; music.js stubbed) · assets/ · docs/ · cloudflare/worker.js
+index.html · sw.js **v64** (siempre último en commits) · manifest.json · css/ · js/ (app, config, gps, poi, narration, voice, weather, care, walkmode, routes, debug, debug-sim; music.js stubbed) · assets/ · docs/ · cloudflare/worker.js
 
 ## Reglas críticas
 
@@ -31,6 +31,8 @@ index.html · sw.js **v63** (siempre último en commits) · manifest.json · css
 - BUG-060 (cerrado): TextExtracts recorta silencioso >1200 → truncado cliente `EXTRACT_MAX_CHARS=2500`. Misma lección aplicada al extracto de ciudad (`THESIS_EXTRACT_MAX_CHARS`)
 - BUG-062/061 (cerrados S34): ver bitácora S34
 - **BUG-063 a 067 (cerrados S35):** ver bitácora S35 — interval del title card, carrera de bienvenida resuelta demasiado temprano, `isFirst` contaminado por orden del wizard, mismatch de nombre en debug, botones en pestaña huérfana
+- **BUG-068 (cerrado S36):** tesis alucinaba ciudad homónima (Palmira CO → Palmira Siria) — `THESIS_PROMPT_VERSION` v2, prohibición explícita + línea Pertenencia en scratchpad
+- **BUG-069 (absorbida S36 → DA-86):** tesis hablada saltada en returning-user — carrera eliminada, reemplazada por `whenCityWelcomeReady()`
 - **DA-71:** cambio en query/filtros/normalización POIs → `POI_CACHE_VERSION++` MISMO commit (actual: **v5**)
 - **DT-50:** cambio al Prompt Maestro de capítulos → `PROMPT_VERSION++` MISMO commit (actual: **v3.7**). Clave: `${PROMPT_VERSION}_${poiId}_${lang}_${topic}_${extractFingerprint}`
 - **v3.7 (VALIDADA 16/16 S32):** scratchpad en grounding wiki — ver docs/prompt_maestro_follower.md
@@ -45,7 +47,7 @@ index.html · sw.js **v63** (siempre último en commits) · manifest.json · css
 ## DA-85 — Arquitectura Narrativa v1 (§1 completo S35, §3 pendiente)
 
 **§1 — Tesis + Prólogo + Prólogo, EN PRODUCCIÓN (S35):**
-- Una sola llamada a Haiku, 3 partes: scratchpad de verificación → tesis (`---`) → prólogo (`===`). `THESIS_PROMPT_VERSION` = v1
+- Una sola llamada a Haiku, 3 partes: scratchpad de verificación → tesis (`---`) → prólogo (`===`). `THESIS_PROMPT_VERSION` = v2
 - Tesis: epíteto 3-8 palabras, idioma local de la ciudad (`getLocalLang`). Prólogo: 40-60 palabras, idioma del usuario (wizard) — pueden diferir
 - Personificación SOLO aquí (única excepción en Follower) · Prohibidos datos literales en ambas piezas
 - Cache: store `narrations`, clave `thesis_v1_${cityName}_${tesisLang}_${prologoLang}`, sin fingerprint
@@ -67,7 +69,7 @@ index.html · sw.js **v63** (siempre último en commits) · manifest.json · css
 ## Funciones únicas — nunca duplicar
 
 poi.js: detectNearby · enqueuePOI · processQueue · fetchWikipediaPOIs · _attachExtracts · fetchPOIsFromOSM · classifyOSMElement · dedupOSMPOIs · fuseWithWikipedia · markVisited · resetVisited · activatePOI · activateFromBar · showPOICard/hidePOICard (mini-player diástole, NO narrationText) · renderExpanded/onMarkerTap (screen-poi, SÍ narrationText — pantallas distintas)
-narration.js: trigger · getCareMessage · getLocalLang · cleanPOIName · getCityWelcome · getCityIntroFallback · getCityIntroPrefix · sanitizeNarration · buildGroundingBlock · _dt51VerifyAutorFecha · **prefetchCityThesis · getFreshCityWelcome · getCachedCityWelcome · clearCityThesisCache**
+narration.js: trigger · getCareMessage · getLocalLang · cleanPOIName · getCityWelcome · getCityIntroFallback · getCityIntroPrefix · sanitizeNarration · buildGroundingBlock · _dt51VerifyAutorFecha · **prefetchCityThesis · getFreshCityWelcome · getCachedCityWelcome · whenCityWelcomeReady · clearCityThesisCache**
 care.js: checkCareContext · checkSpecialZone · gps.js: distanceMeters · getRadiusConfig · fetchCityName · updateUserPosition · walkmode.js: start · stop · onMove · isActive
 app.js: setPhase · updateExplorePhase · navigateTo · welcomeCity · _resolveAndSpeakCityWelcome · _speakCityWelcome · **_sheetShow · _sheetReopenFromHandle · _sheetExpand · _sheetCollapseToPeek · _sheetUserClose · _showCityWelcomeSheet · _collapseCityWelcomeSheet · _populatePersistentCityHeader · _expandAndHighlightPOI** · updateHistCount · _unlockAudioOnFirstTap · _flushPendingWelcome · _wizComplete (reemplaza a _wizFinish) · _showTitleCard · _showTitleCardTapStage
 voice.js: speak · stop · unlockFromGesture · recuperación visibilitychange · SAFETY_MAX_MS=120s
@@ -75,16 +77,17 @@ debug.js: **retestCityWelcome · clearAllThesisCache · forceUpdateApp · resetT
 
 ## Estado actual
 
-v0.9 — **Sesión 35 (20 julio 2026).** DA-85 §1 completo y en producción: tesis+prólogo (una llamada, 3 partes), wizard de 3 pasos, title card de 2 etapas, tab de ciudad rediseñado por completo (3 estados, sin pill, iconos de POI). 5 bugs de campo cerrados (BUG-063 a 067, ver bitácora). 4 herramientas de debug nuevas (Ciudad, Todas las tesis, Actualizar app, Primera vez). sw.js v52→v63. Hallazgo de infraestructura: cache-first de index.html sin skipWaiting explica confusión de pruebas durante toda la sesión — resuelto con botón Actualizar app.
+v0.9 — **Sesión 36 (27 julio 2026).** DA-86 implementada: tesis persistente por ciudad (mostrar siempre, narrar una vez), marca durable `narratedCities` en Config/localStorage independiente de idioma/userName, `whenCityWelcomeReady()` como resolvedor esperable que elimina la carrera de DA-85, ancla `CITY_ANCHOR_KM=10` reemplaza `CITY_UPDATE_KM`. BUG-068 cerrado: `THESIS_PROMPT_VERSION` v2 con prohibición de ciudad homónima y línea Pertenencia en scratchpad. BUG-069 absorbida por DA-86. sw.js v63→v64.
 
 ## Pendientes críticos (orden sugerido)
 
-1. **DA-85 §3** — lente narrativa en capítulos (tesis como lente débil, system prompt de POI, sin scratchpad)
-2. **DT-68** (acumular capítulos de sesión) → **DT-46** (cierre de caminata) → Epílogo
-3. **DT-58** (config post-wizard, sin ratificar) — ítems ya identificados: idioma, nombre, volVoice, casa de DT-56
-4. **DT-64** (brújula) · **DT-63** (campo flujo completo) · **DT-61** (+parques, vara Niveles A/B/C)
-5. Swipe real para cerrar el peek (hoy: tap, simplificación deliberada de S35) · limpieza CSS huérfano (`.bar-pill-left`, `.bar-heart-wrap`) · logo con ticks más gruesos (sesión de rediseño de interfaz)
-6. v3.8 candidatas capítulos (NO abrir sin evidencia): personificación, una-metáfora
+1. **Validación de campo DA-86** — primera apertura real en cada ciudad tras el deploy. n≥4 antes de cerrar.
+2. **DA-85 §3** — lente narrativa en capítulos (tesis como lente débil, system prompt de POI, sin scratchpad). Prerrequisito: DA-86 validada en campo.
+3. **DT-68** (acumular capítulos de sesión) → **DT-46** (cierre de caminata) → Epílogo
+4. **DT-58** (config post-wizard, sin ratificar) — ítems ya identificados: idioma, nombre, volVoice, casa de DT-56
+5. **DT-64** (brújula) · **DT-63** (campo flujo completo) · **DT-61** (+parques, vara Niveles A/B/C)
+6. **DT-9** — único ítem con riesgo de seguridad activo (key en historial de git)
+7. Swipe real para cerrar el peek · limpieza CSS huérfano (`.bar-pill-left`, `.bar-heart-wrap`) · logo con ticks más gruesos
 
 ## El Narrador
 

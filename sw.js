@@ -8,7 +8,7 @@
 
 // Incrementar CACHE_VERSION fuerza descarga de todos los archivos
 // en el proximo arranque — incluso si el navegador tiene version cacheada.
-const CACHE_VERSION = 'follower-v63';  // Debug: boton Primera vez (Config.reset + IndexedDB) para probar el flujo completo desde cero
+const CACHE_VERSION = 'follower-v64';  // DA-86: tesis persistente por ciudad (mostrar siempre, narrar una vez) + BUG-068: prompt de tesis v2 anti-homonimo
 
 const STATIC_ASSETS = [
   './',

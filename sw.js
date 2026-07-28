@@ -8,7 +8,7 @@
 
 // Incrementar CACHE_VERSION fuerza descarga de todos los archivos
 // en el proximo arranque — incluso si el navegador tiene version cacheada.
-const CACHE_VERSION = 'follower-v64';  // DA-86: tesis persistente por ciudad (mostrar siempre, narrar una vez) + BUG-068: prompt de tesis v2 anti-homonimo
+const CACHE_VERSION = 'follower-v65';  // BUG-068 v3: evidencia textual en scratchpad + user prompt con pais prominente + negacion dinamica por ciudad homonima
 
 const STATIC_ASSETS = [
   './',

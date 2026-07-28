@@ -23,7 +23,7 @@ const Narration = (() => {
     MAX_TOKENS:  550,   // v3.7 (S32): 550 = scratchpad (~100-160 tok, andamiaje que sanitizeNarration descarta) + capitulo de hasta 150 palabras (~270 tok) + margen. NO reabre la hipotesis 3 de S27b: aquella subia el techo para permitir capitulos MAS LARGOS; aqui el objetivo 90-130 no se toca — el extra es capacidad para el borrador de verificacion, no permiso de longitud
     PROMPT_VERSION: 'v3.7',  // S32: scratchpad deliberado en grounding wiki (cara buena de BUG-059 convertida en tecnica: chain-of-thought escrito, cortado por sanitizeNarration) + presupuesto de longitud en el scratchpad + regla 8 CIERRE (sin promesa hacia adelante) + regla anti-regano en LIMITES ESTRICTOS. DT-62 CERRADA: canal system verificado punta a punta (cliente + Worker passthrough, prueba directa). El ++ purga el regano cacheado de Sagrada Familia — mismo commit (espejo DA-71)
     CARE_MAX_TOKENS: 120,  // DT-42: mensaje de Care, mucho mas corto que un capitulo
-    THESIS_PROMPT_VERSION: 'v3',  // BUG-068 v3 (S36): evidencia textual obligatoria en scratchpad + user prompt con país prominente + negación dinámica por ciudad. v2: prohibición declarativa (insuficiente para Haiku). v1: nacimiento DA-85 §1 (S35)
+    THESIS_PROMPT_VERSION: 'v4',  // BUG-068 v4 (S36): título canónico Wikipedia como nombre de ciudad en user prompt — Palmira→Palmira (Colombia), Haiku reconoce la distinción. v3: evidencia textual + negación dinámica (insuficiente). v2/v1: anteriores
     THESIS_MAX_TOKENS: 400  // scratchpad + tesis (3-8 palabras) + prologo (40-60 palabras)
   };
 
@@ -640,7 +640,12 @@ Idioma: ${lang}`;
             const lastDot = ext.lastIndexOf('.');
             if (lastDot > THESIS_EXTRACT_MAX_CHARS * 0.6) ext = ext.slice(0, lastDot + 1);
           }
-          return ext;
+          // BUG-068 v4: titulo canonico de Wikipedia junto al extracto.
+          // "Palmira" (Nominatim) → "Palmira (Colombia)" (Wikipedia).
+          // Haiku entreno con Wikipedia y reconoce esta distincion — usarlo
+          // en el user prompt es mas fiable que cualquier instruccion en el
+          // system prompt.
+          return { extract: ext, wikiTitle: page.title || cityName };
         }
       } catch (e) {
         if (typeof Debug !== 'undefined') {
@@ -784,15 +789,24 @@ Los idiomas de cada parte se indican en el mensaje del usuario — la tesis (Par
           return;
         }
 
-        const extract = await _fetchCityExtract(cityName, tesisLang);
-        if (!extract) {
+        const cityResult = await _fetchCityExtract(cityName, tesisLang);
+        if (!cityResult) {
           if (typeof Debug !== 'undefined') {
             Debug.log('info', `Bienvenida: sin artículo de ciudad para "${cityName}" — degradación silenciosa, no se cachea`);
           }
           return;
         }
 
-        const { system, user } = _buildThesisPrompt(cityName, countryCode, extract, tesisLang, prologoLang);
+        // BUG-068 v4: usar título canónico de Wikipedia ("Palmira (Colombia)")
+        // en vez del nombre corto de Nominatim ("Palmira") — Haiku reconoce
+        // la distinción porque entrenó con Wikipedia.
+        const { extract, wikiTitle } = cityResult;
+        const cityLabel = wikiTitle || cityName;
+        if (typeof Debug !== 'undefined' && wikiTitle && wikiTitle !== cityName) {
+          Debug.log('info', `BUG-068 v4: nombre canónico Wikipedia "${wikiTitle}" (Nominatim: "${cityName}")`);
+        }
+
+        const { system, user } = _buildThesisPrompt(cityLabel, countryCode, extract, tesisLang, prologoLang);
         const raw = await callClaude(system, user, CONFIG.THESIS_MAX_TOKENS);
         if (!raw) return; // Haiku falló — degradación, no cachea
 

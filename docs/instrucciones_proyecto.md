@@ -1,100 +1,83 @@
 # 🎬 Follower — Instrucciones del Proyecto
 
-## Qué es este proyecto
+---
 
-PWA de exploración cinematográfica: narración AI en tiempo real, GPS y cuidado contextual. La ciudad misma es la banda sonora.
+## PARTE 1 — IDENTIDAD Y PRINCIPIOS *(estable — no reescribir cada sesión)*
 
-Stack: HTML+CSS+JS Vanilla · Leaflet.js · Claude Haiku (Cloudflare Worker `cloudflare/worker.js`, passthrough puro verificado) · Web Speech API · OpenWeatherMap · Wikipedia GeoSearch + Overpass OSM · GitHub Pages · PWA. Sin frameworks, sin npm, sin build step.
+### Qué es Follower
 
-## Regla de Oro
+PWA de exploración cinematográfica: narración AI en tiempo real vía GPS, más cuidado contextual. No es un mapa, no es una audioguía, no es Wikipedia hablada — es "el amigo más culto que conoces", un acompañante invisible, no un dispositivo. La ciudad es la banda sonora.
 
-El panel es fotografía estática; el árbitro es GitHub (`raw.githubusercontent.com/follower-app/follower/main/...`). Ante cualquier "ya quedó hecho", el árbitro es el código, no el resumen.
+Stack: HTML+CSS+JS Vanilla · Leaflet.js · Claude Haiku (Cloudflare Worker) · Web Speech API · OpenWeatherMap · Wikipedia GeoSearch + Overpass OSM · Nominatim · GitHub Pages · PWA. Sin frameworks, sin npm, sin build step.
 
-**Protocolo de cierre:** commit → panel → estas instrucciones → chat nuevo. En ese orden.
+### La pregunta rectora
 
-**Deploys:** `index.html` se sirve cache-first y `skipWaiting()` está deshabilitado a propósito (no interrumpir audio activo). Un F5 normal NO trae el HTML más reciente — usar el botón **🔄 Actualizar app** del panel de debug (fuerza `skipWaiting()` bajo demanda) o cerrar todas las pestañas.
+**¿Esto nos acerca a una experiencia cinematográfica o a una audioguía tradicional?** Si acerca a audioguía, es la decisión equivocada — este es el filtro para toda decisión de producto, no un eslogan.
 
-## Documentos del proyecto
+*Ejemplo real de un rechazo por este criterio:* el cono de brújula en el mapa se descartó como elemento *siempre visible* (se siente a herramienta de navegación, audioguía) y se rediseñó para aparecer **solo cuando hay un POI activo narrando** — el compañero te ayuda a encontrar lo que está por contarte, no te guía como un GPS.
 
-README · REGLAS_IA · docs/: contexto_maestro · producto (a S35) · **arquitectura (DA-1 a 85)** · bitacora (a S35) · **manifiesto_narrativo v3.1** · **manifiesto_pois v1.0** · manifiesto_care_strip · prompt_maestro **v3.7** (capítulos) · dt42 · dt45/dt47 (⚠️ dt47 describe wizard de 4 pasos — desactualizado, wizard real ahora tiene 3) · registro_s24 · restauracion_poi_js
+### Metáfora central
 
-## Arquitectura de archivos
+Sístole (`#1a5276`, caminando) / Diástole (`#c0392b`, narrando) — nunca invertir los colores. El logo (corazón-brújula) tampoco se invierte nunca: invertido se lee como audífonos, contradice la identidad anti-audioguía.
 
-index.html · sw.js **v66** (siempre último en commits) · manifest.json · css/ · js/ (app, config, gps, poi, narration, voice, weather, care, walkmode, routes, debug, debug-sim; music.js stubbed) · assets/ · docs/ · cloudflare/worker.js
+### Invariantes que rompen la experiencia si se tocan sin pensarlo
 
-## Reglas críticas
+- GPS nunca se interrumpe · Offline obligatorio · Nunca mostrar errores crudos al usuario
+- Una sola puerta de desbloqueo de audio (DA-77): el tap en la Etapa 2 del title card, igual primera vez y recurrente
+- Personificación de la ciudad (voz propia, primera persona) SOLO en tesis/prólogo — en ningún otro texto
+- `userName` solo vive en welcome/farewell, nunca llega al Worker (DA-75)
+- Care y cola narrativa son independientes por diseño (cuidado es hospitalidad de presente; capítulos son historias que pueden esperar)
 
-- Sístole `#1a5276` = caminando · Diástole `#c0392b` = narrando · Nunca invertir
-- GPS nunca se interrumpe · Offline obligatorio · Nunca mostrar errores al usuario
-- DA-76: Modo Libre default (DT-56 pendiente; modal-mode sin llamador, NO eliminar)
-- POIs: cascada DA-72 — wiki local+es → neto<8 → Overpass curado → <3 → en.wiki → IndexedDB. Curar antes de exponer (DA-73). Dedup DT-49: wiki gana, perdedor lega inscription/wikidata
-- BUG-060 (cerrado): TextExtracts recorta silencioso >1200 → truncado cliente `EXTRACT_MAX_CHARS=2500`. Misma lección aplicada al extracto de ciudad (`THESIS_EXTRACT_MAX_CHARS`)
-- BUG-062/061 (cerrados S34): ver bitácora S34
-- **BUG-063 a 067 (cerrados S35):** ver bitácora S35 — interval del title card, carrera de bienvenida resuelta demasiado temprano, `isFirst` contaminado por orden del wizard, mismatch de nombre en debug, botones en pestaña huérfana
-- **BUG-068 (ABIERTO S36b):** 4 versiones de prompt fallaron — causa raíz = sesgo entrenamiento Haiku con título corto. Fix pendiente: `cityLabel` desde URL canónica Wikipedia. `THESIS_PROMPT_VERSION`=v4, sw v66
-- **BUG-069 (absorbida S36 → DA-86):** tesis hablada saltada en returning-user — carrera eliminada, reemplazada por `whenCityWelcomeReady()`
-- **DA-71:** cambio en query/filtros/normalización POIs → `POI_CACHE_VERSION++` MISMO commit (actual: **v5**)
-- **DT-50:** cambio al Prompt Maestro de capítulos → `PROMPT_VERSION++` MISMO commit (actual: **v3.7**). Clave: `${PROMPT_VERSION}_${poiId}_${lang}_${topic}_${extractFingerprint}`
-- **v3.7 (VALIDADA 16/16 S32):** scratchpad en grounding wiki — ver docs/prompt_maestro_follower.md
-- **DA-75:** userName solo welcome/farewell, nunca a Worker (tampoco al mini-prompt de tesis/prólogo)
-- **DA-77 (extendida S35):** una sola puerta de desbloqueo de audio — el tap en la Etapa 2 del title card, igual para primera vez y recurrentes. El Paso 4 del wizard ("corazón") **ya no existe** — wizard de 3 pasos (GPS, idioma, nombre)
-- **DA-78:** intro solo primera vez ("Soy Follower") — se antepone al saludo de tesis cuando coinciden (ver DA-85 §1)
-- Patrón freeze-while-open (BUG-058): `updateHistCount()` congela rebuild mientras el sheet está `state-expanded`; `force=true` es la única excepción (colapsos/aperturas deliberadas)
-- Care y cola narrativa independientes · Narración de capítulos 90-130 palabras (excepcional 150)
-- ¿Archivo servido cambió? → sw.js bump, commit final aparte
-- Pregunta rectora: ¿cinematográfico o audioguía?
+### Regla de Oro
 
-## DA-85 — Arquitectura Narrativa v1 (§1 completo S35, §3 pendiente)
+El panel es fotografía estática; el árbitro real es GitHub (`raw.githubusercontent.com/follower-app/follower/main/...`). Ante "ya quedó hecho", se verifica el código, no el resumen.
 
-**§1 — Tesis + Prólogo + Prólogo, EN PRODUCCIÓN (S35):**
-- Una sola llamada a Haiku, 3 partes: scratchpad de verificación → tesis (`---`) → prólogo (`===`). `THESIS_PROMPT_VERSION` = v4
-- Tesis: epíteto 3-8 palabras, idioma local de la ciudad (`getLocalLang`). Prólogo: 40-60 palabras, idioma del usuario (wizard) — pueden diferir
-- Personificación SOLO aquí (única excepción en Follower) · Prohibidos datos literales en ambas piezas
-- Cache: store `narrations`, clave `thesis_v1_${cityName}_${tesisLang}_${prologoLang}`, sin fingerprint
-- Funciones: `prefetchCityThesis` · `getFreshCityWelcome` (consumo único, voz) · `getCachedCityWelcome` (lectura repetible, tab) · `clearCityThesisCache` (debug)
-- **Regla de carrera:** resolución de tesis/prólogo pospuesta hasta el momento REAL de hablar (`_flushPendingWelcome`/`_resolveAndSpeakCityWelcome`), nunca al resolver la ciudad — margen real para que Haiku responda (BUG-064)
+**Protocolo de cierre de sesión:** commit → panel (producto/bitácora/arquitectura) → estas instrucciones (solo Parte 2) → chat nuevo.
 
-**Wizard (3 pasos) → Title card (2 etapas) → Tab de ciudad (3 estados):**
-- Wizard: GPS → idioma → nombre. Sin paso de audio — ver DA-77 extendida arriba
-- Title card Etapa 1: wordmark+slogan+barra, sin corazón. Etapa 2: corazón latiendo + "toca para escucharme", sin techo. Cross-fade vía `.titlecard-stage`/`.visible`
-- Tab (`#nearbySelector`), 3 estados vía clase: `state-closed` (manija) / `state-peek` (ciudad+tesis/genérico+iconos de POI, Variante B sin nombres) / `state-expanded` (+prólogo+lista completa). Sin pill — `bar-pill-right` eliminado
-- Primera vez en ciudad: abre expandido narrando (POIs ocultos), colapsa a peek al terminar o con tap. Visitas siguientes: peek directo, sin narrar. Degradación total (sin wiki): peek con texto genérico (`getCityWelcome` reusado), estilo `.welcome-generic`
-- Tap en icono de POI → expande + resalta (no narra directo — seguridad caminando)
-- Sheet se oculta del todo durante diástole (mini-player), restaura a peek/closed según `AppState._sheetUserClosed`
+**Deploys:** `index.html` se sirve cache-first, `skipWaiting()` deshabilitado a propósito (no interrumpir audio activo). F5 normal NO trae lo último — usar **🔄 Actualizar app** del panel de debug o cerrar todas las pestañas. Archivo servido cambió → `sw.js` bump, commit final aparte.
 
-**Pendiente:** §3 lente narrativa en capítulos (tesis como lente débil, sin scratchpad, en system prompt) · DT-68 (acumular capítulos) · DT-46 (cierre de caminata) → Epílogo
+**Convenciones de tickets:** DA (decisión de arquitectura) / DT (deuda técnica) / BUG. Cambios a `POI_CACHE_VERSION`, `PROMPT_VERSION` o `THESIS_PROMPT_VERSION` van en el MISMO commit que el cambio que los motiva.
 
-**Derivados:** DT-67 **absorbida** por el rediseño del tab (considerar cerrada) · Pregunta 6 (curaduría) → Fase 2
+### Documentos del proyecto
 
-## Funciones únicas — nunca duplicar
+README · REGLAS_IA · docs/: contexto_maestro · producto · **arquitectura** (histórico completo de decisiones DA) · bitacora (histórico de sesiones) · manifiesto_narrativo · manifiesto_pois · manifiesto_care_strip · prompt_maestro · dt42 · dt45/dt47 (⚠️ desactualizado, wizard describe 4 pasos) · registro_s24 · restauracion_poi_js
 
-poi.js: detectNearby · enqueuePOI · processQueue · fetchWikipediaPOIs · _attachExtracts · fetchPOIsFromOSM · classifyOSMElement · dedupOSMPOIs · fuseWithWikipedia · markVisited · resetVisited · activatePOI · activateFromBar · showPOICard/hidePOICard (mini-player diástole, NO narrationText) · renderExpanded/onMarkerTap (screen-poi, SÍ narrationText — pantallas distintas)
-narration.js: trigger · getCareMessage · getLocalLang · cleanPOIName · getCityWelcome · getCityIntroFallback · getCityIntroPrefix · sanitizeNarration · buildGroundingBlock · _dt51VerifyAutorFecha · **prefetchCityThesis · getFreshCityWelcome · getCachedCityWelcome · whenCityWelcomeReady · clearCityThesisCache**
-care.js: checkCareContext · checkSpecialZone · gps.js: distanceMeters · getRadiusConfig · fetchCityName · updateUserPosition · walkmode.js: start · stop · onMove · isActive
-app.js: setPhase · updateExplorePhase · navigateTo · welcomeCity · _resolveAndSpeakCityWelcome · _speakCityWelcome · **_sheetShow · _sheetReopenFromHandle · _sheetExpand · _sheetCollapseToPeek · _sheetUserClose · _showCityWelcomeSheet · _collapseCityWelcomeSheet · _populatePersistentCityHeader · _expandAndHighlightPOI** · updateHistCount · _unlockAudioOnFirstTap · _flushPendingWelcome · _wizComplete (reemplaza a _wizFinish) · _showTitleCard · _showTitleCardTapStage
-voice.js: speak · stop · unlockFromGesture · recuperación visibilitychange · SAFETY_MAX_MS=120s
-debug.js: **retestCityWelcome · clearAllThesisCache · forceUpdateApp · resetToFirstTime** (nuevas S35)
+### Arquitectura de archivos
 
-## Estado actual
+index.html · sw.js (siempre último en commits) · manifest.json · css/ · js/ (app, config, gps, poi, narration, voice, weather, care, walkmode, routes, debug, debug-sim; music.js stubbed) · assets/ · docs/ · cloudflare/worker.js
 
-v0.9 — **Sesión 36b (28 julio 2026).** DA-86 validada en campo (Palmira, PC Chrome). BUG-068 reabierto: 4 versiones de prompt probadas (v1→v4), todas alucinan Palmira Siria — causa raíz confirmada (sesgo entrenamiento Haiku supera el prompt con `cityLabel="Palmira"` sin desambiguación). Fix definitivo: título canónico Wikipedia como `cityLabel`. `THESIS_PROMPT_VERSION`=v4, sw v66.
+### Funciones únicas — nunca duplicar
 
-## Pendientes críticos (orden sugerido)
+poi.js: detectNearby · enqueuePOI · processQueue · fetchWikipediaPOIs · _attachExtracts · fetchPOIsFromOSM · classifyOSMElement · dedupOSMPOIs · fuseWithWikipedia · markVisited · resetVisited · activatePOI · activateFromBar · showPOICard/hidePOICard (mini-player) · renderExpanded/onMarkerTap (screen-poi)
+narration.js: trigger · getCareMessage · getLocalLang · cleanPOIName · getCityWelcome · getCityIntroFallback/Prefix · sanitizeNarration · buildGroundingBlock · _fetchCityExtract · prefetchCityThesis · getFreshCityWelcome · getCachedCityWelcome · whenCityWelcomeReady · clearCityThesisCache
+care.js: checkCareContext · checkSpecialZone | gps.js: distanceMeters · getRadiusConfig · fetchCityName · _parseWikiTag · updateUserPosition | walkmode.js: start/stop/onMove/isActive
+app.js: setPhase · updateExplorePhase · navigateTo · welcomeCity · _resolveAndSpeakCityWelcome/_speakCityWelcome · _sheetShow/Expand/CollapseToPeek/UserClose/ReopenFromHandle · _showCityWelcomeSheet/_collapseCityWelcomeSheet · _populatePersistentCityHeader · _expandAndHighlightPOI · updateHistCount · _unlockAudioOnFirstTap · _flushPendingWelcome · _wizComplete · _showTitleCard/_showTitleCardTapStage
+voice.js: speak · stop · unlockFromGesture · recuperación visibilitychange
+debug.js: retestCityWelcome · clearAllThesisCache · forceUpdateApp · resetToFirstTime
 
-1. **BUG-068 fix definitivo** — `cityLabel` desde URL canónica Wikipedia (no `page.title`)
-2. **Validación DA-86 en Cali** — ciudad con POIs reales, sin homónima
-3. **DA-85 §3** — lente narrativa en capítulos (tesis como lente débil, system prompt de POI, sin scratchpad). Prerrequisito: DA-86 validada en campo.
-3. **DT-68** (acumular capítulos de sesión) → **DT-46** (cierre de caminata) → Epílogo
-4. **DT-58** (config post-wizard, sin ratificar) — ítems ya identificados: idioma, nombre, volVoice, casa de DT-56
-5. **DT-64** (brújula) · **DT-63** (campo flujo completo) · **DT-61** (+parques, vara Niveles A/B/C)
-6. **DT-9** — único ítem con riesgo de seguridad activo (key en historial de git)
-7. Swipe real para cerrar el peek · limpieza CSS huérfano (`.bar-pill-left`, `.bar-heart-wrap`) · logo con ticks más gruesos
+---
 
-## El Narrador
+## PARTE 2 — ESTADO DE SESIÓN *(delta — reescribir cada cierre, mantener corta)*
 
-Una sola voz. Prompt Maestro **v3.7** en narration.js (capítulos, es+en espejo). Tesis+prólogo: mini-prompt propio v1 (S35), invariante + idioma por línea en el user prompt, no espejo es/en. Ver docs/prompt_maestro_follower.md.
+**Versiones actuales:** sw.js **v68** · `THESIS_PROMPT_VERSION`=**v5** · `POI_CACHE_VERSION`=**v5** · Prompt Maestro **v3.7** (capítulos, validada 16/16 S32) · arquitectura DA-1 a **87** · docs a **Sesión 36c** (29 jul 2026)
 
-## Identidad
+**Cerrado esta sesión (S36c) — detalle completo en bitácora S36c, no repetir aquí:**
+- BUG-068 (fix definitivo, ver DA-87) — pendiente validación de campo en Palmira
+- BUG-070 (prólogo huérfano en visitas recurrentes) — pendiente validación de campo
 
-Corazón C2 con brújula · "your city soundtrack" · DM Serif Display + Inter
-App: follower-app.github.io/follower · Worker: followernarration.jaimeand.workers.dev
+**Mecanismos activos que un chat nuevo debe conocer sin ir a buscar (ver DA-85/86/87 en arquitectura.md para el detalle):**
+- DA-86: tab de ciudad muestra tesis+prólogo siempre (sesión 1 o 50); solo narra la primera vez por ciudad (marca durable)
+- DA-87: título canónico de Wikipedia vía tag OSM (Nominatim `zoom=10&extratags=1`), con cascada de adivinanza como fallback si no hay tag
+- `_CITY_NEGATIONS` (v3): red secundaria, ya no defensa primaria — retiro condicionado (DT-71)
+
+**Pendientes críticos (orden sugerido):**
+1. Validación de campo BUG-068 v5 — Palmira, confirmar sin Siria/Zenobia
+2. Validación de campo BUG-070 — ciudad ya narrada, expandir tab, confirmar prólogo
+3. DT-69 — guarda por coordenadas (red adicional a DA-87)
+4. Validación DA-86 en Cali — ciudad con POIs reales, sin homónima
+5. DA-85 §3 — lente narrativa en capítulos. Prerrequisito: #1 y #4
+6. DT-71 — retiro `_CITY_NEGATIONS`, condicionado a #1
+7. DT-68 → DT-46 → Epílogo
+8. DT-58 (config post-wizard) · DT-64 (brújula) · DT-63 · DT-61 (+parques) · DT-70 (limpieza debug.js)
+9. DT-9 — único riesgo de seguridad activo (key en historial git)
+10. Swipe real para peek · limpieza CSS huérfano · logo ticks más gruesos

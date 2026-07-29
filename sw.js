@@ -8,7 +8,7 @@
 
 // Incrementar CACHE_VERSION fuerza descarga de todos los archivos
 // en el proximo arranque — incluso si el navegador tiene version cacheada.
-const CACHE_VERSION = 'follower-v67';  // BUG-068 v5: fix definitivo — extracto de ciudad via tag OSM wikipedia (Nominatim zoom=10+extratags=1), ya no adivinanza por nombre corto
+const CACHE_VERSION = 'follower-v68';  // BUG-070: prologo no se poblaba en visitas recurrentes a una ciudad ya narrada (DA-86 §1: mostrar tesis+prologo siempre, sesion 1 o 50)
 
 const STATIC_ASSETS = [
   './',

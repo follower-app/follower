@@ -2982,8 +2982,40 @@ El title card espera `whenCityWelcomeReady()` como tercera compuerta real de la 
 
 **Archivos modificados:** `config.js`, `gps.js`, `narration.js`, `app.js`, `sw.js` v64.
 
-**Relacionado:** BUG-068 (prompt de tesis v2, mismo commit de narration.js).
+**Relacionado:** BUG-068 (prompt de tesis v2, mismo commit de narration.js). *Nota S36c: la causa raíz descrita aquí (prompt) resultó incorrecta — ver DA-87, el problema real vivía en el origen del extracto, no en el prompt.*
 
 ---
 
 *Follower — Arquitectura v0.9 | Sesión 36 | 27 Julio 2026*
+
+---
+
+## DA-87 — Título canónico de Wikipedia vía tag OSM (BUG-068 v5)
+
+*Sesión 36c. Fix definitivo de BUG-068 — corrige el diagnóstico de S36b.*
+
+**Diagnóstico anterior (S36b) era incorrecto.** Se probaron 4 versiones de prompt (v1→v4) asumiendo sesgo de entrenamiento de Haiku sobre "Palmira = ruinas de Siria". Ninguna funcionó. La causa real: `_fetchCityExtract` pedía el extracto de Wikipedia con `titles: cityName` (nombre corto de Nominatim, "Palmira") — y en `es.wikipedia.org`, ese título resuelve al artículo de la Palmira siria (provincia de Homs), no al colombiano (`Palmira (Colombia)`). Haiku no alucinaba: obedecía con precisión un extracto de origen incorrecto. Ningún prompt puede compensar un extracto equivocado — la causa vivía una capa antes de donde se buscaba.
+
+**Verificación de campo, una variable a la vez, antes de escribir código:**
+1. Reverse de Nominatim tal como lo usaba `gps.js` (sin `zoom`): devolvió un objeto `way` de detalle máximo (una calle, "Carrera 34A") — `extratags` vacío de información útil, porque el tag pertenece a la vía, no a la ciudad.
+2. Con `zoom=10&extratags=1`: el objeto principal pasó a ser la relación administrativa de la ciudad (`osm_type: relation`, `osm_id: 1473610` para Palmira) — y su `extratags.wikipedia` trae `"es:Palmira (Colombia)"`, el título correcto, junto a `extratags.wikidata: "Q989858"`.
+3. Caso de estrés — Rozo (centro poblado sin jerarquía propia, dentro del municipio de Palmira): el mismo `zoom=10` resolvió correctamente hacia el municipio padre, con el mismo tag correcto. La técnica no rompe en asentamientos menores.
+
+**Mecanismo implementado:**
+- `gps.js`: el reverse de Nominatim en `_fetchCityNameInner` ahora pide `zoom=10&extratags=1` — misma llamada, sin costo adicional de rate-limit (sigue siendo 1 req por resolución de ciudad). Nuevo helper `_parseWikiTag(tag)` separa `"es:Palmira (Colombia)"` en `{lang, title}`.
+- El hint `{lang, title}` viaja como quinto argumento de `prefetchCityThesis(cityName, tesisLang, prologoLang, countryCode, wikiHint)` — **en paralelo** a `cityName`, nunca reemplazándolo: `cityName` sigue siendo la clave de cache/inflight (`AppState.cityShort`, DA-86 intacta). El hint solo decide qué artículo de Wikipedia se consulta.
+- `narration.js` — `_fetchCityExtract(cityName, localLang, wikiHint)`: si hay hint, se intenta primero con su idioma+título exactos, sin cascada de adivinanza. Si falla (tag desactualizado, página movida, artículo sin traducción a ese idioma), cae a la cascada de adivinanza anterior (nombre corto en idioma local → inglés) — **ningún camino de degradación se pierde**, el hint es una mejora aditiva, no un reemplazo que pueda romper el caso sin tag.
+- `page.title` de la respuesta real de Wikipedia sigue siendo el `wikiTitle`/`cityLabel` que llega al prompt de Haiku (igual que en v4) — pero ahora refleja el artículo *correcto*, porque la consulta ya apuntó al lugar correcto desde el origen.
+- `THESIS_PROMPT_VERSION` v4→v5 — invalida cache de tesis generadas con extractos equivocados en v1-v4.
+
+**Decisión de diseño — degradación explícita, no absoluta:** el hint de OSM depende de cobertura de tags (`wikipedia=`/`wikidata=` en la relación admin), que no es universal. Ciudades pequeñas sin ese tag caen automáticamente a la cascada de adivinanza de siempre — el comportamiento pre-v5 para esos casos, ni mejor ni peor. **DT-69** (guarda por coordenadas artículo-vs-GPS) queda como red de detección adicional para el caso en que el extracto llegue equivocado por una vía no anticipada por ninguna de las dos rutas anteriores.
+
+**`_CITY_NEGATIONS` (v3) no se retira en este commit** — queda como red secundaria, ya no como defensa primaria. Retiro condicionado a validación de campo, ver **DT-71**.
+
+**Archivos modificados:** `gps.js`, `narration.js`, `sw.js` v67.
+
+**Relacionado:** BUG-068 (cerrado con este fix, pendiente validación de campo), DT-69, DT-71.
+
+---
+
+*Follower — Arquitectura v0.9 | Sesión 36c | 29 Julio 2026*

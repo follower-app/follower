@@ -675,7 +675,7 @@ function _resolveAndSpeakCityWelcome({ city, isFallback }) {
       if (typeof Debug !== 'undefined') {
         Debug.log('info', `Bienvenida: ${city} ya narrada — encabezado con tesis, sin voz (DA-86)`);
       }
-      _populatePersistentCityHeader(city, welcome.tesis, false);
+      _populatePersistentCityHeader(city, welcome.tesis, welcome.prologo, false);
 
     } else {
       // Degradación REAL: ciudad sin artículo / Haiku caído / offline.
@@ -689,7 +689,7 @@ function _resolveAndSpeakCityWelcome({ city, isFallback }) {
       const generic = (typeof Narration !== 'undefined' && typeof Narration.getCityWelcome === 'function')
         ? Narration.getCityWelcome(city, null, localLang, false)
         : null;
-      if (generic) _populatePersistentCityHeader(city, generic, true);
+      if (generic) _populatePersistentCityHeader(city, generic, null, true);
       _speakCityWelcome(text, localLang, includeIntro, null, null);
     }
   });
@@ -810,12 +810,19 @@ function _collapseCityWelcomeSheet() {
    Ciudad ya visitada (cache hit) o degradación total (sin tesis nunca
    cacheada, isGeneric=true) — el nombre + tesis/texto genérico deberían
    seguir presentes para el resto de la caminata. Se puebla directo en
-   peek (o closed, si el usuario ya lo había cerrado antes). */
-function _populatePersistentCityHeader(cityName, tesis, isGeneric) {
+   peek (o closed, si el usuario ya lo había cerrado antes).
+   BUG-070 (S36c): faltaba escribir #welcomePrologo aquí — DA-86 §1 dice
+   explícito "Mostrar (tesis + prólogo en el tab): siempre... Sesión 1 o
+   sesión 50", pero esta función solo poblaba tesis. En degradación real
+   (isGeneric=true) no hay prólogo propio que mostrar — welcome es null
+   en ese camino (ver _resolveAndSpeakCityWelcome) — por eso prologo
+   llega vacío/null ahí y se trata como no-op. */
+function _populatePersistentCityHeader(cityName, tesis, prologo, isGeneric) {
   const sel     = document.getElementById('nearbySelector');
   const cityEl  = document.getElementById('welcomeCityName');
   const tesisEl = document.getElementById('welcomeTesis');
-  if (!sel || !cityEl || !tesisEl) return;
+  const prolEl  = document.getElementById('welcomePrologo');
+  if (!sel || !cityEl || !tesisEl || !prolEl) return;
 
   // No pisar un sheet ya en bienvenida fresca (narrando) en este instante
   if (sel.classList.contains('welcome-narrating')) return;
@@ -823,6 +830,7 @@ function _populatePersistentCityHeader(cityName, tesis, isGeneric) {
   cityEl.textContent  = cityName;
   tesisEl.textContent = isGeneric ? tesis : `"${tesis}"`;
   tesisEl.classList.toggle('welcome-generic', !!isGeneric);
+  if (prologo) prolEl.textContent = prologo; // degradación real: no hay prólogo, se deja el último valor conocido (o vacío) sin pisar
 
   _sheetShow(AppState._sheetUserClosed ? 'closed' : 'peek');
   if (typeof updateHistCount === 'function') updateHistCount(true);

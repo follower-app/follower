@@ -5820,3 +5820,57 @@ Sesión de laboratorio exhaustiva. Todas las versiones generaron tesis sobre Pal
 ---
 
 *Follower — Bitácora v0.9 | Sesión 36b | 28 Julio 2026*
+
+---
+
+## Sesión 36c — 29 Julio 2026
+
+**Foco:** BUG-068 — diagnóstico corregido y fix definitivo (v5). BUG-070 — prólogo huérfano en visitas recurrentes.
+
+### BUG-068 — Diagnóstico de S36b era incorrecto: no era sesgo de Haiku
+
+Antes de escribir código se verificó la hipótesis de la causa raíz con evidencia real, paso a paso (una variable a la vez):
+
+1. Búsqueda confirmó que `es.wikipedia.org/wiki/Palmira` es la ciudad siria (provincia de Homs); la colombiana vive en `Palmira (Colombia)`.
+2. Se probó el reverse de Nominatim tal como lo usa `gps.js` hoy (sin `zoom`): devolvió un objeto `way`/calle ("Carrera 34A"), no la ciudad — `extratags` no tenía nada útil.
+3. Se probó con `zoom=10&extratags=1`: el objeto principal pasó a ser la relación admin de Palmira (`osm_id: 1473610`), con `extratags.wikipedia: "es:Palmira (Colombia)"` y `extratags.wikidata: "Q989858"` — el tag correcto, verificado en campo.
+4. Se probó el mismo caso sobre Rozo (centro poblado dentro de Palmira, sin jerarquía propia): resolvió correctamente hacia el municipio padre, mismo tag correcto. Caso de estrés superado.
+
+**Conclusión:** el extracto se pedía con el nombre corto de Nominatim ("Palmira"), que en Wikipedia resuelve al artículo equivocado. Haiku no alucinaba — obedecía un extracto de origen incorrecto. Ninguna de las 4 versiones de prompt (v1-v4) podía haber funcionado, porque el prompt nunca fue la causa.
+
+### BUG-068 v5 — Fix implementado
+
+- `gps.js`: reverse de Nominatim con `zoom=10&extratags=1` (misma llamada, sin costo extra de rate-limit). Nuevo `_parseWikiTag()` extrae `{lang, title}` del tag `wikipedia`.
+- `narration.js`: `_fetchCityExtract` intenta primero el hint OSM; si falla, cae a la cascada de adivinanza anterior (conservada como fallback). `prefetchCityThesis` reenvía el hint sin tocar la clave de cache (`cityName`/`AppState.cityShort`, DA-86 intacta). `THESIS_PROMPT_VERSION` v4→v5 (invalida tesis mal-cacheadas).
+- `_CITY_NEGATIONS` (v3) se conserva como red secundaria — retiro condicionado a validación de campo (**DT-71**, nuevo).
+- **DT-69** (nuevo): guarda por coordenadas (Opción C, artículo vs GPS) como red de detección adicional — pendiente de implementar, acordado explícitamente antes de A.
+
+### BUG-070 — Prólogo huérfano en visitas recurrentes (encontrado en campo por Jaime)
+
+DA-86 §1 ratifica: "Mostrar (tesis + prólogo en el tab): siempre... Sesión 1 o sesión 50" — pero `_populatePersistentCityHeader()` (rama "ciudad ya narrada") solo poblaba `#welcomeTesis`, nunca `#welcomePrologo`. La tesis persistía, el prólogo quedaba vacío desde la segunda visita. No se notaba porque `.welcome-prologo` está oculto por CSS en `state-peek` — solo visible al expandir manualmente en visita de retorno.
+
+**Fix:** nuevo parámetro `prologo` en la firma de `_populatePersistentCityHeader`, escrito igual que ya hace `_showCityWelcomeSheet`. Único call site real actualizado.
+
+**Hallazgo aparte durante el barrido (no se arregla hoy):** `retestCityWelcome()` en debug.js tiene referencias muertas de antes del rediseño S35 (`welcomeBlock`, clase `welcome-expandido`, `AppState._cityWelcomeCollapsed`) — no rompen nada, pero el botón no resetea el sheet como su comentario promete. **DT-70** (nuevo).
+
+### Commits de la sesión 36c
+
+1. `BUG-068 v5: fix definitivo - extracto de ciudad via tag OSM wikipedia` (gps.js, narration.js)
+2. `sw.js v67: bump para BUG-068 v5`
+3. `BUG-070: prologo no se poblaba en visitas recurrentes` (app.js)
+4. `sw.js v68: bump para BUG-070`
+
+### Pendientes actualizados (orden sugerido)
+
+1. **Validación de campo BUG-068 v5** — Palmira, confirmar que la tesis hablada ya no menciona Siria/Zenobia/desierto
+2. **Validación de campo BUG-070** — ciudad ya narrada, expandir tab a mano, confirmar prólogo visible
+3. **DT-69** — guarda por coordenadas (Opción C)
+4. **Validación DA-86 en Cali** — ciudad con POIs reales, sin homónima
+5. **DA-85 §3** — lente narrativa en capítulos. Prerrequisito: BUG-068 + DA-86 validadas en campo
+6. **DT-71** — retiro de `_CITY_NEGATIONS`, condicionado a #1
+7. **DT-70** — limpieza de `retestCityWelcome()`
+8. **DT-9** — único riesgo de seguridad activo
+
+---
+
+*Follower — Bitácora v0.9 | Sesión 36c | 29 Julio 2026*

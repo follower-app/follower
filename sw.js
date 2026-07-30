@@ -8,7 +8,7 @@
 
 // Incrementar CACHE_VERSION fuerza descarga de todos los archivos
 // en el proximo arranque — incluso si el navegador tiene version cacheada.
-const CACHE_VERSION = 'follower-v69';  // DT-70: limpieza de retestCityWelcome() — el boton ocultaba #welcomeBlock de forma permanente y rompia el tab que debia validar
+const CACHE_VERSION = 'follower-v70';  // DT-69: guarda por coordenadas en _fetchCityExtract — descarta articulos de Wikipedia a mas de 50 km del caminante (red adicional a DA-87)
 
 const STATIC_ASSETS = [
   './',

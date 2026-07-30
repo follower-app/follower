@@ -8,7 +8,7 @@
 
 // Incrementar CACHE_VERSION fuerza descarga de todos los archivos
 // en el proximo arranque — incluso si el navegador tiene version cacheada.
-const CACHE_VERSION = 'follower-v68';  // BUG-070: prologo no se poblaba en visitas recurrentes a una ciudad ya narrada (DA-86 §1: mostrar tesis+prologo siempre, sesion 1 o 50)
+const CACHE_VERSION = 'follower-v69';  // DT-70: limpieza de retestCityWelcome() — el boton ocultaba #welcomeBlock de forma permanente y rompia el tab que debia validar
 
 const STATIC_ASSETS = [
   './',

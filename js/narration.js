@@ -671,7 +671,8 @@ Idioma: ${lang}`;
         const baseUrl = `https://${lang}.wikipedia.org/w/api.php`;
         const params = new URLSearchParams({
           action:      'query',
-          prop:        'extracts|coordinates',
+          prop:        'extracts|coordinates|pageprops',
+          ppprop:      'disambiguation',
           exintro:     'true',
           explaintext: 'true',
           redirects:   '1',
@@ -692,6 +693,18 @@ Idioma: ${lang}`;
         const page  = Object.values(pages)[0];
 
         if (page && !('missing' in page) && typeof page.extract === 'string' && page.extract.length > 0) {
+          // DT-69b: las paginas de desambiguacion son el candidato SIN
+          // coordenadas mas probable, asi que la guarda de DT-69 las deja
+          // pasar por diseño ("ausencia no es evidencia") y Haiku recibe
+          // una lista de acepciones en vez de una ciudad. Se descartan
+          // antes, por la propiedad oficial de MediaWiki.
+          if (page.pageprops && 'disambiguation' in page.pageprops) {
+            if (typeof Debug !== 'undefined') {
+              Debug.log('warn', `DT-69b: "${title}" (${lang}.wikipedia) es pagina de desambiguacion — descartada. Probando siguiente candidato.`);
+            }
+            continue;
+          }
+
           // DT-69: guarda por coordenadas ANTES de aceptar el extracto.
           // Si falla, se hace `continue` — no `return null` — para que la
           // cascada de adivinanza siga buscando el artículo correcto.

@@ -1798,20 +1798,17 @@ const Debug = (() => {
 
     log('info', `Retest ciudad: cache de "${rawCity}" (${tesisLang}-${prologoLang}) ${borrado ? 'borrado' : 'NO se pudo borrar'}`);
 
-    // Resetear el sheet a su estado visual original antes de re-disparar
-    const block   = document.getElementById('welcomeBlock');
-    const tesisEl = document.getElementById('welcomeTesis');
-    const prolEl  = document.getElementById('welcomePrologo');
-    const titleEl = document.getElementById('nearbySelectorTitle');
-    const sel     = document.getElementById('nearbySelector');
-    if (block)   block.classList.add('hidden');
-    if (tesisEl) tesisEl.classList.remove('compact');
-    if (prolEl)  prolEl.classList.remove('hidden');
-    if (titleEl) titleEl.textContent = 'Historias cerca';
-    if (sel)     sel.classList.remove('welcome-expanded');
-
-    AppState._cityWelcomeDone      = false;
-    AppState._cityWelcomeCollapsed = false;
+    /* DT-70 (S37): aqui habia un "reseteo visual" heredado del diseno previo
+       al rediseno del tab (S35). Se elimino a proposito — NO restaurar:
+       - .compact y .welcome-expanded ya no existen en ningun CSS
+       - nadie pone 'hidden' en #welcomePrologo
+       - #nearbySelectorTitle lo reescribe app.js ("Por descubrir · N")
+       - y sobre todo: add('hidden') sobre #welcomeBlock lo ocultaba de forma
+         permanente (main.css .hidden usa !important) y nadie lo revertia, asi
+         que este boton rompia justo el bloque que existe para validar.
+       La visibilidad del bloque la controla el estado del sheet
+       (#nearbySelector.state-closed .welcome-block), no una clase suelta. */
+    AppState._cityWelcomeDone = false;
 
     if (typeof Narration.prefetchCityThesis === 'function') {
       log('info', `Retest ciudad: esperando a Haiku para "${rawCity}"...`);

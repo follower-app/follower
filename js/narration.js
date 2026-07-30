@@ -605,6 +605,51 @@ Idioma: ${lang}`;
      (getLocalLang, DT-41), fallback en.wiki. */
   const THESIS_EXTRACT_MAX_CHARS = 2500;
 
+  /* ── DT-69: guarda por coordenadas — red ADICIONAL a DA-87 ──
+     DA-87 corrige el ORIGEN (título canónico vía tag OSM). Esta guarda no
+     corrige nada: solo detecta que el artículo llegó mal por una vía que
+     DA-87 no anticipa (tag OSM apuntando a otro sitio, redirect raro,
+     cascada de adivinanza acertando el nombre pero no la ciudad).
+     Umbral generoso a propósito: el artículo apunta al centro de la ciudad
+     y el caminante puede estar en la periferia de un área metropolitana
+     grande. 50 km descarta homónimas de otro continente sin falsos
+     positivos plausibles. Ausencia de coordenadas NO es motivo de rechazo:
+     hay artículos legítimos sin geoetiqueta, y ausencia no es evidencia. */
+  const THESIS_COORD_MAX_KM = 50;
+
+  /* DT-69: ¿el artículo que respondió está donde está el caminante?
+     Devuelve true (aceptar) en todos los casos ambiguos — la guarda solo
+     rechaza cuando hay evidencia POSITIVA de que el artículo es de otra
+     ciudad: hay GPS, hay coordenadas en el artículo, y la distancia
+     supera el umbral. Sin GPS o sin geoetiqueta, no opina. */
+  function _coordGuardPasses(page, lang, title) {
+    const gps = (typeof AppState !== 'undefined') ? AppState.gps : null;
+    if (!gps || typeof gps.lat !== 'number' || typeof gps.lng !== 'number') return true;
+
+    const coord = Array.isArray(page.coordinates) ? page.coordinates[0] : null;
+    if (!coord || typeof coord.lat !== 'number' || typeof coord.lon !== 'number') {
+      if (typeof Debug !== 'undefined') {
+        Debug.log('info', `DT-69: "${title}" (${lang}.wikipedia) sin geoetiqueta — guarda no aplica, se acepta`);
+      }
+      return true;
+    }
+
+    if (typeof GPS === 'undefined' || typeof GPS.distanceMeters !== 'function') return true;
+
+    const km = GPS.distanceMeters(gps.lat, gps.lng, coord.lat, coord.lon) / 1000;
+    if (km > THESIS_COORD_MAX_KM) {
+      if (typeof Debug !== 'undefined') {
+        Debug.log('warn', `DT-69: artículo "${title}" (${lang}.wikipedia) descartado — está a ${Math.round(km)} km del caminante (umbral ${THESIS_COORD_MAX_KM} km). Probando siguiente candidato.`);
+      }
+      return false;
+    }
+
+    if (typeof Debug !== 'undefined') {
+      Debug.log('info', `DT-69: "${title}" (${lang}.wikipedia) a ${Math.round(km)} km — guarda OK`);
+    }
+    return true;
+  }
+
   async function _fetchCityExtract(cityName, localLang, wikiHint) {
     // BUG-068 v5: si hay hint (título canónico desde el tag OSM `wikipedia`),
     // se intenta PRIMERO, en su propio idioma+título exactos — sin cascada
@@ -626,7 +671,7 @@ Idioma: ${lang}`;
         const baseUrl = `https://${lang}.wikipedia.org/w/api.php`;
         const params = new URLSearchParams({
           action:      'query',
-          prop:        'extracts',
+          prop:        'extracts|coordinates',
           exintro:     'true',
           explaintext: 'true',
           redirects:   '1',
@@ -647,6 +692,11 @@ Idioma: ${lang}`;
         const page  = Object.values(pages)[0];
 
         if (page && !('missing' in page) && typeof page.extract === 'string' && page.extract.length > 0) {
+          // DT-69: guarda por coordenadas ANTES de aceptar el extracto.
+          // Si falla, se hace `continue` — no `return null` — para que la
+          // cascada de adivinanza siga buscando el artículo correcto.
+          if (!_coordGuardPasses(page, lang, title)) continue;
+
           let ext = page.extract;
           if (ext.length > THESIS_EXTRACT_MAX_CHARS) {
             ext = ext.slice(0, THESIS_EXTRACT_MAX_CHARS);

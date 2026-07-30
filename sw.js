@@ -8,7 +8,7 @@
 
 // Incrementar CACHE_VERSION fuerza descarga de todos los archivos
 // en el proximo arranque — incluso si el navegador tiene version cacheada.
-const CACHE_VERSION = 'follower-v70';  // DT-69: guarda por coordenadas en _fetchCityExtract — descarta articulos de Wikipedia a mas de 50 km del caminante (red adicional a DA-87)
+const CACHE_VERSION = 'follower-v71';  // DT-69b: descarta paginas de desambiguacion en _fetchCityExtract — pasaban la guarda de coordenadas por no tener geoetiqueta
 
 const STATIC_ASSETS = [
   './',

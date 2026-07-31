@@ -3054,6 +3054,10 @@ Esto matiza —sin invalidarla— la verificación de S36c, donde el caso de est
 
 ---
 
+*Follower — Arquitectura v0.9 | Sesión 37 | 30 Julio 2026*
+
+---
+
 ## DA-85 §3 — Enmienda (S38): lente operativo — diseño ratificado, SIN IMPLEMENTAR
 
 *Sesión 38, 31 julio 2026. Enmienda a DA-85 §3 (S33). Sustituye el diseño original de §3, que quedaba corto en dos puntos. **Nada de esto existe en código** — es diseño cerrado a la espera de sus prerrequisitos.*

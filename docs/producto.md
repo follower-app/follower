@@ -554,6 +554,10 @@ Cuatro botones nuevos en la pestaña POIs del panel: **🏙️ Ciudad** (borra l
 
 ---
 
+*Follower — Documento de Producto v0.9 | Sesión 35 | 20 Julio 2026*
+
+---
+
 ## DT-68 — Reespecificación y ascenso a prerrequisito doble (S38)
 
 *Sesión 38, 31 julio 2026. Sesión de diseño, sin código. Este bloque **reemplaza el enunciado** de la fila DT-68 de la tabla de la sección 19, que quedó incorrecto por dos motivos distintos. Cierra el pendiente #6 de la lista de S37 ("DT-68 — reescribir enunciado").*

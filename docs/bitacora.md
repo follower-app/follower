@@ -5874,3 +5874,120 @@ DA-86 §1 ratifica: "Mostrar (tesis + prólogo en el tab): siempre... Sesión 1 
 ---
 
 *Follower — Bitácora v0.9 | Sesión 36c | 29 Julio 2026*
+
+---
+
+## Sesión 37 — 30 Julio 2026
+
+**Foco:** cierre de DT-70, DT-69 y DT-69b (nuevo). Validación de campo de BUG-068 v5 y DA-87 en Palmira. Sesión de exploración previa sobre ritmo narrativo y curaduría de POIs (documento aparte).
+
+### Parte 1 — Exploración (sin código): ritmo narrativo y curaduría
+
+La sesión abrió revisando pendientes y derivó a arquitectura narrativa. Todo lo discutido quedó en `docs/exploracion_ritmo_y_curaduria.md`, marcado explícitamente como **exploración no ratificada**. Resumen de lo que importa:
+
+- **DT-68 tiene la premisa equivocada.** `AppState._walkChapters` **ya acumula todos** los capítulos de la caminata (`{poiId, poiName, text, ts}`, narration.js:1300, reset en app.js:535). Lo que solo consume el último es `buildPrompt()`. DT-68 no es "acumular" — es "definir qué consume el epílogo y en qué forma". Además el Prompt Maestro *prohíbe* generar títulos, así que "título" en el enunciado debe leerse `poiName`.
+- **Insumo del epílogo — decisión ratificada:** mandar los textos completos de los capítulos (opción A), no capturar "idea central" en el scratchpad (opción B). Matemática de costo con Haiku 4.5 (US$1/M entrada, US$5/M salida): A ≈ US$0,002 por caminata de 8 capítulos; B ≈ US$0,0008. Diferencia irrelevante en dinero — pero B obliga a bump de `PROMPT_VERSION` (invalida **todas** las narraciones cacheadas), a revalidar n≥4 un prompt 16/16, y cobra tokens de salida en cada capítulo aunque el epílogo nunca ocurra. Principio destilado: *A gasta solo cuando hay premio; B cobra peaje permanente por un premio opcional.* B queda como graduación futura.
+- **Evidencia externa sobre fatiga del visitante** (museos y tours guiados, no evidencia de campo de Follower): el visitante se detiene en ~1/3 de los elementos (Serrell, 108 exhibiciones); declive de atención a los 30-45 min (Bitgood); 6-12 paradas es el rango de diseño de un tour autoguiado a pie; 60-90 s por parada le gana a 4 min. **~8 capítulos es el techo real de una caminata, no 25.** Y las 90-130 palabras del Prompt Maestro ya están en el punto óptimo — no hay nada que cambiar ahí.
+- **Concepto nuevo — presupuesto de ritmo:** DT-61/DT-65 están planteados como filtros de *calidad*; falta un filtro de *ritmo* (aunque los 20 POIs fueran excelentes, narrarlos todos destruye la experiencia). Es el número que la Filosofía de Escasez nunca tuvo. Transversal a DT-61, DT-65 y DT-68. → **DT-74**.
+- **Los "4 modos" no vuelven como selector.** DA-50 no eliminó los registros como capacidades, solo el selector. Un modo fijo por caminata es *ortogonal* a la fatiga (entrega N capítulos del mismo registro = misma monotonía). Lo que la evidencia respalda es variación *dentro* de la caminata decidida por el sistema — y la regla 7 del Prompt Maestro ("no repitas el recurso sensorial del capítulo anterior") ya es un mecanismo anti-saciedad en producción. Extenderla al ángulo es un delta de una línea. → **DT-76**, condicionado.
+- **La narración como criterio de curaduría** (propuesta de Jaime, ya medio documentada como "Modo Curado" en S33): cambia la pregunta difícil ("¿este POI vale un capítulo?") por una fácil ("¿este POI pertenece a esta película?"). Factible: `_attachExtracts()` ya trae el extracto de **todos** los POIs wiki al cargar (poi.js:364, lotes de 20), así que clasificar 40 POIs es **una sola llamada a Haiku** (~US$0,002, cacheable). Riesgo del piso: un filtro temático puede dejar cero POIs. Alcance recomendado: clasificación como criterio de **prioridad**, no de exclusión. → **DT-75**.
+- **Insumo para DT-46:** el turista se vuelve "vagabundo sin rumbo" tras cumplir objetivos, y ahí está más receptivo. Los 30-45 min o el 7º-8º capítulo son candidatos para que Follower *pregunte* por el cierre. DA-85 prohíbe **inferir** el cierre; ofrecer la pregunta no viola nada, el disparador sigue siendo el tap.
+
+### Parte 2 — DT-70 (cerrada): el botón de debug rompía lo que debía probar
+
+Verificación línea por línea de `retestCityWelcome()` contra código en vivo. Lo que S36c registró como "referencias muertas, no-ops" era en realidad **un defecto activo**:
+
+- `.compact` y `.welcome-expanded` no existen en ningún CSS · nadie pone `hidden` en `#welcomePrologo` · `#nearbySelectorTitle` lo reescribe app.js (`Por descubrir · N`) · `AppState._cityWelcomeCollapsed` tiene 0 lectores → todo eso sí era muerto.
+- Pero `block.classList.add('hidden')` sobre `#welcomeBlock` **no era no-op**: `.hidden` es global y usa `!important` (main.css:149), app.js **nunca toca** `welcomeBlock` (0 referencias), y tras el rediseño S35 la visibilidad la controla el estado del sheet (`#nearbySelector.state-closed .welcome-block`, explore.css:636). Pulsar 🏙️ Ciudad ocultaba el bloque de bienvenida **permanentemente hasta recargar**, mientras `_populatePersistentCityHeader()` seguía poblándolo contra un contenedor invisible.
+
+**Consecuencia metodológica:** cualquier validación de BUG-070 hecha con ese botón daba falso negativo garantizado. Evidencia previa obtenida por esa vía queda descartada.
+
+**Fix:** eliminado el bloque de reseteo visual completo (5 líneas DOM + 5 `getElementById` + el flag muerto), conservando `AppState._cityWelcomeDone = false`. Se dejó comentario explícito de *no restaurar*. Neto −14 líneas de código.
+
+### Parte 3 — DT-69 (cerrada): guarda por coordenadas
+
+Implementada en `_fetchCityExtract`: la query pasa a `prop=extracts|coordinates` (mismo fetch, sin llamadas extra) y un helper `_coordGuardPasses()` compara el artículo contra `AppState.gps` vía `GPS.distanceMeters`.
+
+Tres decisiones de diseño explícitas:
+- **Umbral 50 km** en constante `THESIS_COORD_MAX_KM`. Generoso a propósito: el artículo apunta al centro y el caminante puede estar en la periferia de un área metropolitana grande.
+- **Sin geoetiqueta = aceptar.** Ausencia de dato no es evidencia de error; hay artículos de ciudad legítimos sin coordenadas.
+- **Sin GPS = no opinar.**
+- Al fallar hace **`continue`, no `return null`** — descarta el candidato pero deja que la cascada siga buscando. Cortar en seco habría convertido "artículo equivocado" en "ningún artículo", que es peor.
+
+### Parte 4 — DT-69b (nueva y cerrada): las desambiguaciones pasaban la guarda
+
+Descubierto en el primer export de campo. La regla "ausencia de geoetiqueta = aceptar" no anticipó que **el candidato sin coordenadas más probable de todos es una página de desambiguación**. En Palmira: DT-69 descartó correctamente `es.wikipedia/Palmira` (Siria, 11.991 km), y acto seguido `en.wikipedia/Palmira` —una desambiguación sin coordenadas— pasó la guarda, llegó a Haiku como lista de acepciones y produjo borrador malformado con fuga de scratchpad (BUG-059 filtró 521 chars).
+
+**Fix:** `prop=extracts|coordinates|pageprops` con `ppprop=disambiguation`. Al acotar `ppprop`, `page.pageprops` solo existe si la página **es** desambiguación. El descarte va antes de la guarda de coordenadas, con el mismo `continue`.
+
+**Limitación declarada:** se apoya en la propiedad oficial de MediaWiki; una página que actúe como desambiguación sin la plantilla pasaría igual. No se agregaron heurísticas de texto ("puede referirse a") — riesgo de falso positivo sobre artículo legítimo, y sería una segunda variable en el mismo commit.
+
+### Parte 5 — Validación de campo: BUG-068 v5 y DA-87 CERRADOS
+
+Tres exports del iPhone en el mismo día. La secuencia importa:
+
+**Export 1 (17:56) — no validó nada.** `Bienvenida: cache hit — Palmira/es-es` en los dos arranques: sin fetch no hay guarda que ejecutar. La generación real ocurrió antes de la ventana del buffer de logs. **Aprendizaje de método: exportar y limpiar logs ANTES de la prueba, no después.**
+
+**Export 2 (18:09) — desde Ingenio Manuelita, km 7 vía Palmira-Buga (5,1 km del centro):**
+```
+DT-69:  "Palmira" (es.wikipedia) descartado — está a 11991 km (umbral 50 km)
+DT-69:  "Palmira" (en.wikipedia) sin geoetiqueta — guarda no aplica, se acepta
+        Bienvenida: borrador malformado — descartada
+        Bienvenida (voz, degradación genérica): "Palmira. Un capítulo te espera en cada esquina."
+```
+DT-69 funcionó. Pero **no apareció ninguna línea `BUG-068 v5: nombre canónico`** — el primer candidato probado fue la cascada de adivinanza, no el hint. Palmira quedó sin identidad: mejor que mentir, pero no es la victoria.
+
+**Export 3 (20:29) — desde el centro de Palmira:**
+```
+15:23:25  DT-69: "Palmira (Colombia)" (es.wikipedia) a 2 km — guarda OK
+15:23:25  BUG-068 v5: nombre canónico Wikipedia "Palmira (Colombia)"
+          (Nominatim: "Palmira") · hint OSM usado
+15:23:29  Bienvenida: generada — Palmira/es-es
+          · tesis="la ciudad que cultiva respuestas" · prólogo=268 chars
+```
+
+**DA-87 funciona.** Hint OSM usado, título canónico correcto, tesis correcta y buena: *"la ciudad que cultiva respuestas"* — doble sentido con fundamento real (capital agrícola + sede del CIAT y el ICA). Sin Siria, sin Zenobia.
+
+**Hallazgo nuevo — DA-87 no funciona desde la periferia (→ DT-72).** Mismo dispositivo, mismo día, misma app: desde el ingenio el hint no llegó; desde el centro sí. Objeción metodológica anticipada: entre las 13:09 y las 15:23 cambiaron ubicación *y* posiblemente el deploy de v71 — pero DT-69b solo añade `pageprops` a la query de Wikipedia, no toca `fetchCityName` ni la ruta del hint. La versión es provablemente irrelevante para lo medido. **La causa es la ubicación.** Hipótesis: `zoom=10` desde zona rural resuelve una entidad OSM distinta (corregimiento / límite municipal) que no lleva el tag `wikipedia`. No es cosmético: la gente arranca caminatas fuera de los centros constantemente.
+
+**DT-71 queda técnicamente desbloqueado pero NO se ejecuta:** la cascada de adivinanza —donde `_CITY_NEGATIONS` tiene sentido— es justo la que corre en periferia, y ese camino sigue roto. Retirarlo ahora sería quitar la última red del único escenario que aún falla.
+
+### Parte 6 — Retractación registrada
+
+En el análisis del export 2 se concluyó que "Palmira tiene 1 POI, DT-29 confirmada". **Es falso y queda retractado.** Wikipedia GeoSearch con radio de 2 km desde un ingenio azucarero rodeado de caña devuelve cero porque ahí no hay nada, no por mala cobertura. El export 3, desde el centro, muestra `Wikipedia: 7 POIs` → `6/6 POIs con extract` tras el filtro editorial. **DT-29 sigue sin evidencia en contra.** La §5.2 del documento de exploración se corrigió: el riesgo del piso baja de "confirmado en campo" a "hipótesis por argumento".
+
+### Hallazgos menores registrados
+
+- **`checkWorker()` roto (→ DT-73):** pega a `/weather` sin parámetros y recibe 400, pero la línea `_dbgWorkerStatus = res.status ? 'ok' : 'error'` marca **cualquier** status como truthy → el indicador de salud del Worker reporta "ok" incluso con 400 o 500. No ha estado diciendo nada.
+- **BUG-059 filtra mucho:** 521 y 815 chars de scratchpad en dos corridas. El saneamiento funciona, pero la tasa de fuga es alta y consistente. Observación para el próximo ajuste de `THESIS_PROMPT_VERSION`.
+- **`fetchCityName: ... ciudad nueva (DA-86)`** aparece incluso con la ciudad ya narrada y cacheada. La etiqueta miente o significa otra cosa; revisar para que no confunda logs futuros.
+- **Comentario fósil en `care.js`:** `Care.resetWalk()` dice "PENDIENTE: cablear esta llamada en app.js" pero `app.js:539` ya la llama.
+- **Overpass sigue muy caído:** 21 errores contra 4 OK en el histórico acumulado, promedio 38,6 s, máximo 384 s.
+
+### Commits de la sesión 37
+
+1. `DT-70: limpieza de retestCityWelcome - elimina reseteo visual fosil que ocultaba welcomeBlock` (debug.js)
+2. `sw.js v69 - DT-70`
+3. `DT-69: guarda por coordenadas en _fetchCityExtract - descarta articulos a mas de 50 km del caminante` (narration.js)
+4. `sw.js v70 - DT-69`
+5. `DT-69b: descarta paginas de desambiguacion en _fetchCityExtract` (narration.js)
+6. `sw.js v71 - DT-69b`
+7. `docs: cierre de sesion 37` (bitacora, producto, arquitectura, exploracion_ritmo_y_curaduria)
+
+### Pendientes actualizados (orden sugerido)
+
+1. **DT-72** — hint OSM no llega desde periferia. Diagnóstico primero: loguear los `extratags` crudos que devuelve Nominatim y comparar centro vs. rural
+2. **Validación de campo BUG-070** — ciudad ya narrada, expandir tab a mano, confirmar prólogo **visible** (ahora sí posible: el botón 🏙️ Ciudad quedó sano con DT-70)
+3. **Validación DA-86 en Cali** — ciudad con POIs reales, sin homónima
+4. **DT-73** — `checkWorker()` reporta "ok" con cualquier status
+5. **DT-74** — presupuesto de ritmo (transversal a DT-61, DT-65, DT-68)
+6. **DT-68** — reescribir enunciado y definir consumo del epílogo (insumo = textos completos, ya ratificado)
+7. **DA-85 §3** — lente narrativa en capítulos. Prerrequisito: #3
+8. **DT-75** — clasificador temático de POIs (prioridad, no exclusión)
+9. **DT-71** — retiro de `_CITY_NEGATIONS`, condicionado a que DT-72 cierre
+10. **DT-76** — rotación de ángulo narrativo, condicionado a que DT-74 no baste
+11. **DT-9** — único riesgo de seguridad activo
+
+---
+
+*Follower — Bitácora v0.9 | Sesión 37 | 30 Julio 2026*

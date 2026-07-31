@@ -3019,3 +3019,39 @@ El title card espera `whenCityWelcomeReady()` como tercera compuerta real de la 
 ---
 
 *Follower — Arquitectura v0.9 | Sesión 36c | 29 Julio 2026*
+
+---
+
+## DA-87 — Enmienda (S37): validación de campo y límite de periferia
+
+*Sesión 37, 30 julio 2026. Enmienda a DA-87. No modifica el mecanismo — documenta su alcance real medido en campo.*
+
+**Validación positiva.** Desde el centro de Palmira, log del iPhone:
+
+```
+15:23:25  DT-69: "Palmira (Colombia)" (es.wikipedia) a 2 km — guarda OK
+15:23:25  BUG-068 v5: nombre canónico Wikipedia "Palmira (Colombia)"
+          (Nominatim: "Palmira") · hint OSM usado
+15:23:29  Bienvenida: generada — Palmira/es-es
+          · tesis="la ciudad que cultiva respuestas" · prólogo=268 chars
+```
+
+El hint de OSM llegó, resolvió el título canónico y produjo una tesis correcta y de calidad —*"la ciudad que cultiva respuestas"*, doble sentido con fundamento real: capital agrícola y sede del CIAT y del ICA—. **DA-87 y BUG-068 quedan validados en campo.**
+
+**Límite descubierto: el mecanismo no funciona desde la periferia.** El mismo dispositivo, el mismo día, con la misma app, desde Ingenio Manuelita (km 7 vía Palmira-Buga, 5,1 km del centro): no apareció ninguna línea `BUG-068 v5: nombre canónico`, y el primer candidato probado por `_fetchCityExtract` fue la cascada de adivinanza (`es.wikipedia/Palmira` → Siria, interceptado por DT-69 a 11.991 km). El resultado fue degradación genérica: la ciudad no mintió, pero se quedó sin identidad.
+
+**Control metodológico.** Entre las dos mediciones cambiaron dos variables: la ubicación y, posiblemente, el deploy de sw v71 (DT-69b). La segunda es descartable por inspección: DT-69b solo añade `pageprops` a la query de Wikipedia y no toca `fetchCityName` ni la ruta del hint. La causa atribuible es la ubicación.
+
+**Hipótesis de mecanismo (sin verificar todavía).** El reverse de Nominatim con `zoom=10` desde una zona rural puede resolver una entidad OSM distinta de la que resuelve desde el casco urbano —un corregimiento, el límite municipal, otra relación administrativa— y esa entidad no lleva el tag `wikipedia`. Nota que apoya la hipótesis: `fetchCityName` sí devolvió `"Palmira, CO"` correctamente en ambos puntos. Nominatim supo qué ciudad es; lo que no llegó fue el tag.
+
+Esto matiza —sin invalidarla— la verificación de S36c, donde el caso de estrés (Rozo, centro poblado dentro del municipio) resolvió correctamente hacia el municipio padre. La conclusión de entonces ("la técnica no rompe en asentamientos menores") era correcta para *asentamientos con nombre*; no cubre un punto rural sin entidad poblada asociada, que es un caso distinto.
+
+**Consecuencia de producto, no cosmética.** Follower es para caminar, y las caminatas empiezan fuera de los centros con frecuencia. Un caminante que arranca en la periferia recibe la degradación genérica en vez de la tesis de su ciudad. → **DT-72**, con diagnóstico antes que código: loguear los `extratags` crudos de Nominatim y comparar centro contra rural antes de decidir el fix.
+
+**Consecuencia sobre DT-71.** El retiro de `_CITY_NEGATIONS` queda recondicionado: la cascada de adivinanza es justo la que corre en periferia, y ese camino sigue roto. Retirar la tabla ahora quitaría la última red del único escenario que aún falla. El retiro se autoriza cuando DT-72 cierre, no cuando BUG-068 cierre.
+
+**Relacionado:** DA-87, BUG-068 (cerrado), DT-69 (cerrada), DT-69b (cerrada), DT-71 (recondicionada), DT-72 (nueva).
+
+---
+
+*Follower — Arquitectura v0.9 | Sesión 37 | 30 Julio 2026*

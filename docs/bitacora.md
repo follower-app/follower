@@ -5990,4 +5990,92 @@ En el análisis del export 2 se concluyó que "Palmira tiene 1 POI, DT-29 confir
 
 ---
 
-*Follower — Bitácora v0.9 | Sesión 37 | 30 Julio 2026*
+## Sesión 38 — 31 Julio 2026
+
+**Sesión de diseño. Cero código.** Auditorías externas de la arquitectura narrativa, enmienda a DA-85 §3, reespecificación de DT-68 y resolución de una contradicción documental viva desde S32.
+
+### De dónde salió
+
+Jaime trajo tres documentos producidos en paralelo con ChatGPT sobre el sistema narrativo: una auditoría de alineación entre `THESIS_SYSTEM_PROMPT`, prólogo y Prompt Maestro; un texto sobre la separación autor / guion / actor; y una "Arquitectura Narrativa v1.0".
+
+Contrastados contra el código vivo, el saldo fue mixto y conviene dejarlo escrito porque afecta cómo usar esta herramienta en adelante:
+
+- **Lo que proponían como nuevo ya existía.** El concepto de "lente" está literalmente en el `THESIS_SYSTEM_PROMPT` v5 desde S36 ("encuentra su lente — el rasgo, la tensión o el carácter que hace a ESTA ciudad distinta"), y el prólogo ya está definido como elaboración de esa misma lente.
+- **Declaraban completo lo aspiracional.** "Etapa 1 completada" incluía el lente narrativo, que no existe en código. Es exactamente la falta que DT-60/S31 prohibió.
+- **Un diagrama de diagnóstico peligroso:** "¿siguió el guion? sí → ¿emociona? no → probar otro modelo". Omite el primer escalón. Aplicado a BUG-068 habría hecho cambiar de modelo cuatro veces sin arreglar nada, porque la causa no era ni el guion ni el actor: el extracto venía de Palmira, Siria.
+- **Lo genuinamente valioso** fue el vocabulario (autor/guion/actor), la tabla de responsabilidades por bloque, y la convergencia independiente sobre DA-85 §3.
+
+**Aprendizaje de método:** ChatGPT estuvo trabajando sin el código vivo. Útil como generador de vocabulario y como segunda opinión, poco fiable como auditoría. Si se le pasan `prompt_maestro_follower.md` y `manifiesto_narrativo.md` vivos antes de pedir la siguiente, el rendimiento debería subir.
+
+### Un error propio, corregido en sesión
+
+Al revisar el documento 2 afirmé que invertía el eje identitario del producto por decir "el protagonista es la ciudad", contrastando contra `narration.js:96` ("la ciudad es el escenario, el caminante es el protagonista"). Al traer el `manifiesto_narrativo.md` vivo apareció que **el manifiesto decía lo mismo que ChatGPT**: *"La Ciudad — Es el gran personaje de la historia. No es un escenario."*
+
+ChatGPT no había invertido nada: repetía el manifiesto. **La contradicción era nuestra y llevaba viva desde S32.** El manifiesto además se contradecía a sí mismo, porque también llamaba protagonista al Caminante.
+
+No es cosmético: el lente operativo es una instrucción sobre desde dónde mirar, así que el vacío había que cerrarlo antes de escribir nada sobre §3.
+
+**Ratificado (B):** el caminante es el protagonista, la ciudad es el escenario y aquello que intentamos comprender. Gana el código, que lleva desde S32 produciendo capítulos bajo esa lectura y sobre la que se validó Palmira. Es además lo que separa a Follower de una audioguía: la audioguía trata al usuario como público.
+
+### DA-85 §3 — enmienda: el lente operativo
+
+El §3 original (S33) decía: *"la tesis entra al system prompt como lente débil, sin scratchpad; fingerprint de tesis en la clave de cache"*. Se conserva "lente débil, nunca literal, nunca forzada" y el fingerprint. Se enmienda el resto.
+
+**Decisión estructural — hermanos, no cadena.** La auditoría proponía `tesis → capítulos`. Encadenarlos hace que el capítulo herede la voz personificada de la tesis y sus fallos. Ratificado en cambio: tesis, prólogo y lente **nacen los tres del mismo rasgo verificado** en el scratchpad de la llamada de bienvenida. En una cadena un fallo se propaga; entre hermanos se contiene.
+
+**Por qué no personifica.** La diferencia es gramatical, no de contenido. La tesis es proposición sobre la ciudad (sujeto: la ciudad) y personifica por naturaleza. El lente es instrucción dirigida al narrador (sujeto: el narrador) — la ciudad no aparece como sujeto. La personificación queda **estructuralmente imposible, no prohibida por regla**. S32 ya demostró que los regaños en el prompt cuestan calidad.
+
+**Por qué la tesis no se vuelve dependencia frágil.** Jerarquía explícita (grounding > Prompt Maestro > lente) y línea de escape literal si el lente no encuentra asidero. Piso garantizado: **un lente malo degrada a la calidad de v3.7, nunca por debajo.** La apuesta es asimétrica. Además: el lente ausente es estado válido (extractos administrativos), y el capítulo nunca espera al lente.
+
+**Homogeneización — dos mecanismos.** El lente es la tonalidad; la rotación de facetas impide que sea una sola nota. Regla 7 cubre el eco inmediato, ventana de 8 facetas el eco a media distancia.
+
+**La faceta se declara en el scratchpad** (enmienda al "sin scratchpad" original): línea `Faceta: <3-5 palabras>` en la Parte 1, extraída por `sanitizeNarration`. El modelo declara la faceta en el mismo movimiento en que la elige — sin llamada extra, sin latencia, sin replicar comprensión semántica en JS. Riesgo aceptado: autoevaluación del modelo, fallo silencioso, costo acotado a un capítulo que repite ángulo.
+
+**La faceta viaja dentro del registro cacheado** (`{ texto, faceta }`). En ciudad ya caminada la mayoría de capítulos se sirven de caché y nunca pasan por el scratchpad; un ledger ciego se degradaría peor donde más caminas. El cambio de formato es gratis: el bump `PROMPT_VERSION` v3.7→v3.8 ya invalida la caché de todos modos.
+
+**Diferido deliberadamente:** las palabras vedadas contra el eco léxico. Hoy no existe ninguna caminata con lente, así que la magnitud del eco es hipotética — decidir contramedida ahora violaría "una variable a la vez". Inclinación registrada: emisión por Haiku. Añadirlo después es cambio de prompt + bump: reversible y barato.
+
+Anotado para la validación futura: **repetición de eje narrativo** y **eco léxico** son dos observaciones separadas. El eco no nace de mirar lo mismo sino de que el texto del lente está dentro del prompt — puede sobrevivir aunque las facetas sí roten.
+
+### DT-68 reespecificada y ascendida
+
+La fila de la tabla estaba mal en dos frentes: "hoy solo se conserva el último" es falso (`_walkChapters` ya acumula todo; lo que usa el último es el consumo), y "título + idea central" es insuficiente.
+
+Enunciado corregido: **ledger de caminata con dos vistas del mismo evento**, porque tiene dos consumidores incompatibles — el Epílogo necesita capítulos completos (lectura única, sin presión) y la rotación necesita etiquetas compactas (lectura en caliente, presión de tokens).
+
+**DT-68 pasa a prerrequisito duro también de DA-85 §3**, no solo del Epílogo. Sube al puesto 5 de la hoja de ruta, §3 baja detrás, prioridad Media → Alta. Cierra el pendiente #6 de S37.
+
+### Documentos
+
+- `manifiesto_narrativo.md` **v3.1 → v3.2**: corregida la sección "Los Personajes" con nota de por qué; absorbida la metáfora autor/guion/actor con el escalón de grounding añadido al diagrama de diagnóstico y la independencia del modelo marcada como dirección y no como estado; añadida la tabla de responsabilidades por bloque con el lente ya como hermano; actualizado el estado de implementación.
+- `arquitectura.md`: bloque **DA-85 §3 — Enmienda (S38)**, marcado en cabecera y en "Estado" como diseño ratificado sin una línea de código.
+- `producto.md`: bloque anexo de reespecificación de DT-68.
+- Los dos documentos de ChatGPT **no entran a `docs/`**. Lo aprovechable quedó absorbido y trazable. Un archivo llamado "Arquitectura Narrativa v1.0" habría competido de frente con el manifiesto — dos documentos con autoridad nominal sobre lo mismo es la receta exacta de la regresión de DT-60.
+
+**El Prompt Maestro no se tocó.** Esta sesión produjo arquitectura, no voz operativa. Escribir el v3.8 hoy crearía un documento que describe comportamiento que el código no tiene, y el prompt debe cambiar en el mismo commit que `PROMPT_VERSION`.
+
+**Corrección menor detectada:** la Parte 1 de las instrucciones del proyecto lista el documento como `prompt_maestro`; el archivo real es `prompt_maestro_follower.md`.
+
+### Commits
+
+1. `docs: sesion 38 - enmienda DA-85 seccion 3, lente operativo, sin codigo` (manifiesto_narrativo, arquitectura, producto, bitacora)
+
+Sin `sw.js`: ningún archivo servido cambió.
+
+### Pendientes actualizados (orden sugerido)
+
+1. **DT-72** — hint OSM no llega desde periferia. Diagnóstico primero: loguear los `extratags` crudos de Nominatim y comparar centro vs. rural
+2. **Validación de campo BUG-070** — ciudad ya narrada, expandir tab a mano, confirmar prólogo **visible**
+3. **Validación DA-86 en Cali** — ciudad con POIs reales, sin homónima. **Ahora bloquea DA-85 §3**
+4. **DT-73** — `checkWorker()` reporta "ok" con cualquier status
+5. **DT-68** — ledger de caminata (reespecificada S38). **Bloquea DA-85 §3 y el Epílogo**
+6. **DT-74** — presupuesto de ritmo (transversal a DT-61, DT-65, DT-68)
+7. **DA-85 §3** — lente operativo. Diseño cerrado en S38. Prerrequisitos: #3 + #5
+8. **DT-75** — clasificador temático de POIs (prioridad, no exclusión)
+9. **DT-71** — retiro de `_CITY_NEGATIONS`, condicionado a que DT-72 cierre
+10. **DT-76** — rotación de ángulo narrativo, condicionado a que DT-74 no baste
+11. **DT-9** — único riesgo de seguridad activo
+
+---
+
+*Follower — Bitácora v0.9 | Sesión 38 | 31 Julio 2026*

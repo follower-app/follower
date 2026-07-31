@@ -554,4 +554,55 @@ Cuatro botones nuevos en la pestaña POIs del panel: **🏙️ Ciudad** (borra l
 
 ---
 
-*Follower — Documento de Producto v0.9 | Sesión 35 | 20 Julio 2026*
+## DT-68 — Reespecificación y ascenso a prerrequisito doble (S38)
+
+*Sesión 38, 31 julio 2026. Sesión de diseño, sin código. Este bloque **reemplaza el enunciado** de la fila DT-68 de la tabla de la sección 19, que quedó incorrecto por dos motivos distintos. Cierra el pendiente #6 de la lista de S37 ("DT-68 — reescribir enunciado").*
+
+### Qué decía la fila original
+
+> *"Acumulación de capítulos narrados en memoria de sesión (DA-85, S33): guardar título + idea central de cada capítulo de la caminata actual — hoy solo se conserva el último (DT-39/DA-52). Habilitador del insumo del Epílogo."*
+
+Dos errores:
+
+**1. "Hoy solo se conserva el último" es falso.** `_walkChapters` ya acumula todos los capítulos de la caminata. Lo que usa el último es el *consumo* (la continuidad de la regla 7), no el almacenamiento. El ticket describía como faltante algo que ya existe a medias.
+
+**2. "Título + idea central" es insuficiente.** El insumo del Epílogo son los textos completos (ya ratificado en S37), y desde S38 hay un segundo consumidor con necesidades distintas.
+
+### Enunciado corregido
+
+**DT-68 — Ledger de caminata.** Formalizar `_walkChapters` como ledger de sesión con dos vistas del mismo evento, porque tiene dos consumidores incompatibles entre sí:
+
+| Consumidor | Qué necesita | Cuándo lee | Presión |
+|---|---|---|---|
+| Epílogo (DA-85 §4) | Capítulos completos — sustancia para cerrar la película | Una vez, al final | Ninguna |
+| Rotación de facetas (DA-85 §3) | Etiquetas compactas — qué ángulos ya se gastaron | En cada prompt de capítulo | Tokens y latencia |
+
+Si el ledger guarda solo capítulos completos, la rotación tendría que inyectar veinte textos de 130 palabras en cada llamada: inviable. Si guarda solo etiquetas, el Epílogo se queda sin material. Guarda ambas.
+
+Cada entrada: `{ texto, faceta }`. La faceta la declara el propio capítulo en su scratchpad (ver DA-85 §3 enmienda S38). **La faceta viaja también dentro del registro cacheado**, porque en una ciudad ya caminada buena parte de los capítulos se sirven de caché y nunca pasan por el scratchpad — un ledger ciego a los cacheados se degradaría peor en la ciudad donde más caminas, y en silencio.
+
+Ventana de inyección para la rotación: **últimas 8 facetas, FIFO**. El Epílogo lee el ledger completo.
+
+Sigue siendo memoria de sesión, no IndexedDB: cada caminata es única.
+
+### Ascenso a prerrequisito doble
+
+DT-68 dejó de ser habilitador solo del Epílogo. **También es prerrequisito duro de DA-85 §3**, porque la rotación de facetas necesita memoria de sesión: la regla 7 solo ve el capítulo inmediatamente anterior, así que sin ledger el capítulo 5 puede repetir la faceta del 2 sin violar ninguna regla. Sobre veinte POIs la rotación sería aleatoria con reemplazo.
+
+```
+Validación campo (Palmira ✔ S37, Cali pendiente)
+            ↓
+          DT-68
+         ↙      ↘
+   DA-85 §3    DT-46 → Epílogo (DA-85 §4)
+```
+
+**Consecuencia en la hoja de ruta:** DT-68 sube del puesto 6 al 5 y DA-85 §3 baja detrás. Reordenamiento con causa, no por conveniencia: un mismo mecanismo alimentando dos features es buena señal arquitectónica, pero obliga a construirlo antes que ambas.
+
+**Prioridad:** Media → **Alta** (dos features bloqueadas).
+
+**Relacionado:** DA-85 §3 (enmienda S38), DA-85 §4, DT-53, DT-46, DT-39/DA-52, DT-74 (el presupuesto de ritmo dimensiona cuántas entradas tendrá un ledger real).
+
+---
+
+*Follower — Producto v0.9 | Sesión 38 | 31 Julio 2026*

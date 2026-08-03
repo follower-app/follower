@@ -1905,7 +1905,11 @@ const Debug = (() => {
         : 'https://followernarration.jaimeand.workers.dev/weather';
 
       const res = await fetch(url);
-      window._dbgWorkerStatus = res.status ? 'ok' : 'error';
+      // DT-73: res.status es un número — 200, 401 y 500 son todos truthy, así
+      // que el indicador decía OK siempre. La sonda va a /weather SIN lat/lon,
+      // así que un Worker sano responde 400 (su propia validación en
+      // worker.js). Solo 5xx —o el catch— son fallo real.
+      window._dbgWorkerStatus = res.status < 500 ? 'ok' : 'error';
       log('info', `Worker Cloudflare: respondió status=${res.status}`);
 
     } catch (e) {

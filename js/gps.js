@@ -276,6 +276,46 @@ const GPS = (() => {
       const country  = data.address?.country_code?.toUpperCase() || '';
       const wikiHint = _parseWikiTag(data.extratags?.wikipedia); // BUG-068 v5: {lang,title} | null — degrada a null si el tag no existe
 
+      // DT-72 (instrumentación TEMPORAL — retirar al cerrar el ticket):
+      // en periferia el hint sale null y desde fuera no se distingue entre
+      // (a) el objeto principal del reverse es otro (way rural, caserío),
+      // (b) es el objeto correcto pero sin tag wikipedia,
+      // (c) extratags no llega del todo.
+      // _parseWikiTag degrada a null por tres caminos y ninguno logueaba.
+      if (typeof Debug !== 'undefined') {
+        const et = data.extratags;
+        Debug.log('info',
+          `DT-72 reverse: osm=${data.osm_type}/${data.osm_id} ` +
+          `class=${data.class} type=${data.type} addresstype=${data.addresstype} ` +
+          `extratags=${et ? (Object.keys(et).join(',') || '(vacio)') : '(ausente)'} ` +
+          `wikipedia="${et?.wikipedia ?? '(sin tag)'}" ` +
+          `@ ${lat.toFixed(4)},${lng.toFixed(4)}`);
+      }
+
+      // DT-72 SONDA (TEMPORAL, solo diagnóstico — retirar al cerrar el ticket):
+      // si el hint salió null pero sí resolvimos ciudad, consultar la relación
+      // administrativa POR NOMBRE en vez de por coordenada — así deja de
+      // importar dónde estés parado, que es justo el eje del problema.
+      // NO alimenta prefetchCityThesis: el camino de producción sigue usando
+      // el reverse con zoom=10 intacto. 1.2s de espera por la política de
+      // 1 req/s de Nominatim (el candado _cityFetchInFlight ya se liberó).
+      if (!wikiHint && city && typeof Debug !== 'undefined') {
+        setTimeout(async () => {
+          try {
+            const q = `https://nominatim.openstreetmap.org/search?city=${encodeURIComponent(city)}`
+                    + `&country=${encodeURIComponent(country)}&format=jsonv2&extratags=1&limit=1`;
+            const arr = await (await fetch(q)).json();
+            const hit = Array.isArray(arr) ? arr[0] : null;
+            Debug.log('info', `DT-72 sonda "${city},${country}": ` + (hit
+              ? `osm=${hit.osm_type}/${hit.osm_id} class=${hit.class}/${hit.type} `
+                + `wikipedia="${hit.extratags?.wikipedia ?? '(sin tag)'}"`
+              : 'sin resultados'));
+          } catch (e) {
+            Debug.log('warn', `DT-72 sonda falló: ${e.message}`);
+          }
+        }, 1200);
+      }
+
       if (city) {
         // DA-86: el gate ya no es "primera ciudad de la sesión" (isFirst)
         // sino "ciudad DISTINTA a la actual" — cubre tanto la apertura de

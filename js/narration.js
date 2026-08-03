@@ -21,7 +21,7 @@ const Narration = (() => {
     API_MODEL:   'claude-haiku-4-5-20251001',
     API_TIMEOUT: 15000,
     MAX_TOKENS:  550,   // v3.7 (S32): 550 = scratchpad (~100-160 tok, andamiaje que sanitizeNarration descarta) + capitulo de hasta 150 palabras (~270 tok) + margen. NO reabre la hipotesis 3 de S27b: aquella subia el techo para permitir capitulos MAS LARGOS; aqui el objetivo 90-130 no se toca — el extra es capacidad para el borrador de verificacion, no permiso de longitud
-    PROMPT_VERSION: 'v3.7',  // S32: scratchpad deliberado en grounding wiki (cara buena de BUG-059 convertida en tecnica: chain-of-thought escrito, cortado por sanitizeNarration) + presupuesto de longitud en el scratchpad + regla 8 CIERRE (sin promesa hacia adelante) + regla anti-regano en LIMITES ESTRICTOS. DT-62 CERRADA: canal system verificado punta a punta (cliente + Worker passthrough, prueba directa). El ++ purga el regano cacheado de Sagrada Familia — mismo commit (espejo DA-71)
+    PROMPT_VERSION: 'v3.8',  // DT-68 (S39): el scratchpad declara "Faceta: <3-5 palabras>" (DA-85 §3 enmienda S38 §5) y el registro cacheado pasa de texto plano a {text, faceta} (§6). El ++ es obligatorio por ambos motivos y una sola invalidacion paga los dos cambios de formato. v3.7 (S32): scratchpad deliberado en grounding wiki (cara buena de BUG-059 convertida en tecnica: chain-of-thought escrito, cortado por sanitizeNarration) + presupuesto de longitud en el scratchpad + regla 8 CIERRE (sin promesa hacia adelante) + regla anti-regano en LIMITES ESTRICTOS. DT-62 CERRADA: canal system verificado punta a punta (cliente + Worker passthrough, prueba directa)
     CARE_MAX_TOKENS: 120,  // DT-42: mensaje de Care, mucho mas corto que un capitulo
     THESIS_PROMPT_VERSION: 'v5',  // BUG-068 v5 (S36c) — FIX DEFINITIVO, causa raíz corregida: el extracto se pedía con el nombre corto de Nominatim ("Palmira"), que en Wikipedia resuelve al artículo de Siria — ningún prompt podía compensar un extracto de origen incorrecto. v5 usa el tag OSM `wikipedia` (vía Nominatim zoom=10+extratags=1) para pedir el extracto correcto desde el origen. El bump invalida cache de tesis generadas con extractos equivocados en v1-v4. v4/v3/v2/v1: intentos previos sobre el prompt, insuficientes por atacar el síntoma y no la causa
     THESIS_MAX_TOKENS: 400  // scratchpad + tesis (3-8 palabras) + prologo (40-60 palabras)
@@ -345,6 +345,36 @@ Help first to see the place. Then to understand why it is the way it is. Finally
   /* ── SANITIZAR TEXTO — eliminar markdown antes de hablar ── */
   // Claude puede responder con **negrita**, # títulos, - listas aunque el prompt
   // diga "narración continua". La voz lee esos caracteres literalmente.
+  /* ── DT-68 (S39): EXTRAER LA FACETA DEL SCRATCHPAD ──
+     DA-85 §3 enmienda S38 §5: el capítulo declara su propia faceta en la
+     Parte 1 de verificación. Debe leerse ANTES de sanitizeNarration, que
+     descarta todo el andamiaje de forma determinista.
+     Vocabulario deliberadamente ABIERTO (3-5 palabras libres), no un enum:
+     la normalización de sinónimos y flexiones queda diferida a la emisión
+     por Haiku en la Parte 4 — reversible y barato, por eso no se adelanta.
+     Devuelve null si no hay declaración: los POIs sin artículo wiki
+     (_source === 'osm') no tienen scratchpad, así que null es un estado
+     legítimo y frecuente, no un error. */
+  function _extractFaceta(raw) {
+    if (!raw || typeof raw !== 'string') return null;
+    // Acotar la busqueda AL ANDAMIAJE, con el mismo anclaje determinista que
+    // usa sanitizeNarration (BUG-059): preambulo de verificacion al inicio,
+    // hasta el separador. Sin esta acotacion, un capitulo que por casualidad
+    // empiece una linea con "faceta:" daria un falso positivo.
+    const scaffold = raw.match(/^\s*(?:verificaci[óo]n|verification|mandatory first check)[\s\S]{0,1200}?(?:-{3,}|—{2,})/i);
+    if (!scaffold) return null;
+    // [^\S\n]* y no \s*: si la declaracion viene vacia, no debe saltar de
+    // linea y capturar el separador como si fuera la faceta.
+    const m = scaffold[0].match(/^[\s>*_#-]*faceta[^\S\n]*[:：][^\S\n]*[*_`]*(.+)$/im);
+    if (!m) return null;
+    const faceta = m[1]
+      .replace(/[*_`#]/g, '')   // el modelo a veces la emite en negrita
+      .replace(/\.\s*$/, '')
+      .trim()
+      .slice(0, 60);            // techo defensivo: 3-5 palabras, no una frase
+    return faceta || null;
+  }
+
   function sanitizeNarration(text) {
     // BUG-059 (S31): el modelo a veces ejecuta EN VOZ ALTA la "VERIFICACION
     // OBLIGATORIA PRIMERO" del bloque de grounding — preambulo meta tipo
@@ -575,8 +605,8 @@ Idioma: ${lang}`;
   function buildGroundingBlock(poi, lang) {
     if (poi._source === 'wiki' && poi._extract) {
       return (lang === 'en')
-        ? `\nVerified facts about this place (Wikipedia extract):\n"${poi._extract}"\n\nMANDATORY RESPONSE FORMAT — your response has TWO parts, in this exact order:\n\nPART 1 — VERIFICATION DRAFT (scaffolding: it is automatically discarded before reaching the walker, it is never part of the chapter). Start your response with the literal line "Mandatory first check:" and below it list, reading the extract above: the author if the extract mentions one (if not, write "author: not present"), the creation or inauguration date if present (if not, "date: not present"), the specific reason it was created if present (if not, "reason: not present"), and finally the line "Budget: the chapter will be between 90 and 130 words". Close this part with a line containing only ---\n\nPART 2 — THE CHAPTER. After the separator, write the chapter starting directly with its first sentence. Every fact you noted as found in Part 1 MUST appear explicitly in the chapter — it is Follower's credibility anchor, never optional, never left out for the sake of style or flow. And the chapter must honor the budget you declared: between 90 and 130 words.\n\nHow to include the facts: weave them into a sentence naturally — e.g. "Diego Pombo built it in 2015..." — never as a separate fact-sheet line like "Author: Diego Pombo. Date: 2015." But smooth prose is NOT an excuse to drop the fact — if you can't find a graceful way to fit it in, include it plainly anyway. Losing the fact is worse than a slightly less elegant sentence.\n\nThese are the ONLY facts you may use for author, date, figures, materials, reason for creation, attributed meaning, architectural style or period, how long a tradition or practice has existed, and religious details (patron saint, order, denomination, year of consecration). If the extract does not mention one of these — do NOT fill that gap yourself. Never claim "for centuries", "for generations", or equivalent duration phrases if the extract doesn't say so. Describe the observable instead — apparent size, location, surroundings, what the walker can see right now — without inventing anything the extract doesn't support.\n\nIf the extract describes a trait shared by a group of elements (for example, a set of figures or species), do not attribute it to a single individual element unless the extract distinguishes it explicitly for that one.\n\n`
-        : `\nHechos verificados sobre este lugar (extracto de Wikipedia):\n"${poi._extract}"\n\nFORMATO OBLIGATORIO DE RESPUESTA — tu respuesta tiene DOS partes, en este orden exacto:\n\nPARTE 1 — BORRADOR DE VERIFICACIÓN (andamiaje: se descarta automáticamente antes de llegar al caminante, nunca forma parte del capítulo). Empieza tu respuesta con la línea literal "Verificación obligatoria:" y debajo enumera, leyendo el extracto de arriba: el autor si el extracto lo menciona (si no, escribe "autor: no aparece"), la fecha de creación o inauguración si aparece (si no, "fecha: no aparece"), el motivo específico de su creación si aparece (si no, "motivo: no aparece"), y por último la línea "Presupuesto: el capítulo tendrá entre 90 y 130 palabras". Cierra esta parte con una línea que contenga únicamente ---\n\nPARTE 2 — EL CAPÍTULO. Después del separador, escribe el capítulo empezando directo con su primera frase. Todo dato que anotaste como encontrado en la Parte 1 DEBE aparecer explícitamente en el capítulo — es el ancla de credibilidad de Follower, nunca opcional, nunca omitido por mantener el estilo o el flujo. Y el capítulo debe cumplir el presupuesto que declaraste: entre 90 y 130 palabras.\n\nCómo incluir los datos: téjelos en una frase con naturalidad — ej. "Diego Pombo lo construyó en 2015..." — nunca como una línea de ficha técnica separada tipo "Autor: Diego Pombo. Fecha: 2015." Pero la prosa fluida NO es excusa para omitir el dato — si no encuentras una forma elegante de incluirlo, inclúyelo de todas formas aunque suene menos pulido. Perder el dato es peor que una frase un poco menos elegante.\n\nEstos son los ÚNICOS hechos que puedes usar para autor, fecha, cifras, materiales, motivo de creación, significado atribuido, estilo o período arquitectónico, duración o antigüedad de una tradición o práctica, y detalles religiosos (advocación, orden, denominación, año de consagración). Si el extracto no menciona alguno de estos — NO llenes ese vacío por tu cuenta. Nunca afirmes "durante siglos", "durante generaciones" ni expresiones equivalentes de duración si el extracto no lo dice. Describe en su lugar lo observable — tamaño aparente, ubicación, entorno, lo que el caminante puede ver ahora mismo — sin inventar nada que el extracto no respalde.\n\nSi el extracto describe una característica compartida por un conjunto de elementos (por ejemplo, un grupo de figuras o especies), no se la atribuyas a un elemento individual salvo que el extracto lo distinga explícitamente para ese elemento en particular.\n\n`;
+        ? `\nVerified facts about this place (Wikipedia extract):\n"${poi._extract}"\n\nMANDATORY RESPONSE FORMAT — your response has TWO parts, in this exact order:\n\nPART 1 — VERIFICATION DRAFT (scaffolding: it is automatically discarded before reaching the walker, it is never part of the chapter). Start your response with the literal line "Mandatory first check:" and below it list, reading the extract above: the author if the extract mentions one (if not, write "author: not present"), the creation or inauguration date if present (if not, "date: not present"), the specific reason it was created if present (if not, "reason: not present"), and finally the line "Budget: the chapter will be between 90 and 130 words". Then add the line "Faceta:" followed by 3 to 5 words naming the angle from which you will explain this place (for example: everyday neighbourhood life, water engineering, memory of a trade). It is your own label, not a closed list: name it in whatever way best describes the chapter you are about to write. Close this part with a line containing only ---\n\nPART 2 — THE CHAPTER. After the separator, write the chapter starting directly with its first sentence. Every fact you noted as found in Part 1 MUST appear explicitly in the chapter — it is Follower's credibility anchor, never optional, never left out for the sake of style or flow. And the chapter must honor the budget you declared: between 90 and 130 words.\n\nHow to include the facts: weave them into a sentence naturally — e.g. "Diego Pombo built it in 2015..." — never as a separate fact-sheet line like "Author: Diego Pombo. Date: 2015." But smooth prose is NOT an excuse to drop the fact — if you can't find a graceful way to fit it in, include it plainly anyway. Losing the fact is worse than a slightly less elegant sentence.\n\nThese are the ONLY facts you may use for author, date, figures, materials, reason for creation, attributed meaning, architectural style or period, how long a tradition or practice has existed, and religious details (patron saint, order, denomination, year of consecration). If the extract does not mention one of these — do NOT fill that gap yourself. Never claim "for centuries", "for generations", or equivalent duration phrases if the extract doesn't say so. Describe the observable instead — apparent size, location, surroundings, what the walker can see right now — without inventing anything the extract doesn't support.\n\nIf the extract describes a trait shared by a group of elements (for example, a set of figures or species), do not attribute it to a single individual element unless the extract distinguishes it explicitly for that one.\n\n`
+        : `\nHechos verificados sobre este lugar (extracto de Wikipedia):\n"${poi._extract}"\n\nFORMATO OBLIGATORIO DE RESPUESTA — tu respuesta tiene DOS partes, en este orden exacto:\n\nPARTE 1 — BORRADOR DE VERIFICACIÓN (andamiaje: se descarta automáticamente antes de llegar al caminante, nunca forma parte del capítulo). Empieza tu respuesta con la línea literal "Verificación obligatoria:" y debajo enumera, leyendo el extracto de arriba: el autor si el extracto lo menciona (si no, escribe "autor: no aparece"), la fecha de creación o inauguración si aparece (si no, "fecha: no aparece"), el motivo específico de su creación si aparece (si no, "motivo: no aparece"), y por último la línea "Presupuesto: el capítulo tendrá entre 90 y 130 palabras". Añade después la línea "Faceta:" seguida de 3 a 5 palabras que nombren el ángulo desde el que vas a explicar este lugar (por ejemplo: vida cotidiana del barrio, ingeniería del agua, memoria de un oficio). Es tu propia etiqueta, no una lista cerrada: nómbrala como mejor describa el capítulo que vas a escribir. Cierra esta parte con una línea que contenga únicamente ---\n\nPARTE 2 — EL CAPÍTULO. Después del separador, escribe el capítulo empezando directo con su primera frase. Todo dato que anotaste como encontrado en la Parte 1 DEBE aparecer explícitamente en el capítulo — es el ancla de credibilidad de Follower, nunca opcional, nunca omitido por mantener el estilo o el flujo. Y el capítulo debe cumplir el presupuesto que declaraste: entre 90 y 130 palabras.\n\nCómo incluir los datos: téjelos en una frase con naturalidad — ej. "Diego Pombo lo construyó en 2015..." — nunca como una línea de ficha técnica separada tipo "Autor: Diego Pombo. Fecha: 2015." Pero la prosa fluida NO es excusa para omitir el dato — si no encuentras una forma elegante de incluirlo, inclúyelo de todas formas aunque suene menos pulido. Perder el dato es peor que una frase un poco menos elegante.\n\nEstos son los ÚNICOS hechos que puedes usar para autor, fecha, cifras, materiales, motivo de creación, significado atribuido, estilo o período arquitectónico, duración o antigüedad de una tradición o práctica, y detalles religiosos (advocación, orden, denominación, año de consagración). Si el extracto no menciona alguno de estos — NO llenes ese vacío por tu cuenta. Nunca afirmes "durante siglos", "durante generaciones" ni expresiones equivalentes de duración si el extracto no lo dice. Describe en su lugar lo observable — tamaño aparente, ubicación, entorno, lo que el caminante puede ver ahora mismo — sin inventar nada que el extracto no respalde.\n\nSi el extracto describe una característica compartida por un conjunto de elementos (por ejemplo, un grupo de figuras o especies), no se la atribuyas a un elemento individual salvo que el extracto lo distinga explícitamente para ese elemento en particular.\n\n`;
     }
 
     if (poi._source === 'osm') {
@@ -1063,6 +1093,23 @@ Los idiomas de cada parte se indican en el mensaje del usuario — la tesis (Par
     return { veredicto: cumple ? 'cumple' : 'falla', detalle };
   }
 
+  /* ── DT-68 (S39): VENTANA DE INYECCIÓN DE FACETAS ──
+     DA-85 §3 enmienda S38 §7: la rotación inyecta solo las últimas 8
+     facetas, FIFO. Acota tokens en caminatas largas y refleja que lo que
+     molesta es repetir un ángulo reciente, no uno de hace dos horas.
+     El Epílogo NO usa esta función: lee el ledger completo.
+     Vive aquí desde DT-68 pero su consumidor (§3) aún no existe — no se
+     llama desde ningún punto todavía, a propósito. */
+  const FACETA_WINDOW = 8;
+
+  function getRecentFacetas() {
+    const chapters = AppState._walkChapters || [];
+    return chapters
+      .slice(-FACETA_WINDOW)
+      .map(c => c.faceta)
+      .filter(Boolean);
+  }
+
   /* ── CONSTRUIR PROMPT — DA-50: narrador único ── */
   function buildPrompt(poi, lang) {
     const system  = SYSTEM_PROMPT[lang] || SYSTEM_PROMPT.es;
@@ -1175,7 +1222,15 @@ Los idiomas de cada parte se indican en el mensaje del usuario — la tesis (Par
           const tx    = db.transaction('narrations', 'readonly');
           const store = tx.objectStore('narrations');
           const get   = store.get(key);
-          get.onsuccess = () => { clearTimeout(timeout); resolve(get.result?.text || null); };
+          // DT-68 (S39): el registro cacheado pasa de texto plano a {text, faceta}.
+          // Devuelve el registro completo, no solo el texto — la faceta debe
+          // llegar al ledger igual que si el capítulo se hubiera generado
+          // (DA-85 §3 enmienda S38 §6: la rotación es indiferente al origen).
+          get.onsuccess = () => {
+            clearTimeout(timeout);
+            const r = get.result;
+            resolve(r?.text ? { text: r.text, faceta: r.faceta || null } : null);
+          };
           get.onerror   = () => { clearTimeout(timeout); resolve(null); };
         };
         req.onerror = () => { clearTimeout(timeout); resolve(null); };
@@ -1188,7 +1243,7 @@ Los idiomas de cada parte se indican en el mensaje del usuario — la tesis (Par
 
   /* ── GUARDAR NARRACIÓN EN INDEXEDDB ── */
   // DT-50: clave versionada → promptVersion_poiId_lang_topic_extractHash (DT-51 fix)
-  async function saveToCache(poiId, lang, topic, text, extract) {
+  async function saveToCache(poiId, lang, topic, text, extract, faceta) {
     try {
       const req = indexedDB.open('follower_db', 1);
       req.onsuccess = (e) => {
@@ -1196,7 +1251,7 @@ Los idiomas de cada parte se indican en el mensaje del usuario — la tesis (Par
         const key   = `${CONFIG.PROMPT_VERSION}_${poiId}_${lang}_${topic}_${_fingerprint(extract)}`;
         const tx    = db.transaction('narrations', 'readwrite');
         const store = tx.objectStore('narrations');
-        store.put({ id: key, text, cachedAt: Date.now() });
+        store.put({ id: key, text, faceta: faceta || null, cachedAt: Date.now() });  // DT-68 (S39): la faceta viaja dentro del registro cacheado
       };
     } catch (e) {
       console.warn('Narration: no se pudo guardar en cache');
@@ -1307,7 +1362,11 @@ Los idiomas de cada parte se indican en el mensaje del usuario — la tesis (Par
     const cacheId = (typeof Debug !== 'undefined')
       ? Debug.metricStart('narration', 'cache lookup')
       : null;
-    let text = await loadFromCache(poi.id, lang, topic, poi._extract);
+    // DT-68 (S39): la caché devuelve {text, faceta} — la faceta de un capítulo
+    // servido vale igual que la de uno generado (DA-85 §3 enmienda S38 §6).
+    const cachedRec = await loadFromCache(poi.id, lang, topic, poi._extract);
+    let text   = cachedRec ? cachedRec.text : null;
+    let faceta = cachedRec ? cachedRec.faceta : null;
     if (cacheId) Debug.metricEnd(cacheId, text ? 'hit' : 'miss');
 
     // 2. Claude API (vía Cloudflare Worker) si no hay cache
@@ -1320,7 +1379,10 @@ Los idiomas de cada parte se indican en el mensaje del usuario — la tesis (Par
       text = await callClaude(system, user);
       if (apiId) Debug.metricEnd(apiId, text ? 'ok' : 'error');
       if (text) {
-        await saveToCache(poi.id, lang, topic, text, poi._extract);
+        // DT-68: leer la faceta del scratchpad ANTES de que sanitizeNarration
+        // descarte el andamiaje, y guardarla junto al texto ya limpio.
+        faceta = _extractFaceta(text);
+        await saveToCache(poi.id, lang, topic, sanitizeNarration(text), poi._extract, faceta);
         source = 'api';
       }
     }
@@ -1360,14 +1422,21 @@ Los idiomas de cada parte se indican en el mensaje del usuario — la tesis (Par
     // DT-39: guardar capítulo completado para continuidad DA-52
     // Solo capítulos reales (no fallback) — el fallback genérico no aporta continuidad narrativa
     if (source !== 'fallback' && AppState._walkChapters !== undefined) {
+      // DT-68 (S39): el ledger guarda DOS VISTAS del mismo evento —
+      // `text` completo para el Epílogo (DA-85 §4, lee el ledger entero) y
+      // `faceta` compacta para la rotación (DA-85 §3, lee la ventana de 8).
+      // Consumidores incompatibles: inyectar veinte textos de 130 palabras
+      // en cada prompt sería inviable; solo etiquetas dejaría al Epílogo sin
+      // material. Por eso ambas.
       AppState._walkChapters.push({
         poiId:   poi.id,
         poiName: poi.name,
         text:    text,
+        faceta:  faceta || null,   // null legítimo: los POIs sin artículo wiki no tienen scratchpad
         ts:      Date.now()
       });
       if (typeof Debug !== 'undefined') {
-        Debug.log('info', `Narration: capítulo #${AppState._walkChapters.length} guardado — ${cleanPOIName(poi.name)}`);
+        Debug.log('info', `Narration: capítulo #${AppState._walkChapters.length} guardado — ${cleanPOIName(poi.name)} · faceta="${faceta || '(sin declarar)'}" · source=${source}`);
       }
     }
 

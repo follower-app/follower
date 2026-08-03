@@ -6083,3 +6083,70 @@ Sin `sw.js`: ningún archivo servido cambió.
 ---
 
 *Follower — Bitácora v0.9 | Sesión 38 | 31 Julio 2026*
+
+---
+
+## Sesión 39 — 3 Agosto 2026
+
+**Sesión de código.** Validación de campo de DA-86, cierre de BUG-070, DT-73 y DT-68, despliegue de la instrumentación de DT-72, y resolución de DT-9 en la parte que importaba. Tres deploys: sw v72, v73.
+
+### Orden de trabajo
+
+Acordado al abrir: **A** (deploy de campo) → **B** (DT-68) → **C** (higiene y documentación). El criterio no fue prioridad sino *dependencia de calendario*: el código espera, la caminata no se puede hacer sin el deploy previo. DT-9 se sacó de C y se hizo primero, fuera de banda, por ser el único ítem cuyo costo crece sin que nadie toque nada.
+
+### DA-86 y BUG-070 — validadas en campo
+
+Palmira y Cali, mismo día, ~25 km. Primera vez narró en ambas con tesis propia; reaperturas 2ª, 3ª y 4ª en Cali mantuvieron ciudad, tesis y prólogo **en texto, sin voz**.
+
+Lo que hizo concluyente la evidencia fue distinguir dos mecanismos que producen el mismo síntoma en pantalla: que el **texto sobreviva** al cierre es el caché de IndexedDB, que **no se vuelva a narrar** es `narratedCities` en `localStorage`. Ver el mismo texto al reabrir no prueba la marca; prueba el caché. Lo que la prueba, y es lo que se observó, es la ausencia de voz.
+
+BUG-070 cerró por consecuencia directa: la rama silenciosa es la **única** que llama `_populatePersistentCityHeader()`, que era donde el prólogo llegaba vacío antes de S36c. Prólogo visible en estado recurrente = firma exacta del fix. La tesis sola no habría bastado.
+
+**Deber 2 (rearme con 🆕 Primera vez) cancelado por innecesario** — dos ciudades reales son mejor evidencia que un reset, y conserva las marcas intactas.
+
+### DT-9 — el hallazgo incómodo
+
+Se dio por resuelto ("ya no hay key expuesta") y la auditoría del historial mostró que no. La key de OpenAI seguía recuperable en `a249fee`, guardada en un campo llamado `gemini` — de ahí que buscar "openai" en el repo no devolviera nada y **la búsqueda limpia reforzara la creencia equivocada**. El commit `a303f11` ("ya no contiene secretos reales") describe con exactitud lo que hizo, sacar el archivo del árbol, e induce a error sobre lo que logró.
+
+Apareció además un segundo secreto que el ticket nunca cubrió: **una key de OpenWeatherMap, servicio que sí sigue en el stack activo**.
+
+Ambas rotadas. Reescritura del historial evaluada y descartada: no puede deshacer una exposición pasada en repo público, y con las keys muertas lo del historial es texto inerte.
+
+**Error propio en sesión:** al inspeccionar el blob, la redacción de la salida solo cubría el patrón `sk-`, así que la key de OpenWeatherMap se imprimió completa en la terminal. No cambió la acción a tomar —rotarla— pero se avisó en el momento en vez de dejar que se descubriera después.
+
+**Lección de método:** la clave nueva de OWM tarda hasta ~2h en activarse. Se borró la vieja antes de confirmar la nueva y el clima quedó en 401. El diagnóstico correcto exigió separar variables — probar la key **directamente contra OpenWeatherMap**, sacando el Worker de la ecuación — porque el Worker propaga `res.status` y el body sin tocar, así que un 401 del Worker y uno de OWM son indistinguibles desde la app.
+
+### A — DT-72 y DT-73 (sw v72)
+
+**DT-72, instrumentación.** El síntoma se observaba tres capas después del origen: `_parseWikiTag` degrada a `null` por tres caminos distintos y ninguno logueaba. Se añadió captura del payload crudo del reverse justo donde `data` está en mano.
+
+Se añadió además una **sonda por nombre**. La primera propuesta fue una sonda por zoom alternativo y **se descartó tras corregirla en sesión**: elegir el zoom es adivinar, e informa solo si el objeto es el equivocado *y* otro zoom acierta. La sonda correcta cambia de mecanismo — consulta la relación administrativa por nombre vía el endpoint `search` estructurado, con lo que la periferia deja de importar. Si acierta, **es** el fix, no una pista hacia el fix.
+
+**DT-73.** El fix propuesto en el enunciado original (`res.ok`) habría roto el indicador al revés: `checkWorker()` pega a `/weather` sin lat/lon y un Worker sano responde 400. Implementado `res.status < 500`.
+
+### B — DT-68 (sw v73, prompt v3.8)
+
+**Un error propio, corregido antes de escribir código.** Se afirmó que el vocabulario de facetas no estaba especificado, tras buscar solo en `producto.md`. Estaba en `arquitectura.md` §5 de la enmienda S38: `Faceta: <3-5 palabras>`, **vocabulario deliberadamente abierto**, no un enum. La objeción sobre colisión de sinónimos también estaba ya registrada y diferida a propósito ("emisión por Haiku… reversible y barato"). La Regla de Oro dice consultar `arquitectura.md` para las DA y no se siguió. Consecuencia: la opción B1 ("cerrar el vocabulario primero") se disolvió — su premisa era el error. No se escribió ninguna enmienda: el diseño ya estaba completo y duplicarlo habría repetido el problema que S38 arregló.
+
+Implementado según la reespecificación: `_extractFaceta()` lee la declaración **antes** del strip del andamiaje; caché a `{text, faceta}`; ledger con las dos vistas; `getRecentFacetas()` con ventana FIFO de 8, **inerte a propósito**.
+
+El extractor se probó contra nueve casos antes de subir. Dos bordes reales aparecieron y se corrigieron: `**Faceta:**` en negrita no matcheaba, y una declaración vacía capturaba el separador `---` como si fuera la faceta. Ambos se resolvieron acotando la búsqueda al andamiaje con el mismo anclaje determinista del fix de BUG-059.
+
+### Preguntas abiertas registradas, no resueltas
+
+1. **¿DA-85 §3 y DT-76 son el mismo mecanismo?** DT-76 está condicionada a DT-74 en campo; §3 no. No aparece ni una vez en `arquitectura.md`.
+2. **Faceta nula en POIs `_source:'osm'`** — no tienen scratchpad donde declarar. La ventana de rotación será ciega en los lugares menos documentados.
+
+Ninguna bloquea nada hoy: la ventana está inerte hasta que §3 exista.
+
+### Documentos
+
+- `prompt_maestro_follower.md` **v3.7 → v3.8** — una sola línea nueva en el scratchpad (ambos idiomas), ninguna regla del cuerpo tocada, alcance heredado del grounding wiki, protocolo de validación n≥4 con la faceta sobreviviendo al ciclo de caché como métrica dura
+- `producto.md` — filas BUG-070, DT-72, DT-73 y DT-68 actualizadas (la de DT-68 alineada con el anexo de S38 en vez de contradecirlo) + anexo S39
+- `arquitectura.md` — DA-85 §3 con los dos prerrequisitos caídos y los dos bloqueos nuevos, sin dejar de decir que §3 sigue sin implementar
+- `bitacora.md` — esta entrada
+
+### Pendiente de campo
+
+Una sola caminata rinde tres cosas: facetas de DT-68 (n≥4), `DT-72 reverse` en periferia y la sonda por nombre. **Control positivo obligatorio en el centro antes de salir:** ver `DT-72 reverse` con `wikipedia="es:Cali"` y ninguna línea de sonda. Sin ese control, una periferia muda no distingue "el hint falló" de "el log nunca se cableó".
+

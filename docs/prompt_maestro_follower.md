@@ -1,8 +1,8 @@
 # docs/prompt_maestro_follower.md
 
-# PROMPT MAESTRO FOLLOWER v3.7 — OFICIAL
+# PROMPT MAESTRO FOLLOWER v3.8 — OFICIAL
 
-**DA-74 · Sesión 23 (v3.0) → DT-51 · grounding (v3.1 a v3.6) → S32 (v3.7).**
+**DA-74 · Sesión 23 (v3.0) → DT-51 · grounding (v3.1 a v3.6) → S32 (v3.7) → DT-68 · S39 (v3.8).**
 Implementado en `narration.js` (SYSTEM_PROMPT es + en). Cualquier cambio a
 este documento debe reflejarse en `narration.js` e incrementar
 `PROMPT_VERSION` en el mismo commit (DT-50, espejo de DA-71).
@@ -201,6 +201,50 @@ prompt, y esta versión las ataca.
   promesa hacia adelante ni pregunta genérica (oído). Éxito: (a) y (b) en
   3/4 mínimo; (c) es métrica nueva sin línea base — el resultado define
   si v3.8 necesita el plan programático
+
+**Cambios v3.7 → v3.8 (Sesión 39 — DT-68, la declaración de faceta):**
+
+- **Una sola línea nueva en el scratchpad, en ambos idiomas:** después del
+  presupuesto, el borrador declara `Faceta:` seguida de 3 a 5 palabras que
+  nombran el ángulo desde el que el capítulo va a explicar el lugar. Se
+  ejemplifica sin cerrar el vocabulario ("vida cotidiana del barrio",
+  "ingeniería del agua", "memoria de un oficio") y se dice explícitamente
+  que es etiqueta propia del modelo, **no una lista cerrada**
+- **Por qué en el scratchpad y no fuera:** el modelo declara la faceta en
+  el mismo movimiento en que la elige — sin llamada extra, sin latencia, y
+  sin replicar en JS la comprensión semántica que ya vive en el modelo.
+  Costo ~8 tokens por capítulo. Alternativas descartadas en S38: segunda
+  llamada para derivarla (latencia y costo en caliente) y heurística en JS
+  (frágil)
+- **Ninguna regla del cuerpo del prompt se tocó.** Las ocho reglas
+  obligatorias, LÍMITES ESTRICTOS, ESTILO, LONGITUD y VERIFICACIÓN FINAL
+  quedan idénticas a v3.7. El delta es exclusivamente la línea de
+  declaración dentro de la PARTE 1 del bloque de grounding wiki
+- **Alcance heredado, no ampliado:** la declaración vive donde vive el
+  scratchpad, o sea solo POIs `_source:'wiki'` con extracto. Los POIs
+  `_source:'osm'` no tienen Parte 1, así que **no declaran faceta y su
+  entrada en el ledger queda con `faceta: null`** — estado legítimo y
+  tolerado por el código, no un error. Consecuencia conocida y anotada:
+  cuando DA-85 §3 se implemente, la ventana de rotación será ciega en los
+  lugares menos documentados. Decisión pendiente, deliberadamente NO
+  resuelta aquí (una variable a la vez)
+- **`PROMPT_VERSION` v3.7 → v3.8 en el mismo commit** (DT-50, espejo de
+  DA-71). El bump era obligatorio por dos motivos independientes: el
+  cambio de prompt y el cambio de formato del registro cacheado a
+  `{text, faceta}` (DA-85 §3 enmienda S38 §6). **Una sola invalidación
+  paga los dos.** Consecuencia operativa: la primera caminata post-deploy
+  regenera todos los capítulos por API, incluidas ciudades ya caminadas
+- **`MAX_TOKENS` no se tocó:** 550 sigue cubriendo el andamiaje con
+  margen; la línea de faceta añade ~8 tokens
+- **Protocolo de validación n≥4 (post-deploy):** en caminata real, el log
+  de cada capítulo emite `faceta="..."` junto a `source`. Métricas por
+  corrida: (a) la faceta se declara y se extrae en POIs wiki, (b) las
+  facetas son *distintas entre capítulos consecutivos* — que es lo que la
+  rotación explotará después, (c) la faceta sobrevive al ciclo de caché
+  (segunda visita al mismo POI: `source=cache` **con** faceta), (d) los
+  POIs OSM registran `(sin declarar)` sin romper nada. Éxito: (a) y (c) en
+  4/4; (b) es observación sin línea base — mide cuánta rotación ocurre
+  espontáneamente, antes de que §3 la fuerce
 
 ---
 

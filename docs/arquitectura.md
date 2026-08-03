@@ -3208,6 +3208,16 @@ Inclinación registrada: **emisión por Haiku dentro de la Parte 4** (cubre sin�
 
 **DISEÑO RATIFICADO — CERO CÓDIGO ESCRITO.** La siguiente acción sobre §3 no es de diseño: es validar DA-86 en Cali y cerrar DT-68.
 
+**Actualización S39 (3 agosto 2026) — los dos prerrequisitos cayeron:**
+
+- **DA-86 validada en campo** (Palmira + Cali, n=4 aperturas): primera vez narra, reaperturas mantienen tesis y prólogo en texto sin voz, marca durable sobrevive al cierre de la app, ancla de 10 km re-detecta entre ciudades. Detalle en `producto.md` anexo S39.
+- **DT-68 implementada** (sw v73, `PROMPT_VERSION` v3.8). El ledger existe con las dos vistas, la faceta se declara en el scratchpad (§5), viaja dentro del registro cacheado (§6) y `getRecentFacetas()` implementa la ventana FIFO de 8 (§7) — **inerte a propósito: §3 sigue sin una línea de código.**
+
+**§3 sigue SIN IMPLEMENTAR.** Lo que cambió es que ya no está bloqueado por prerrequisitos, sino por dos decisiones abiertas:
+
+1. **¿§3 y DT-76 son el mismo mecanismo?** DT-76 (`producto.md`, "rotación de ángulo narrativo") está condicionada a que DT-74 esté en campo, para no mover dos variables a la vez. Si son lo mismo, §3 hereda ese bloqueo. DT-76 no aparece en este documento — el vacío es real y hay que resolverlo antes de escribir §3, no después.
+2. **Faceta nula en POIs `_source:'osm'`.** El scratchpad vive dentro del bloque de grounding wiki; los POIs sin artículo no tienen Parte 1 donde declarar. Entran al ledger con `faceta: null` (estado tolerado por el código). Cuando §3 lea la ventana, será ciega en los lugares menos documentados — la misma degradación silenciosa que §6 previó para el caché, entrando por otra puerta. La enmienda S38 no lo cubre.
+
 **Relacionado:** DA-85 §1 (tesis/prólogo), DA-85 §2 (actos, no modelados), DA-85 §4 (Epílogo), DA-52/DT-39 (continuidad), DT-68 (prerrequisito duro, reespecificada), DT-46, BUG-068, DA-87.
 
 ---

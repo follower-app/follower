@@ -461,8 +461,9 @@ const Care = (() => {
   /* ── DT-42: reset de estado por caminata — llamar junto con el reset
      de AppState._walkChapters (DA-54, cierre de caminata) para que
      thirst pueda volver a dispararse en la caminata siguiente.
-     PENDIENTE: cablear esta llamada en app.js donde se resetea
-     _walkChapters — no se toco app.js en esta sesion. ── */
+     Cableada en app.js:539-540, junto al reset de _walkChapters.
+     (S39: el comentario decia "PENDIENTE cablear" desde DT-42 — fosil,
+     la llamada existe desde entonces.) ── */
   function resetWalk() {
     _thirstShownThisWalk = false;
   }

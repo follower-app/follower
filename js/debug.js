@@ -1773,8 +1773,16 @@ const Debug = (() => {
      A diferencia de clearCache() (borra follower_db entero + reload), esto
      SOLO borra la tesis+prólogo de la ciudad en curso y vuelve a disparar
      todo el flujo (prefetch + welcomeCity) en la misma página — sin perder
-     el cache de POIs, sin recargar. Pensado para iterar rápido probando el
-     camino "fresco" (tesis hablada + sheet expandido) repetidamente.
+     el cache de POIs, sin recargar.
+     OJO (S39): desde DA-86 esto NO reproduce el camino "fresco". La marca
+     durable de ciudad narrada vive en Config (localStorage) y esta funcion
+     no la toca: en una ciudad ya narrada el reflujo cae en la rama
+     silenciosa — tesis en texto, SIN voz. Eso es DA-86 funcionando, no un
+     fallo. Para volver a oir la tesis hace falta Debug.resetToFirstTime(),
+     que borra follower_config entero (idioma, nombre, introHeard y TODAS
+     las ciudades marcadas). El comentario anterior prometia "tesis hablada
+     + sheet expandido" y era un fosil pre-S36 que inducia a leer un pase
+     como fallo.
      Nota: AppState.cityName guarda "Ciudad, PAIS" — se toma solo el primer
      tramo, igual que usa el resto del pipeline de bienvenida. */
   async function retestCityWelcome() {

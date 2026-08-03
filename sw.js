@@ -8,7 +8,7 @@
 
 // Incrementar CACHE_VERSION fuerza descarga de todos los archivos
 // en el proximo arranque — incluso si el navegador tiene version cacheada.
-const CACHE_VERSION = 'follower-v73';  // DT-68: ledger de caminata con dos vistas {text, faceta} + PROMPT_VERSION v3.8 (invalida narraciones cacheadas)
+const CACHE_VERSION = 'follower-v74';  // S39 higiene: comentarios fosiles corregidos en care.js y debug.js (sin cambio de comportamiento)
 
 const STATIC_ASSETS = [
   './',

@@ -6088,7 +6088,7 @@ Sin `sw.js`: ningún archivo servido cambió.
 
 ## Sesión 39 — 3 Agosto 2026
 
-**Sesión de código.** Validación de campo de DA-86, cierre de BUG-070, DT-73 y DT-68, despliegue de la instrumentación de DT-72, y resolución de DT-9 en la parte que importaba. Tres deploys: sw v72, v73.
+**Sesión de código.** Validación de campo de DA-86, cierre de BUG-070, DT-73 y DT-68, despliegue de la instrumentación de DT-72, y resolución de DT-9 en la parte que importaba. Tres deploys: sw v72, v73 y v74 *(v74 — higiene: comentarios fósiles corregidos en `care.js` y `debug.js`, sin cambio de comportamiento. Registrado retroactivamente en S40: el deploy existía en el repo y no figuraba en esta entrada, que enumeraba solo dos).*
 
 ### Orden de trabajo
 
@@ -6150,3 +6150,85 @@ Ninguna bloquea nada hoy: la ventana está inerte hasta que §3 exista.
 
 Una sola caminata rinde tres cosas: facetas de DT-68 (n≥4), `DT-72 reverse` en periferia y la sonda por nombre. **Control positivo obligatorio en el centro antes de salir:** ver `DT-72 reverse` con `wikipedia="es:Cali"` y ninguna línea de sonda. Sin ese control, una periferia muda no distingue "el hint falló" de "el log nunca se cableó".
 
+
+---
+
+*Follower — Bitácora v0.9 | Sesión 39 | 3 Agosto 2026*
+
+---
+
+## Sesión 40 — 4 Agosto 2026
+
+**Sesión de revisión y diseño.** Sin código. Revisión de interfaz sobre capturas de campo, seis tickets nuevos, una enmienda de arquitectura ratificada, y dos correcciones a afirmaciones que los propios documentos daban por ciertas.
+
+### Cómo arrancó
+
+Pedido abierto: continuar el desarrollo revisando interfaz, bugs y DTs. Lo primero fue leer lo vivo en vez de asumir estado — y ahí apareció el primer desajuste: `sw.js` está en **v74**, no en v73, con un deploy de higiene que no figuraba en ningún documento. La entrada de S39 quedó corregida retroactivamente.
+
+Versiones verificadas al abrir: `CACHE_VERSION` v74, `PROMPT_VERSION` v3.8, `THESIS_PROMPT_VERSION` v5, `POI_CACHE_VERSION` 5.
+
+### La brújula: de descartada a ratificada
+
+DA-84 (S31) había decidido que el cono solo apareciera con POI activo en diástole. La objeción que reabrió el punto fue de uso, no de estética: **en una ciudad desconocida hace falta saber al menos hacia dónde se está dado**, y ese diseño apaga el cono precisamente en los quince minutos sin POI en rango, que es cuando el caminante se siente perdido.
+
+El argumento que cerró la discusión es de consistencia: el mapa ya está siempre visible, y un mapa es una herramienta de navegación mucho más explícita que un cono. La línea que S31 temía cruzar ya estaba cruzada. Lo que sí fallaba la pregunta rectora era **el botón** —un control que hay que operar caminando—, y ese muere igual.
+
+Distinción que quedó escrita en la enmienda para que ningún chat futuro la "mejore": **el cono es heading, no bearing.** Nunca gira hacia el POI. Rojo en diástole significa "estás en modo historia", no "es por allá". Si apuntara al POI sería una flecha de navegación y volveríamos a lo descartado.
+
+Ratificado: cono permanente tras el permiso, color por fase (sístole azul / diástole rojo), nunca invertido.
+
+### Los mockups y por qué fallaron tres veces
+
+Se hicieron tres pasadas de mockup del mapa y las tres estuvieron mal, cada una por una razón distinta y todas por lo mismo: **dibujar en vez de leer el archivo.**
+
+1. Basemap oscuro. Es CARTO **Voyager**, claro (`gps.js:62`). El error invirtió una conclusión completa: los pines lejanos no se pierden, se leen bien.
+2. Pines sin ícono. El ícono existe (`gps.js:620`).
+3. Pantalla sin franja de care ni barra de debug, y sheet dibujado como franja delgada.
+
+Lo que corrigió el rumbo no fue otro mockup sino **dos capturas del iPhone**. La lección es la de siempre, en versión visual: el resumen es fotografía estática, el árbitro es el código — y para interfaz, la captura.
+
+### Lo que las capturas confirmaron y lo que revelaron
+
+**Confirmado:** cuatro POIs en pantalla, cuatro 🏛️ idénticos. `poi.js:346` asigna el emoji genérico a todo POI de Wikipedia, que es la fuente primaria. El ícono es textura, no señal → **DT-77**.
+
+**Revelado, no buscado:** las etiquetas colisionan entre sí y la del POI activo se sale de la pantalla → **BUG-071**. Y el botón de brújula activo se ilumina sobre Voyager porque `.map-compass-btn.active` reemplaza el fondo oscuro en vez de superponerse — no se le abrió ticket porque desaparece al eliminar el botón; quedó como punto (d) de la enmienda.
+
+**Buscado y resuelto sin ticket:** el mapa muestra tres pines azules y el sheet dice "· 1". No es bug de color: `updateMarkersState()` está limpio y el umbral coincide con `NEARBY_RADIUS`. Hay dos mecanismos posibles —el congelado de BUG-058 con el sheet expandido, o el throttle de `detectPOI()`— y **una sola observación los discrimina**: cerrar y reabrir el sheet sin moverse.
+
+### Duplicaciones y divergencias dormidas
+
+Buscando el origen del ícono aparecieron dos cosas que no rompen nada hoy:
+
+- La tabla tipo→emoji existe **dos veces** con contenidos distintos: `poi.js:76-87` (doce entradas) y `app.js:193-198` (catorce). Ya divergentes → **DT-78**.
+- `gps.js:612` tiene `300` escrito a mano teniendo `CONFIG.NEARBY_RADIUS` doce líneas arriba. Si el radio se ajusta, el sheet obedece y los pines no → **DT-79**.
+
+Las dos son la regla de "funciones únicas — nunca duplicar" aplicada a datos en vez de a funciones.
+
+### Identidad visual: aclarado, no cambiado
+
+Al buscar qué marca usar en el pin apareció que `assets/logo.svg` e `icon-master.svg` son el **corazón-brújula**, mientras las instrucciones del proyecto describen el logo como "símbolo de manos". No es documento fósil: **el corazón-brújula es el oficial** y las direcciones de manos y de dos círculos están en estudio. Queda por corregir el párrafo de `instrucciones_proyecto.md`, que afirma como vigente algo que es exploración.
+
+Prueba de tamaño hecha en el camino: a 16 px —glifo dentro de un pin— el corazón-brújula pierde el trazo y la aguja le come el corazón. No es argumento para cambiar de logo; es argumento para **no meter el emblema dentro de un pin**. A ~38 px, tamaño del marcador de usuario, el oficial funciona bien.
+
+### Decisión dejada abierta a propósito
+
+Contenido del pin: **A** (liso, sin glifo) vs. **C** (liso + emblema en el marcador del caminante). Descartada **B** (marca de Follower en cada pin): seis pines con el mismo emblema reproducen DT-77 con otro dibujo, y además **gasta la marca** — si cada POI lleva la marca de la app, la marca pasa a significar "punto de interés".
+
+C tiene un argumento que va más allá de la UI: si el emblema marca al caminante y no a los lugares, la pantalla dice lo que dice el manifiesto —el caminante es el protagonista, la ciudad es el escenario—. Pero es una afirmación de identidad, no solo una decisión visual, y toca `_buildUserIcon()`, que es zona de BUG-027. Se decide con el mapa real delante.
+
+### Documentos tocados
+
+- `producto.md` — DT-77/78/79 y BUG-071 añadidos, DT-64 enmendada en su fila, BUG-054 cerrada por rediseño, higiene de fósiles marcada resuelta, anexo S40
+- `arquitectura.md` — enmienda a DA-84 (punto 2)
+- `bitacora.md` — esta entrada + corrección del conteo de deploys de S39
+- Pendiente: `instrucciones_proyecto.md` (párrafo de identidad visual)
+
+### Pendiente de campo
+
+La misma caminata de S39, que ahora rinde **seis** cosas en vez de tres: DT-72 (con control positivo obligatorio en el centro antes de salir), DT-68 n≥4, BUG-053, BUG-058, BUG-071 y el discriminador del "· 1".
+
+**Se sale con v74 congelado.** Desplegar la brújula o los pines antes de caminar mete variables en la única ventana de observación disponible — ambos cambian el mapa, que es la superficie donde se observan BUG-053 y BUG-071.
+
+---
+
+*Follower — Bitácora v0.9 | Sesión 40 | 4 Agosto 2026*

@@ -3223,3 +3223,64 @@ Inclinación registrada: **emisión por Haiku dentro de la Parte 4** (cubre sin�
 ---
 
 *Follower — Arquitectura v0.9 | Sesión 38 | 31 Julio 2026*
+
+---
+
+## DA-84 — Enmienda (S40): el cono es permanente y cambia de fase; el botón sigue muriendo
+
+*Sesión 40, 4 agosto 2026. Enmienda al punto 2 de DA-84 (S31). No toca el punto 1 (permiso) ni la eliminación del botón. Diseño ratificado, sin código tocado — DT-64 sigue siendo el ticket de implementación.*
+
+### Origen de la enmienda
+
+Objeción de producto planteada en sesión: en una ciudad desconocida —que es el caso de uso, no la excepción— el caminante necesita al menos saber hacia dónde está dado. DA-84 condicionó el cono a `AppState.activePOI` en diástole, y ese diseño falla justamente en el escenario que motiva la brújula: se puede caminar quince minutos sin un POI en rango, y ese es el momento en que uno se siente perdido.
+
+### Qué se conserva de DA-84
+
+Todo el punto 1 y toda la eliminación de UI. El permiso se sigue pidiendo una sola vez por apertura, dentro del gesto ya existente de `_unlockAudioOnFirstTap()` (`app.js:467`), por la restricción de iOS 13+ que exige un trusted event y no persiste la decisión entre recargas. Siguen eliminándose `#btnCompass`, los tres estados (`compass-pulse-ring`, `beating`, la rotación por tap de `#compassNeedle`), y `initCompass()` / `_onCompassTap()` / `_compassBeat()` / `_activateCompass()` / `_deactivateCompass()` como acciones manuales.
+
+Sigue conservándose el cono SVG dentro del mismo `divIcon` del usuario (fix de BUG-027, alineación perfecta), `GPS.showHeadingCone()` y `updateHeadingCone()` (`gps.js:143-155`), y el listener de `DeviceOrientationEvent` con su normalización de plataforma (`webkitCompassHeading` en iOS, `360 - alpha` invertido en Android).
+
+### Qué se enmienda
+
+**El cono deja de estar condicionado a `AppState.activePOI`.** Concedido el permiso, es permanente durante toda la sesión. Lo que cambia con la fase es el color, no la existencia:
+
+- **Sístole (caminando):** `--color-systole` (#1a5276), el mismo valor del cono actual.
+- **Diástole (narrando):** `--color-diastole` (#c0392b).
+
+Nunca al revés. La regla de identidad aplica al cono igual que a todo lo demás: invertir sístole y diástole no es un error de color, rompe el significado.
+
+### Razonamiento
+
+**El botón era lo que fallaba la pregunta rectora, no el cono.** Un control que hay que operar durante la caminata contradice de frente "el teléfono va en el bolsillo". Un indicador pasivo que solo devuelve hacia dónde estás mirando, no.
+
+**El mapa ya está siempre visible, y un mapa es una herramienta de navegación mucho más explícita que un cono.** Si se acepta el mapa —y se acepta, es Leaflet, está ahí—, rechazar el indicador de orientación por "se siente a navegador" no se sostiene. La línea ya estaba cruzada; el cono no la cruza otra vez.
+
+**El cono es heading, no bearing.** Nunca sabe dónde está el POI, y por eso no es una flecha de navegación. Responde "¿hacia dónde estoy mirando?", no "¿voy bien?" — para lo segundo haría falta un destino, y en modo exploración Follower no tiene destino: se camina y las historias aparecen. Rojo en diástole significa "estás en modo historia", **no** "es por allá". Esta distinción es la que mantiene el cono del lado correcto de la pregunta rectora, y debe respetarse en la implementación: el cono no gira nunca hacia el POI activo.
+
+**El color por fase le da al elemento un rol narrativo, no solo utilitario.** El cono deja de ser mobiliario de mapa y pasa a latir con la app, como el resto del sistema sístole/diástole.
+
+### Evidencia de campo (S40)
+
+Capturas de iPhone en Palmira, sw v74, con la brújula activada por tap: el cono azul sobre el basemap CARTO Voyager —que es claro, no oscuro— se lee discreto y legible, sin competir con calles blancas ni parques. Volverlo permanente no ensucia el mapa. Queda por medir cómo se comporta en movimiento y si la opacidad actual (radial 0.5 → 0) basta cuando el cono deja de ser algo que el usuario acaba de activar deliberadamente.
+
+### Puntos abiertos que la implementación debe resolver
+
+**a) Permiso denegado.** Hoy `_requestCompassPermission()` solo escribe un `Debug.log('warn')`. Sin botón no hay segunda oportunidad en toda la sesión: el caminante queda sin cono hasta reabrir la app. Decidir si se acepta o si hay reintento colgado de un gesto posterior. DA-84 no lo resolvió.
+
+**b) `_updateCompassNeedle()` queda huérfana.** `app.js:1157-1159` apunta a `#compassNeedle`, que vive dentro del botón eliminado. Tiene guard (`if (needle)`) así que no rompe, pero es la misma familia que la bomba latente de `Config.getNarratorLabel()` en BUG-055: código muerto que sobrevive por guards. Se retira con el botón.
+
+**c) DT-20 cambia de objeto.** Pasa a validar este diseño, no el botón de tres estados. Sigue sin medirse si `webkitCompassHeading` entrega un heading estable caminando en iPhone real.
+
+**d) El bug del fondo activo desaparece solo.** El estado `.map-compass-btn.active` (`explore.css:238-241`) reemplaza el `background` oscuro en vez de superponerse, y sobre Voyager queda como un chip translúcido claro — el elemento más brillante de la pantalla. Se resuelve al eliminar el botón, no requiere fix propio.
+
+### Régimen de versiones
+
+No toca prompts: sin bump de `PROMPT_VERSION` ni de `THESIS_PROMPT_VERSION`. Al implementarse cambian `index.html`, `app.js`, `gps.js` y `explore.css`, así que corresponde bump de `CACHE_VERSION` en `sw.js`, en commit aparte y al final.
+
+**Relacionado:** DA-84 (enmendada), DA-22 (origen del cono y del botón), BUG-027 (alineación del cono en el divIcon, se conserva), DT-64 (implementación), DT-20 (reasignada), DA-77 y DT-47 (patrón de permiso dentro de gesto existente).
+
+---
+
+*Follower — Arquitectura v0.9 | Sesión 40 | 4 Agosto 2026*
+
+---

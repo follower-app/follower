@@ -40,12 +40,15 @@ HTML/CSS/JS vanilla - sin frameworks, sin npm, sin build step. Leaflet.js para m
 El panel/documentacion es fotografia estatica. El arbitro real es el codigo en GitHub. Antes de editar o afirmar el estado de cualquier archivo, traer la version viva desde raw.githubusercontent.com/follower-app/follower/main/[path]. Ante cualquier "ya quedo hecho", verificar contra el codigo, no contra el resumen.
 
 ## Donde vive el estado dinamico (no lo asumas, ve a buscarlo)
+
+Buscar en un solo documento NO es buscar. Las DA viven en arquitectura.md y los DT/BUG en producto.md: un grep de producto.md que no encuentra algo NO prueba que no este especificado. Antes de declarar que algo falta en la documentacion, buscarlo en los cinco documentos.
 Antes de responder sobre el estado actual del proyecto (bugs abiertos, en que va una arquitectura, que se decidio en la ultima sesion), consulta:
 - docs/producto.md - bugs, features, estado de producto
 - docs/arquitectura.md - decisiones DA-1 a la actual
 - docs/bitacora.md - historial de sesiones
 - docs/manifiesto_narrativo.md - reglas narrativas vigentes
 - docs/prompt_maestro_follower.md - prompt de capitulos vigente
+- docs/exploracion_ritmo_y_curaduria.md - presupuesto de ritmo (DT-74), curaduria de POIs y preguntas abiertas de producto
 
 Estos documentos cambian cada sesion. Este Skill NO los duplica - solo indica que existen y donde estan.
 
@@ -55,6 +58,7 @@ Estos documentos cambian cada sesion. Este Skill NO los duplica - solo indica qu
 - Cero codigo durante sesiones de diseno/definicion
 - sw.js siempre se commitea al final, por separado
 - PowerShell en Windows: sin && para encadenar comandos, sin head; mensajes de commit sin caracteres acentuados
+- PowerShell: NUNCA escribir archivos de configuracion con redireccion `>` — los guarda en UTF-16 LE y git los lee como UTF-8. Un .gitignore asi no aplica ninguna de sus reglas y falla en silencio. Usar Set-Content con -Encoding ascii
 - La documentacion se actualiza en la misma sesion que el codigo, nunca de forma especulativa
 - Deploys: index.html se sirve cache-first, skipWaiting() deshabilitado a proposito (no interrumpir audio activo). F5 normal no trae el HTML mas reciente.
 
@@ -81,6 +85,9 @@ Estos documentos cambian cada sesion. Este Skill NO los duplica - solo indica qu
 - El desbloqueo de audio en iOS requiere gesto touchend directo y real - touchstart con passive:true es interceptado por Leaflet antes del handler; esto es una restriccion dura de la plataforma, no un workaround pendiente
 - La clave de cache debe incluir el fingerprint del extracto, no solo la version del prompt
 - Las secciones de "estado de implementacion" son obligatorias en toda documentacion - ya hubo una regresion por un documento que afirmaba algo hecho que el codigo no soportaba
+- Sacar un archivo del arbol NO lo saca del historial de git. En un repo publico, lo unico que mata el riesgo de una credencial filtrada es ROTARLA en el proveedor; reescribir el historial no deshace una exposicion pasada y los forks conservan copia igual. Revisar tambien el nombre del campo: una key de un proveedor puede estar guardada bajo el nombre de otro
+- Un mismo sintoma puede tener dos mecanismos detras con almacenamientos distintos (ej: el texto que sobrevive al cierre de la app es cache de IndexedDB; que no se re-narre es una marca en localStorage). Antes de dar una validacion por buena, preguntar que mecanismo prueba exactamente la observacion
+- Cuando dos causas producen el mismo codigo de error, probar el servicio DIRECTAMENTE, sacando de la ecuacion la capa intermedia. El Worker es passthrough puro: propaga status y body sin tocar, asi que un 401 suyo y uno del proveedor son indistinguibles desde la app
 - Arquitectura narrativa (actos/epilogo) mas alla de la tesis es Fase 2+ hasta que evidencia de campo lo justifique - sobre-ingenierizar capas narrativas antes de validar es un anti-patron explicito para este proyecto
 
 ## Al trabajar visualmente (Claude Design)

@@ -324,9 +324,10 @@ El Prompt Maestro v2.7 (narrador único) tiene versiones en español e inglés. 
 | DT-74 | **Presupuesto de ritmo (S37, del documento de exploración).** DT-61 y DT-65 están planteados como filtros de *calidad* ("¿este POI merece capítulo?"); falta un filtro de *ritmo*: aunque los 20 POIs detectados fueran todos excelentes, narrarlos todos destruye la experiencia. Techo de narraciones por caminata o por unidad de tiempo, independiente del mérito individual. Es el número que la Filosofía de Escasez nunca tuvo. Rangos de partida desde literatura de museos y tours guiados (no evidencia de campo de Follower): ~1/3 de elementos visitados, declive de atención a 30-45 min, 6-12 paradas en un tour autoguiado a pie, ~8 capítulos como techo real de una caminata. **Transversal: ni DT-61 ni DT-65 ni DT-68 se dimensionan bien sin él.** Ver `docs/exploracion_ritmo_y_curaduria.md` §3 | Alta |
 | DT-75 | **Clasificador temático de POIs (S37, del documento de exploración).** Etiquetar temáticamente todos los POIs de una ciudad para usar el tema como criterio de selección. Factible y barato: `_attachExtracts()` ya trae el extracto intro de **todos** los POIs wiki al cargar (poi.js:364, lotes de 20), así que clasificar ~40 POIs es **una sola llamada a Haiku** (títulos + primera frase → etiquetas JSON, ~US$0,002, cacheable junto al POI cache, entra al régimen de `POI_CACHE_VERSION`). **Alcance recomendado para v1: prioridad, no exclusión** — cuando el presupuesto de ritmo (DT-74) obligue a elegir 8 de 20, escoger maximizando diversidad temática en vez de por cercanía. Nunca puede producir una caminata muda. La lente completa (la tesis elige el género y filtra POIs) queda como graduación, condicionada a dos riesgos abiertos: quién elige la lente (usuario = selector = audioguía, contradice DA-50) y el piso en ciudades de cobertura escasa. Ver `docs/exploracion_ritmo_y_curaduria.md` §5.2 | Media |
 | DT-76 | **Rotación de ángulo narrativo (S37, del documento de exploración) — CONDICIONADA.** Los cuatro registros de DA-50 no se eliminaron como capacidades, solo el selector. Un modo fijo por caminata es *ortogonal* a la fatiga (entrega N capítulos del mismo registro = misma monotonía); lo que la evidencia respalda es variación *dentro* de la caminata decidida por el sistema. La regla 7 del Prompt Maestro ("no repitas el recurso sensorial del capítulo anterior") ya es un mecanismo anti-saciedad en producción — extenderla al ángulo es un delta de una línea. **No se implementa hasta que DT-74 esté en campo:** si se hacen las dos a la vez y la caminata mejora, no se sabrá cuál lo hizo. Costo real cuando toque: bump de `PROMPT_VERSION` (invalida todas las narraciones cacheadas) + revalidación n≥4 de un prompt 16/16 | Baja |
-| ~~DT-77~~ | **CERRADA S40 — por decisión de diseño A, no por implementación.** El diagnóstico era correcto: el emoji genérico 🏛️ no informa porque la fuente primaria (Wikipedia GeoSearch) no entrega tipo OSM, y no hay forma limpia de derivarlo sin requests adicionales por POI. La decisión de diseño A (pines lisos, color por estado) elimina el emoji de todos los pines, haciendo innecesaria cualquier derivación de tipo. El ícono no entra; el color carga todo el significado. Las tablas de tipo→emoji de `poi.js:76-87` y `app.js:193-198` pasan a ser código muerto al implementar A — se retiran en ese mismo commit. *(Enunciado original S40 conservado arriba para trazabilidad.)* | ~~Media~~ |
-| ~~DT-78~~ | **CERRADA S40 — por decisión de diseño A.** La tabla duplicada (`poi.js:76-87` vs. `app.js:193-198`) era deuda real pero queda sin objeto: la decisión A elimina los emojis del mapa y del sheet. Ambas tablas se retiran al implementar A. Si en el futuro se revierten los emojis, la regla de "fuente única" aplica igual. *(Enunciado original S40 conservado arriba para trazabilidad.)* | ~~Baja~~ |
+| ~~DT-77~~ | **REABIERTA Y CERRADA S41 — por implementacion (DA-88).** El cierre de S40 se apoyaba en una premisa falsa: *"no hay forma limpia de derivar tipo desde Wikipedia GeoSearch sin requests adicionales por POI"*. Hay dos, ninguna por POI — `pageprops` con `ppprop=wikibase_item` viaja gratis en la llamada batcheada de extractos (`poi.js:373-388`), y DT-75 ya especificaba una sola llamada a Haiku sobre extractos en memoria. Medicion de campo (Palmira, radio 2 km, umbral 85% fijado antes de medir): la ruta Wikidata da 25% de cobertura contra la tabla existente y **los cuatro primeros POIs reales pedian tres entradas nuevas** — el mapa `P31 -> emoji` no converge. Cerrada por la ruta modelo + lista cerrada de 25 emojis: mantener una lista de simbolos es trivial, mantener un mapa de claves es imposible. El color sigue diciendo el estado; el glifo pasa a decir el tipo. Fallback 🎬. Ver anexo S41 y `arquitectura.md` DA-88. *(Enunciados S40 y original conservados arriba para trazabilidad.)* | ~~Media~~ |
+| ~~DT-78~~ | **CERRADA S41 — por implementacion, con diagnostico corregido.** No eran dos tablas que fusionar: `gps.js:621` ya leia `poi.icon` del registro, y `app.js:228/237` volvia a resolver por tipo un emoji **ya resuelto en el mismo objeto que recorria**. `OSM_ICONS` (`app.js:193-198`) era una tabla que sobra, no una que mover — por eso divergio (14 entradas contra 12): crecio por el lado del consumidor. Ademas aparecio un **tercer** generico no contado: `let icon = '📍'` en `poi.js:760` para el POI de OSM sin categoria. Los tres colapsan en `CONFIG.FALLBACK_ICON`. Neto: -13 lineas de logica. El icono se decide en un solo punto (`poi.js`); `gps.js` y `app.js` quedan en lectura pura, sin `||` ni tabla propia | ~~Baja~~ |
 | DT-79 | **`300` hardcodeado en `gps.js:612` teniendo `CONFIG.NEARBY_RADIUS` doce líneas arriba (S40).** `addPOIMarker()` decide el estado visual del pin con `const isNearby = distMeters <= 300`, mientras el filtro que alimenta el sheet usa `CONFIG.NEARBY_RADIUS` (`gps.js:28`, valor 300) vía `poi.js:938`. Hoy coinciden y nada falla. El día que se ajuste el radio —y el presupuesto de ritmo de DT-74 bien podría pedirlo— el sheet obedecería y los pines no, produciendo una divergencia silenciosa entre lo que el mapa pinta como "cercano" y lo que la app considera cercano. `getRadiusConfig()` ya expone la constante en el mismo archivo. Divergencia dormida, misma familia que DT-78 | Baja |
+| DT-80 | **`OSM_CATEGORIES` mapea claves de OSM, no valores (S41).** `poi.js:75-87` tiene entradas `'tourism'` y `'amenity'`, que son *claves* del esquema OSM, no valores: una `amenity` puede ser una biblioteca, un teatro o un hospital, y mapear la clave entera a ☕ es adivinar. Los valores reales son `amenity=cafe`, `amenity=library`, `amenity=theatre`. Ademas `'tourism' -> 📍` era un generico escondido dentro de la tabla de tipos, ya retirado en S41. Reapuntar la tabla a la lista cerrada de 25 simbolos **cambia el criterio de admision de la rama OSM**, no solo el dibujo: puede cambiar que POIs entran. Por eso va en ticket propio y con su propio `POI_CACHE_VERSION`, separado del clasificador | Media |
 
 ### Bugs de interfaz — reportados Sesión 31
 
@@ -681,7 +682,7 @@ Apareció además un **segundo secreto que DT-9 nunca cubrió**: una key de Open
 
 | ID | Descripción | Causa | Prioridad |
 |----|-------------|-------|-----------|
-| BUG-071 | **Las etiquetas de POI colisionan entre sí y se salen de la pantalla.** Evidencia de campo (Palmira, sw v74, capturas 1:16 y 1:17): la etiqueta roja del POI activo —*"…Señora del Rosario del…"*— queda recortada por el borde izquierdo de la pantalla y montada encima de la etiqueta *"Chamán Malagán"*. Ambas ilegibles | El `divIcon` del marcador mide 80×60 px (`gps.js:627-628`) pero `.poi-pin-label` lleva `white-space: nowrap` (`explore.css:173`), así que la etiqueta se desborda del icono sin límite y Leaflet no reposiciona nada. Con nombres de Wikipedia no es ocasional sino sistemático. **RESUELTO PARCIALMENTE POR DECISIÓN A (S40):** la decisión de pines A elimina las etiquetas de todos los pines no activos — sin etiquetas múltiples no hay colisión posible. Queda pendiente el recorte del POI activo: en la captura el POI activo es el del nombre más largo y se sale de pantalla por la izquierda. Al implementar A hay que añadir `max-width` + `text-overflow: ellipsis` o anclar la etiqueta al viewport en vez de al pin | Alta |
+| BUG-071 | **Las etiquetas de POI colisionan entre si y se salen de la pantalla.** Evidencia de campo (Palmira, sw v74, capturas 1:16 y 1:17): la etiqueta roja del POI activo —*"…Senora del Rosario del…"*— queda recortada por el borde izquierdo y montada encima de *"Chaman Malagan"*. Ambas ilegibles | El `divIcon` mide 80x60 px (`gps.js:627-628`) pero `.poi-pin-label` lleva `white-space: nowrap` (`explore.css:173`), asi que la etiqueta se desborda sin limite y Leaflet no reposiciona nada. **SOLUCION RATIFICADA S41, PENDIENTE DE IMPLEMENTAR (bloque 2):** la colision la resuelve la etiqueta unica del pin activo; el recorte lo resuelve **quitar el nombre y dejar solo la distancia**. Verificado en `app.js:154-159`: en diastole el sheet se oculta entero y el nombre pasa a `.bar-poi-name` (DM Serif 17 px), asi que la etiqueta del mapa repetia lo que la barra ya dice. Sin nombre no hay recorte posible y no hace falta `max-width` | Alta |
 
 ### Verificado en código: trabajo que ya no hay que hacer
 
@@ -744,10 +745,179 @@ Sigue siendo una sola salida, y ahora rinde seis cosas en vez de dos. Se sale co
 
 ### Pendiente de escritura fuera de este documento
 
-- Enmienda a DA-84 en `arquitectura.md` (redactada, sin anexar al cierre de esta entrada)
+- Enmienda a DA-84 en `arquitectura.md` *(S41: verificada como ya anexada — `arquitectura.md:3229`; esta nota quedo obsoleta al cierre de S40)* (redactada, sin anexar al cierre de esta entrada)
 - Nota del deploy sw v74 en `bitacora.md`, que S39 no registró
 - Corrección del párrafo de identidad visual en `instrucciones_proyecto.md`: describe el logo como "símbolo de manos" cuando el oficial es el corazón-brújula y las manos son exploración
 
 ---
 
 *Follower — Producto v0.9 | Sesión 40 | 4 Agosto 2026*
+---
+
+# Anexo S41 — Reversión de la decisión A de pines: el emoji vuelve, tipificado
+
+**Fecha:** 5 de agosto de 2026 · **Estado:** ratificado e implementado (bloques 1 y 3)
+
+## Qué se revirtió y por qué
+
+S40 cerró DT-77 y DT-78 mediante la decisión de diseño A: pines lisos, sin
+emoji, con el color cargando todo el significado. El razonamiento textual
+fue: *"no hay forma limpia de derivar tipo de POI desde Wikipedia GeoSearch
+sin requests adicionales por POI"*.
+
+**Esa premisa es falsa.** Verificado en código el 5 de agosto:
+
+- `_attachExtracts()` (`poi.js:373-388`) ya hace una llamada batcheada de 20
+  POIs con `prop=extracts`. Añadir `|pageprops` con `ppprop=wikibase_item`
+  va en **esa misma llamada** — cero requests nuevos — y devuelve el Q-id de
+  Wikidata de cada POI.
+- DT-75 ya especificaba una sola llamada a Haiku sobre extractos que ya
+  están en memoria, ~US$0,002 por ciudad.
+
+La objeción que abrió el tema fue estética (*"se ven muy planos"*). Por sí
+sola no habría bastado para reabrir una decisión ratificada. Lo que la
+reabrió fue la premisa falsa.
+
+## La medición, con umbral fijado antes de mirar
+
+Umbral acordado **antes** de correr las consultas: ≥85% de los POIs
+cercanos mapeando a un ícono distinto del genérico → el emoji vuelve;
+<85% → A queda en pie.
+
+GeoSearch real sobre Palmira, radio 2 km (los parámetros de `poi.js:204-213`):
+
+| POI | `type` GeoSearch | `P31` Wikidata | ¿En la tabla de S40? |
+|---|---|---|---|
+| Palmira (Colombia) | `city` | municipio | descartado por el filtro editorial |
+| Catedral Ntra. Sra. del Rosario del Palmar | `landmark` | iglesia | ⛪ sí |
+| Estadio Francisco Rivera Escobar | `landmark` | estadio | no |
+| Bulevar la Carbonera | `landmark` | — | no |
+| Complejo Deportivo y Cultural de San Pedro | `landmark` | — | no |
+
+**Cobertura contra la tabla existente: 1 de 4. 25%.** Por la regla acordada,
+la ruta Wikidata queda descartada — pero no por el `P31`, que clasifica
+bien, sino por el mapa `P31 → emoji` que hay detrás: **los cuatro primeros
+POIs reales de una ciudad pidieron tres entradas nuevas.** A ese ritmo la
+tabla no converge.
+
+La distinción que decidió todo: mantener una **lista cerrada de emojis
+permitidos** es trivial —25 símbolos, no crecen—; mantener un **mapa de
+claves `P31`** es imposible. Son dos trabajos distintos que se estaban
+tratando como uno. Haiku recibe la lista cerrada y resuelve el mapeo.
+
+Hallazgos colaterales de la misma medición:
+
+- **`gsprop=type` no discrimina.** Los cuatro POIs reales vienen como
+  `landmark`. El tipo de GeoSearch no es una tercera ruta.
+- **El artículo de la ciudad sí se filtra**, por `type: "city"` en la
+  blacklist. El cinturón de respaldo (`poi.js:298-301`) parte el título por
+  coma y no atraparía `"Palmira (Colombia)"`, que es la forma que usa
+  es.wikipedia — pero nunca se alcanza. Anotado, sin ticket.
+- **Cuatro POIs en 2 km del centro de Palmira**, el más cercano a 1,4 km.
+  Esto es más grande que cualquier decisión de pin y apunta a DT-65, DT-61
+  y el presupuesto de ritmo de DT-74. **El problema de ritmo en esta ciudad
+  no es de exceso sino de vacío**, que es la cara que ninguno de los tres
+  tickets contempla.
+
+## Lo que sobrevive de la decisión A
+
+La reversión es parcial. Sigue vigente:
+
+- Color del pin = estado (lejos / cercano / narrando / visto)
+- Etiqueta **solo** en el pin activo
+- La marca de Follower no entra en los pines (opción B sigue descartada)
+
+Lo que se deroga es únicamente *"pin liso, sin glifo"*.
+
+**Se reasigna la carga semántica:** el color dice el estado, el glifo dice
+el tipo. Antes el emoji no decía nada y el color lo decía todo — por eso el
+emoji se sentía prescindible y quitarlo se sentía plano.
+
+## Decisiones ratificadas
+
+**Fallback = 🎬.** El genérico anterior (🏛️) no era genérico: afirma
+"edificio neoclásico" y mentía sobre un estadio, un bulevar y un complejo
+deportivo. Esa es la razón de fondo de por qué los cuatro 🏛️ de la captura
+de S40 se leían como textura. 🎬 no clasifica el lugar: clasifica lo que
+Follower tiene ahí, un capítulo sin catalogar.
+
+- 🎬 **no está en la lista cerrada** — el cine se queda con 🎞️. Lo escribe
+  el código, nunca el modelo.
+- 🏛️ deja de ser comodín y pasa a ser un tipo real (edificio histórico o
+  civil, palacio, ayuntamiento, casona, hacienda).
+- La procedencia no se infiere del emoji: `_iconSource` es un campo aparte,
+  para que el contador de degradación no dependa de comparar contra 🎬.
+
+**Estado "visto" = pin sin relleno, contorno de 1,5 px en
+`--color-smoke-3`.** La tabla de S40 lo definía como "hueco interior", y el
+hueco vive justo donde ahora va el emoji. Además resuelve la contradicción
+interna del anexo S40 (que descartaba subir `far` a `--color-smoke-3` en un
+párrafo y se lo asignaba en la tabla treinta líneas después): `far` conserva
+`--color-border` relleno; `--color-smoke-3` pasa a ser el color del contorno
+de `visited`. Un pin lleno y uno vacío se distinguen de reojo; dos grises
+que difieren en catorce puntos por canal, no.
+
+**Etiqueta del pin activo = solo la distancia, sin nombre.** Verificado en
+`app.js:154-159`: en diástole el sheet se oculta entero y el nombre pasa a
+`.bar-poi-name`, en DM Serif a 17 px. Durante la narración el nombre está
+siempre visible, sin importar cómo el usuario hubiera dejado el sheet. La
+etiqueta del mapa estaría repitiendo palabra por palabra lo que ya dice la
+barra. No es que no quepa: es que sobra. Sin nombre no hay recorte posible,
+y BUG-071 queda cerrado sin necesidad de `max-width`.
+
+**Chips del sheet:** el color de estado pasa al anillo del chip, para que el
+emoji conserve su color propio.
+
+## La lista cerrada — 25 símbolos
+
+⛪ iglesia · 🕌 mezquita · 🕍 sinagoga · 🏛️ edificio histórico o civil,
+palacio, ayuntamiento, casona, hacienda · 🏰 castillo, fortaleza, muralla ·
+🏚️ ruinas · ⚱️ sitio arqueológico · 🗿 monumento, estatua, memorial ·
+🖼️ museo, galería · 🎭 teatro, auditorio, ópera · 🎞️ cine ·
+📚 biblioteca, archivo · 🎨 arte público, mural, escultura urbana ·
+🌳 parque, jardín, plaza, bulevar, alameda · ⛲ fuente · 🔭 mirador ·
+🌉 puente, viaducto · 🗼 torre, faro · 🏭 patrimonio industrial, fábrica,
+ingenio, molino, mina · 🏟️ estadio, complejo deportivo, plaza de toros ·
+🚉 estación de tren, metro o tranvía · 🎓 universidad, colegio histórico ·
+🏪 mercado · 🪦 cementerio · ☕ café o bar histórico
+
+Sale 📍, que en la tabla vieja estaba mapeado a la clave `tourism` — era un
+genérico escondido dentro de la tabla de tipos.
+
+🏭 se añadió por región: en Palmira el ingenio azucarero *es* la ciudad, y
+que la identidad del lugar cayera entera a 🎬 no sería el fallback
+funcionando sino la lista ciega a una región. Aplica igual a Lisboa
+(LX Factory), Manchester y Bilbao.
+
+Hacienda y casona entran en 🏛️; tranvía entra en 🚉 — ampliando la columna
+de descripción, sin símbolos nuevos. Lo demás sin emoji en Unicode (mirador
+de cañaduzal, puente de guadua) cae a 🎬 por diseño.
+
+## Implementado en esta sesión
+
+**Bloque 1 — unificación del icono (DT-78).** `OSM_ICONS` de `app.js:193-198`
+no era una tabla que fusionar: era una tabla que sobra. `gps.js:621` ya leía
+`poi.icon`; `app.js` volvía a resolver por tipo un emoji ya resuelto en el
+mismo objeto que estaba recorriendo. Por eso divergieron —14 entradas
+contra 12—: la de `app.js` creció por el lado del consumidor. Neto: −13
+líneas de lógica.
+
+**Tres genéricos, no dos.** Además de 🏛️ (wiki) y del `|| '📍'` del render,
+apareció `let icon = '📍'` en `poi.js:760` para el POI de OSM que no matchea
+categoría. Ese sí es un no-clasificado real y pasa a 🎬 desde ya.
+
+**Bloque 3 — clasificador.** Ver `arquitectura.md` DA-88 y el anexo del
+Prompt Maestro.
+
+## Pendiente
+
+**Bloque 2 (pines)** y **bloque 4 (brújula)** esperan la caminata. El bloque
+2 cierra BUG-071 y DT-79; el 4 es DT-64.
+
+Consecuencia a tener presente al desplegar: con los bloques 1 y 3 en
+producción y el 2 sin hacer, los pines conservan su forma actual y solo
+cambia el emoji que llevan dentro.
+
+---
+
+*Follower — Producto v0.9 | Sesión 41 | 5 Agosto 2026*

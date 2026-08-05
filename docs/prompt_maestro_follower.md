@@ -419,3 +419,147 @@ de subir `PROMPT_VERSION` ni de borrar IndexedDB a mano — crítico en campo
 ---
 
 *La versión en inglés vive únicamente en `narration.js` (SYSTEM_PROMPT.en) y es espejo fiel de este documento. Si este documento cambia, ambas variantes del código cambian en el mismo commit.*
+
+---
+
+# Anexo — Prompt del clasificador de iconos (S41)
+
+**Versión:** `CLASSIFIER_PROMPT_VERSION = 'v1'`
+**Vive en:** `narration.js` → `ICON_SYSTEM_PROMPT`
+**Consumidor:** `poi.js` → `_classifyWikiIcons()`
+**Tickets:** DT-77, DT-78
+
+**Este anexo no tiene espejo en inglés.** `ICON_SYSTEM_PROMPT` es único: la
+lista cerrada son emojis y las descripciones son insumo del modelo, no texto
+que el caminante escuche. El pie del documento anterior se refiere al Prompt
+Maestro (`SYSTEM_PROMPT.en`), no a este clasificador.
+
+## Por qué existe
+
+Wikipedia GeoSearch devuelve `type: "landmark"` para todo lo urbano —
+verificado en campo el 05-Ago-2026 sobre Palmira: cuatro POIs, cuatro
+`landmark`. El tipo no se puede derivar del dato que llega.
+
+Wikidata `P31` sí clasifica bien (medido: la catedral resuelve a *iglesia*,
+el estadio a *estadio*), pero exige mantener a mano un mapa `P31 → emoji`
+de claves ilimitadas. Los cuatro primeros POIs reales de Palmira ya pedían
+tres entradas nuevas; a ese ritmo la tabla no converge nunca.
+
+La distinción que decidió la ruta: mantener una **lista cerrada de emojis
+permitidos** es trivial — son veinticinco símbolos y no crecen. Mantener un
+**mapa de claves `P31`** es imposible. Haiku recibe la lista cerrada y
+resuelve el mapeo, que es justamente el trabajo que no converge a mano.
+
+Una llamada por ciudad, sobre extractos que ya están en memoria.
+
+## Alcance
+
+- **Solo la rama wiki.** Los POIs de OSM ya salen tipificados de sus tags
+  (`OSM_CATEGORIES`) y no pasan por el modelo.
+- **Solo POIs con `_extract`.** Sin extracto el modelo tendría únicamente
+  el nombre, y un nombre propio no dice qué es la cosa.
+- **No bloquea el mapa.** Se dispara después de `renderAllMarkers()`; los
+  pines aparecen con su icono provisional y se repintan al responder.
+
+## El prompt
+
+```
+Eres un clasificador de iconos para Follower. Recibes lugares y devuelves,
+para cada uno, el emoji de la lista cerrada que mejor lo representa.
+
+LISTA CERRADA — solo puedes usar estos 25 simbolos:
+⛪  iglesia, catedral, capilla, convento
+🕌  mezquita
+🕍  sinagoga
+🏛️  edificio historico o civil, palacio, ayuntamiento, casona, hacienda
+🏰  castillo, fortaleza, muralla
+🏚️  ruinas
+⚱️  sitio arqueologico
+🗿  monumento, estatua, memorial
+🖼️  museo, galeria
+🎭  teatro, auditorio, opera
+🎞️  cine
+📚  biblioteca, archivo
+🎨  arte publico, mural, escultura urbana
+🌳  parque, jardin, plaza, bulevar, alameda
+⛲  fuente
+🔭  mirador
+🌉  puente, viaducto
+🗼  torre, faro
+🏭  patrimonio industrial, fabrica, ingenio, molino, mina
+🏟️  estadio, complejo deportivo, plaza de toros
+🚉  estacion de tren, metro o tranvia
+🎓  universidad, colegio historico
+🏪  mercado
+🪦  cementerio
+☕  cafe o bar historico
+
+REGLAS
+1. Devuelve UNICAMENTE un objeto JSON. Sin preambulo, sin explicacion,
+   sin bloques de codigo, sin texto antes ni despues.
+2. La clave es el id exacto que recibiste. El valor es un emoji de la
+   lista, o cadena vacia si ninguno encaja.
+3. Nunca uses un emoji que no este en la lista. Ante la duda, cadena vacia.
+   Una cadena vacia es una respuesta correcta; un emoji inventado no.
+4. Cadena vacia tambien si el articulo trata de una persona, un evento,
+   una obra o un concepto en vez de un lugar que se pueda visitar.
+5. Si un lugar encaja en dos categorias, elige la de su funcion principal
+   hoy, no la de su origen. Un convento convertido en museo es 🖼️.
+6. No repitas el id. No agregues ids que no recibiste.
+
+FORMATO DE SALIDA
+{"wiki_11502036":"⛪","wiki_2276045":"🏟️","wiki_11485987":""}
+```
+
+El *user prompt* es el JSON de `[{ id, nombre, resumen }]`, donde `resumen`
+son los primeros 200 caracteres del `_extract`. La primera frase de un
+artículo de Wikipedia casi siempre dice qué es la cosa; mandar el extracto
+completo multiplicaría los tokens sin mejorar la clasificación.
+
+## La lista cerrada se hace cumplir en código, no solo en el prompt
+
+`classifyIcons()` valida cada emoji devuelto contra `ICON_ALLOWED` y
+degrada a `''` cualquiera que no esté en la lista. El prompt pide; el
+código garantiza. Un modelo que invente un símbolo produce un fallback,
+nunca un emoji fuera de vocabulario.
+
+La comparación normaliza el selector de variación `U+FE0F`: el modelo
+puede devolver `🏛` en vez de `🏛️`, y compararlos en crudo mandaría a
+fallback un acierto legítimo.
+
+**🎬 no está en la lista, por diseño.** Es el fallback, lo escribe el
+código, y el cine se queda con 🎞️. Si algún día 🎬 entra a `ICON_ALLOWED`,
+el fallback deja de ser distinguible de una clasificación.
+
+## Los cuatro estados de `_iconSource`
+
+| Valor | Significado |
+|---|---|
+| `osm` | Tipificado desde tags de OpenStreetMap, sin modelo |
+| `model` | Haiku eligió un símbolo de la lista |
+| `fallback` | Haiku miró y no había categoría → 🎬 |
+| `default` | Nunca se clasificó — sin extracto, o la llamada falló |
+
+La diferencia entre `fallback` y `default` es deliberada: un corte de red
+no es lo mismo que un lugar inclasificable. Sin esa distinción, el
+contador de degradación sumaría dos cosas distintas. Un POI en `default`
+se reintenta en la siguiente carga; uno en `fallback` no.
+
+## Disciplina de versiones
+
+- Cualquier cambio a `ICON_SYSTEM_PROMPT` o a `ICON_ALLOWED` exige `++` de
+  `CLASSIFIER_PROMPT_VERSION` en el **mismo commit**.
+- `poi.js` guarda esa versión como `_iconVersion` en cada registro y
+  reclasifica solo los POIs desfasados. **No purga extractos.**
+- Eso lo separa de `POI_CACHE_VERSION`, que sí purga todo el registro y se
+  reserva para cambios de query, filtros o normalización. Un cambio de
+  prompt no debe costar una re-descarga de extractos: en campo, sin señal,
+  eso deja al caminante sin POIs.
+
+## Contador de degradación
+
+`_classifyWikiIcons()` registra en `Debug` cuántos POIs quedaron
+clasificados y cuántos cayeron a fallback, por ciudad. Si la proporción de
+fallback crece, no es el diseño funcionando: es la lista cerrada quedándose
+corta en esa región. Es la misma familia que la faceta nula de DT-68 —
+degradación silenciosa que solo se ve si alguien la cuenta.

@@ -3281,7 +3281,7 @@ No toca prompts: sin bump de `PROMPT_VERSION` ni de `THESIS_PROMPT_VERSION`. Al 
 
 ---
 
-*Follower — Arquitectura v0.9 | Sesión 40 | 4 Agosto 2026*
+
 
 ---
 
@@ -3343,3 +3343,138 @@ No es un selector encubierto. DA-50 eliminó el selector porque exigía una deci
 ---
 
 *Follower — Arquitectura v0.9 | Sesión 40 | 4 Agosto 2026*
+---
+
+## DA-88 — Clasificación de iconos de POI por modelo, contra lista cerrada
+
+**Sesión 41 · Implementada · Tickets: DT-77, DT-78**
+
+### El problema
+
+Wikipedia GeoSearch es la fuente primaria de POIs y devuelve
+`type: "landmark"` para todo lo urbano. Verificado en campo (Palmira,
+5-Ago-2026, radio 2 km): cuatro POIs, cuatro `landmark`. **El tipo no se
+puede derivar del dato que llega.**
+
+Sin tipo, el icono del pin era un literal fijo — 🏛️ para toda la rama
+wiki — y por eso DT-77 lo describía como textura en vez de señal.
+
+### Las dos rutas evaluadas
+
+**Wikidata `P31`.** Técnicamente limpia y gratuita: `pageprops` con
+`ppprop=wikibase_item` viaja en la llamada de extractos que ya existe
+(`poi.js:373-388`, lotes de 20), y un `wbgetentities` batcheado resuelve el
+`P31` de hasta 50 entidades. Ningún request por POI.
+
+Medida sobre Palmira, `P31` clasifica **bien** — la catedral resuelve a
+*iglesia* (no a *catedral*: `P31` es más grueso de lo esperado, lo que
+favorecía esta ruta). Pero exige mantener a mano un mapa `P31 → emoji`
+de claves ilimitadas, y **los cuatro primeros POIs reales de una ciudad ya
+pedían tres entradas nuevas**. La tabla no converge.
+
+**Modelo contra lista cerrada.** La distinción que decidió: mantener una
+lista cerrada de *emojis permitidos* es trivial —25 símbolos, no crecen—;
+mantener un mapa de *claves* es imposible. Son dos trabajos distintos. Se
+le pasa a Haiku la lista y él resuelve el mapeo, que es justamente el
+trabajo que no converge a mano.
+
+### La decisión
+
+El icono de la rama wiki lo asigna Haiku, en **una llamada por ciudad**,
+sobre extractos que ya están en memoria (`_attachExtracts`). ~US$0,002.
+
+**Invariantes:**
+
+1. **El icono se decide en un solo punto: `poi.js`, al normalizar o al
+   clasificar.** `gps.js` y `app.js` quedan en lectura pura de `poi.icon`,
+   sin `||` ni tabla propia. Los tres genéricos que existían —🏛️ en la rama
+   wiki, `'📍'` en `poi.js:760`, `|| '📍'` en el render de `gps.js`— se
+   colapsan en uno solo, `CONFIG.FALLBACK_ICON`.
+2. **La lista cerrada se hace cumplir en código, no solo en el prompt.**
+   `classifyIcons()` valida contra `ICON_ALLOWED` y degrada a fallback
+   cualquier símbolo fuera de vocabulario. El prompt pide; el código
+   garantiza. Es lo que hace a 🎬 inalcanzable para el modelo.
+3. **No bloquea el mapa.** La clasificación se dispara *después* de
+   `renderAllMarkers()`. Los pines aparecen con su icono provisional y se
+   repintan cuando el modelo responde. Una llamada de red no entra al
+   camino de la pantalla.
+4. **Solo la rama wiki.** Los POIs de OSM ya salen tipificados de sus tags
+   y no pasan por el modelo — donde hay dato duro no se pregunta.
+5. **Solo POIs con `_extract`.** Sin extracto el modelo tendría solo el
+   nombre, y un nombre propio no dice qué es la cosa.
+
+### Los cuatro estados de `_iconSource`
+
+| Valor | Significado | ¿Se reintenta? |
+|---|---|---|
+| `osm` | Tipificado desde tags de OpenStreetMap | no |
+| `model` | Haiku eligió un símbolo de la lista | no |
+| `fallback` | Haiku miró y no había categoría → 🎬 | no |
+| `default` | Nunca se clasificó — sin extracto, o la llamada falló | sí |
+
+La distinción entre `fallback` y `default` es deliberada: **un corte de red
+no es lo mismo que un lugar inclasificable.** Sin ella, el contador de
+degradación sumaría dos fenómenos distintos y el diagnóstico de campo sería
+imposible. Un POI en `default` conserva su icono provisional y se reintenta
+en la siguiente carga.
+
+### Disciplina de versiones
+
+`CLASSIFIER_PROMPT_VERSION` vive en `narration.js` (dueño del prompt) y
+`poi.js` la consume vía `getClassifierVersion()` — **una sola fuente**, sin
+posibilidad de desincronización entre las dos.
+
+Cada registro guarda `_iconVersion`. Al cargar, se reclasifican **solo** los
+POIs desfasados: el icono se recalcula, el extracto no se vuelve a bajar.
+Eso lo separa de `POI_CACHE_VERSION`, que purga el registro entero y se
+reserva para cambios de query, filtros o normalización. **Un cambio de
+prompt no debe costar una re-descarga de extractos**: en campo, sin señal,
+eso deja al caminante sin POIs.
+
+`POI_CACHE_VERSION` sube a 6 en esta sesión, una sola vez, porque la
+normalización pasa a escribir campos nuevos.
+
+### Contador de degradación
+
+`_classifyWikiIcons()` registra en `Debug` cuántos POIs quedaron
+clasificados y cuántos cayeron a fallback, por ciudad. Si la proporción de
+fallback crece, no es el diseño funcionando: es la lista cerrada quedándose
+corta en esa región. Misma familia que la faceta nula de DT-68 —
+degradación silenciosa que solo se ve si alguien la cuenta.
+
+**Relacionado:** DT-75 (el mecanismo es el mismo; aquí se usa en su forma
+más inofensiva — un icono equivocado es un icono equivocado, no una
+caminata muda), DT-77, DT-78, DT-79, DA-52.
+
+---
+
+## DA-84 — Enmienda (S41): permiso de orientación denegado se acepta en silencio
+
+**Sesión 41 · Cierra el punto (a) abierto por la enmienda S40**
+
+La enmienda de S40 dejó abierto qué hacer si el usuario deniega el permiso
+de `DeviceOrientation`: al eliminarse el botón, no hay segunda oportunidad
+en toda la sesión.
+
+**Decisión: se acepta.** Sin cono el resto de la sesión, solo `Debug.log`.
+Sin reintento.
+
+**Razonamiento:** cualquier reintento colgado de un gesto posterior es un
+control escondido — vuelve a fallar la pregunta rectora por la puerta de
+atrás, que es exactamente lo que la enmienda S40 quiso evitar al matar el
+botón. Y iOS no persiste la decisión entre recargas, así que reabrir la app
+ya ofrece otra oportunidad de forma natural, sin que el diseño tenga que
+fabricarla.
+
+**Observación pendiente de captura (S41):** `.map-zoom-controls` está en
+`bottom: 110px` con `z-index: var(--z-ui)` (10), y el sheet en `peek` es
+`var(--z-card)` (20) con una altura calculada de ~230 px sobre sus propios
+paddings. Si eso se confirma en el iPhone, **la columna de zoom y brújula
+lleva desde S35 siendo inalcanzable en el estado normal de la app** — lo que
+reordenaría el punto (a): no sería "qué hacer si el permiso se deniega",
+sino que nunca hubo forma de pedirlo dos veces. Se decide con la captura,
+no con el mockup.
+
+---
+
+*Follower — Arquitectura v0.9 | Sesión 41 | 5 Agosto 2026*

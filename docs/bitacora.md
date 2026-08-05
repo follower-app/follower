@@ -6236,3 +6236,158 @@ La misma caminata de S39, que ahora rinde **seis** cosas en vez de tres: DT-72 (
 ---
 
 *Follower — Bitácora v0.9 | Sesión 40 | 4 Agosto 2026*
+---
+
+## Sesión 41 — 5 Agosto 2026
+
+**Sesión de interfaz e implementación.** Reversión documentada de una
+decisión ratificada el día anterior, sostenida por una medición con umbral
+fijado de antemano. Cuatro archivos JS modificados, un anexo nuevo al
+Prompt Maestro, y un hallazgo de escasez de POIs que excede el alcance de
+la sesión.
+
+Versiones verificadas al abrir: `CACHE_VERSION` v74, `PROMPT_VERSION` v3.8,
+`THESIS_PROMPT_VERSION` v5, `POI_CACHE_VERSION` 5. Nada de lo decidido en
+S40 estaba en código.
+
+### El congelado de v74 era calendario, no principio
+
+El pedido —afinar la interfaz *antes* de la caminata— chocaba de frente con
+el cierre de S40: *"se sale con v74 congelado"*. El choque se resolvió al
+cambiar la premisa: la caminata se alargó indefinidamente, y con ella el
+cálculo se invierte. Salir en v74 significaría que los pines y la brújula
+necesitan *otra* salida para validarse, y esa está aún más lejos.
+
+Auditado qué se contamina realmente: DT-72, DT-68, BUG-058 y el
+discriminador del "· 1" son intactos por los pines. **El único acoplamiento
+real es la brújula** — el cono vive en el mismo `divIcon` que
+`updateUserPosition()` reconstruye (fix de BUG-053) y el permiso cuelga de
+`_unlockAudioOnFirstTap()` (camino de BUG-051). De ahí la secuencia: pines
+primero, brújula al final, en commits separados.
+
+### El mockup construido desde el código
+
+En S40 tres mockups del mapa salieron mal y los corrigieron dos capturas.
+Esta vez se construyeron leyendo `explore.css`, `main.css`, `index.html`,
+`gps.js` y `debug.js` traídos de GitHub raw. Cinco cosas aparecieron sin
+buscarlas:
+
+1. **La columna de zoom y brújula queda tapada por el sheet en `peek`.**
+   `bottom: 110px` con `z-ui` (10) contra un sheet `z-card` (20) de ~230 px.
+   Pendiente de captura — si se confirma, el botón de brújula lleva desde
+   S35 siendo inalcanzable.
+2. **Contradicción dentro del propio anexo S40.** Un párrafo descarta subir
+   `far` a `--color-smoke-3`; la tabla, treinta líneas después, se lo asigna.
+   El código usa `--color-border` (`explore.css:162`).
+3. **El rótulo va después de lo que rotula.** `index.html:224-227`: el orden
+   DOM es `icon-row` → `style-title`, así que "POR DESCUBRIR · N" aparece
+   debajo de los chips que nombra.
+4. **No hay `safe-area-inset` en ningún CSS.** En Safari la barra del
+   navegador lo absorbe; instalada como PWA, el care strip quedaría bajo el
+   notch. Anotado, sin ticket.
+5. **El `icon` se persiste en el registro del POI** (`poi.js:346` y `:781`),
+   dato que después resultó decisivo para la disciplina de versiones.
+
+### La premisa falsa
+
+La objeción que abrió el tema fue estética — *"se ven muy planos"*. Por sí
+sola no habría bastado para reabrir una decisión ratificada. Lo que la
+reabrió fue verificar que **el razonamiento textual de la decisión A era
+falso**: *"no hay forma limpia de derivar tipo sin requests adicionales por
+POI"*. Hay dos, y ninguna es por POI — `pageprops` viaja gratis en la
+llamada de extractos, y DT-75 ya especificaba una sola llamada a Haiku.
+
+Corrección a la documentación de paso: DT-66 afirma que los POIs ya heredan
+`wikidata` id por DT-49. Eso vale **solo** para POIs fusionados con OSM
+(`poi.js:694`); la rama wiki pura, que es la mayoría, no lo tiene.
+
+### La medición, con umbral fijado antes de mirar
+
+Acordado antes de correr nada: ≥85% de cobertura → vuelve el emoji; <85% →
+A queda en pie. GeoSearch real sobre Palmira, radio 2 km, parámetros de
+`poi.js:204-213`:
+
+**Cuatro POIs reales.** Catedral (`P31` = iglesia, mapeada), Estadio
+(estadio, sin entrada), Bulevar la Carbonera (sin entrada), Complejo
+Deportivo y Cultural (sin entrada). El artículo de la ciudad se descarta
+correctamente por `type: "city"`.
+
+**Cobertura: 1 de 4. 25%.** Por la regla acordada, la ruta Wikidata cae. No
+por el `P31` —que clasifica bien; predije que la catedral daría *catedral* y
+dio *iglesia*, más grueso y por tanto más favorable a Wikidata de lo
+anunciado— sino por el mapa de claves que hay detrás: **los cuatro primeros
+POIs de una ciudad pidieron tres entradas nuevas.**
+
+De ahí la distinción que decidió todo: mantener una lista cerrada de
+*emojis* es trivial; mantener un mapa de *claves* es imposible. Haiku recibe
+la lista y resuelve el mapeo.
+
+### Un hallazgo mayor que el tema de la sesión
+
+**Cuatro POIs en 2 km del centro de Palmira, el más cercano a 1,4 km.** En
+una caminata real habrá tramos largos sin nada. Es DT-65, DT-61 y el
+presupuesto de ritmo de DT-74 apuntando al mismo sitio, y sugiere que el
+problema de ritmo en esta ciudad **no es de exceso sino de vacío** — la cara
+que ninguno de los tres tickets contempla. Registrado en `producto.md`, sin
+mezclarlo con la decisión de la sesión.
+
+### Lo implementado
+
+**Bloque 1 — unificación del icono (DT-78).** El diagnóstico de S40 decía
+"tabla duplicada". El real es otro: `gps.js:621` ya leía `poi.icon`, y
+`app.js` volvía a resolver por tipo un emoji ya resuelto en el mismo objeto
+que recorría. `OSM_ICONS` no era una tabla que fusionar sino una que sobra.
+Por eso divergieron —14 entradas contra 12—: creció por el lado del
+consumidor. Neto −13 líneas de lógica.
+
+Y apareció un **tercer** genérico que nadie había contado: `let icon = '📍'`
+en `poi.js:760`, para el POI de OSM sin categoría. Ese sí es un
+no-clasificado real y pasa a 🎬.
+
+**Bloque 3 — clasificador (DA-88).** `classifyIcons()` en `narration.js`,
+donde ya viven los tres consumidores de `callClaude()`; duplicar el fetch en
+`poi.js` habría sido una segunda puerta al Worker con su propio timeout.
+Enganchado *después* de `renderAllMarkers()`: los pines aparecen de
+inmediato y se repintan al responder el modelo.
+
+Dos detalles que resultaron no ser detalles: la lista cerrada se valida
+**en código** contra `ICON_ALLOWED`, no solo en el prompt —es lo que hace a
+🎬 inalcanzable para el modelo—; y la comparación normaliza `U+FE0F`, porque
+Haiku puede devolver `🏛` sin selector de variación y compararlo en crudo
+mandaría a fallback un acierto legítimo.
+
+### Correcciones a lo dicho durante la propia sesión
+
+- Recomendé no bumpear `POI_CACHE_VERSION` porque `icon` quedaba vestigial.
+  Con el clasificador deja de serlo: **sube a 6**. Pero los cambios
+  *futuros* de prompt no purgan extractos — para eso está `_iconVersion`.
+- Dije que sin clasificador "todos los POIs wiki caen a 🎬". Falso: hoy caen
+  a 🏛️, y cambiarlo sin clasificador sería reemplazar un genérico por otro
+  peor. La rama wiki conserva 🏛️ hasta que el bloque 3 esté vivo.
+- Al proponer 🎬 afirmé que no colisionaba con ningún tipo real. El símbolo
+  obvio del cine *es* 🎬. Resuelto dejándolo fuera de la lista (el cine toma
+  🎞️) y con `_iconSource` como campo aparte, para que la procedencia nunca
+  se infiera del carácter.
+
+### Decisiones de interfaz cerradas
+
+`visited` = pin sin relleno con contorno `--color-smoke-3` (el "hueco
+interior" de S40 vivía justo donde ahora va el emoji). Etiqueta del pin
+activo = **solo la distancia**: verificado en `app.js:154-159` que en
+diástole el sheet se oculta entero y el nombre pasa a `.bar-poi-name` en DM
+Serif a 17 px, así que la etiqueta del mapa repetía lo que la barra ya dice.
+No es que no quepa: sobra. Permiso de brújula denegado, se acepta en
+silencio (enmienda DA-84 S41).
+
+### Cómo se sale
+
+Bloques 1 y 3 desplegados; bloques 2 (pines) y 4 (brújula) esperan la
+caminata. El bloque 2 cierra BUG-071 y DT-79; el 4 es DT-64.
+
+`POI_CACHE_VERSION` 5 → 6 **purga los POIs cacheados**: el primer arranque
+tras el deploy vuelve a bajar POIs y extractos. Conviene que ese arranque
+sea con señal.
+
+---
+
+*Follower — Bitácora v0.9 | Sesión 41 | 5 Agosto 2026*

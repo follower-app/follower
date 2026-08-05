@@ -8,7 +8,7 @@
 
 // Incrementar CACHE_VERSION fuerza descarga de todos los archivos
 // en el proximo arranque — incluso si el navegador tiene version cacheada.
-const CACHE_VERSION = 'follower-v74';  // S39 higiene: comentarios fosiles corregidos en care.js y debug.js (sin cambio de comportamiento)
+const CACHE_VERSION = 'follower-v75';  // S41 (DT-77/DT-78/DA-88): fuente unica del icono de POI (poi.js, app.js, gps.js) + clasificador de iconos via Haiku contra lista cerrada (narration.js). POI_CACHE_VERSION sube a 6 en el mismo deploy: el primer arranque purga POIs cacheados y vuelve a bajar POIs y extractos
 
 const STATIC_ASSETS = [
   './',

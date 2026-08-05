@@ -3284,3 +3284,62 @@ No toca prompts: sin bump de `PROMPT_VERSION` ni de `THESIS_PROMPT_VERSION`. Al 
 *Follower — Arquitectura v0.9 | Sesión 40 | 4 Agosto 2026*
 
 ---
+
+---
+
+## DT-76 — Rotación de ángulo narrativo: relación con DA-85 §3 y condición de desbloqueo (S40)
+
+*Sesión 40, 4 agosto 2026. Primera entrada de DT-76 en `arquitectura.md`. DT-76 existía en `producto.md` desde S37 pero nunca tuvo entrada aquí — el vacío estaba señalado como problema abierto en la actualización S39 de DA-85 §3. Esta entrada lo cierra.*
+
+### Qué es DT-76
+
+DA-50 eliminó el selector manual de registro narrativo (lírico / analítico / íntimo / épico), pero no eliminó los cuatro registros como capacidades del sistema. DT-76 propone que el sistema los rote automáticamente dentro de una caminata, decidido por Follower sin intervención del usuario: si el capítulo 1 fue lírico, el capítulo 2 no lo sería.
+
+El mecanismo sería una extensión de la regla 7 del Prompt Maestro, que ya prohíbe repetir el recurso sensorial del capítulo anterior. Extender esa prohibición al registro narrativo es un delta de una línea en el prompt. Costo real: bump de `PROMPT_VERSION` (invalida todas las narraciones cacheadas) + revalidación n≥4.
+
+### ¿Es el mismo mecanismo que DA-85 §3?
+
+Son parecidos pero operan en capas distintas:
+
+- **DA-85 §3** rota **facetas de la ciudad** — el ángulo desde el que se comprende la ciudad en cada capítulo. Qué aspecto del rasgo verificado se ilumina esta vez. Opera sobre el *contenido*.
+- **DT-76** rota **el registro narrativo** — el tono y la voz con que se narra. Lírico, analítico, íntimo, épico. Opera sobre la *forma*.
+
+Pueden coexistir como dos capas del mismo mecanismo —la faceta decide *qué mirar*, el registro decide *cómo contarlo*— o resultar redundantes si en la práctica el registro se deriva naturalmente del contenido. **Eso no se puede saber sin caminatas con §3 implementado.** Es la razón de que DT-76 esté condicionada a que DT-74 esté en campo: si se implementan §3 y DT-76 a la vez y la caminata mejora, no se sabrá cuál lo hizo.
+
+**Conclusión para el roadmap:** DT-76 no es un duplicado de §3, no está cancelada, y no se implementa antes de §3. El orden es:
+
+```
+DT-74 en campo (presupuesto de ritmo)
+        ↓
+DA-85 §3 implementada + validación n≥4
+        ↓
+¿El registro varía naturalmente con la faceta?
+        ↓ no          ↓ sí
+     DT-76         DT-76 cancelada
+```
+
+### Condición de desbloqueo
+
+**DT-76 no se implementa hasta que se cumplan dos condiciones:**
+
+1. DT-74 en campo — para tener el presupuesto de ritmo como variable controlada.
+2. DA-85 §3 implementada y validada con n≥4 — para saber si la rotación de facetas ya produce variedad de registro como efecto secundario.
+
+Si la condición 2 confirma que sí, DT-76 se cierra por innecesaria. Si confirma que no, DT-76 se implementa con sus propias métricas de validación.
+
+### Lo que DT-76 no es
+
+No es un selector encubierto. DA-50 eliminó el selector porque exigía una decisión del usuario antes de caminar, convirtiendo la experiencia en una audioguía con modo. DT-76 decide el registro el sistema, en silencio, en cada capítulo — el caminante nunca elige ni ve nada. La distinción es la misma que separa el cono de heading (pasivo, siempre activo) del botón de brújula (interacción manual): lo que falla la pregunta rectora es lo que exige decisión del usuario, no lo que el sistema decide solo.
+
+### Relación con el resto de la narrativa
+
+- **DA-85 §3** — prerrequisito funcional. §3 debe estar en campo antes de evaluar si DT-76 añade algo.
+- **DT-74** — prerrequisito de medición. Sin presupuesto de ritmo no se controla la variable.
+- **DA-52 / DT-39** — la regla 7 del Prompt Maestro ya es un mecanismo anti-saciedad inmediato. DT-76 es su extensión natural al eje de registro.
+- **DT-68** — el ledger de sesión que §3 introdujo podría extenderse para registrar también el registro narrativo, si DT-76 se implementa. Trabajo adicional no modelado aún.
+
+**Relacionado:** DA-85 §3, DA-50, DT-74, DT-68, DA-52/DT-39 (regla 7 del Prompt Maestro).
+
+---
+
+*Follower — Arquitectura v0.9 | Sesión 40 | 4 Agosto 2026*

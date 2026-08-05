@@ -6210,18 +6210,22 @@ Al buscar qué marca usar en el pin apareció que `assets/logo.svg` e `icon-mast
 
 Prueba de tamaño hecha en el camino: a 16 px —glifo dentro de un pin— el corazón-brújula pierde el trazo y la aguja le come el corazón. No es argumento para cambiar de logo; es argumento para **no meter el emblema dentro de un pin**. A ~38 px, tamaño del marcador de usuario, el oficial funciona bien.
 
-### Decisión dejada abierta a propósito
+### Decisión cerrada en segunda parte de sesión
 
-Contenido del pin: **A** (liso, sin glifo) vs. **C** (liso + emblema en el marcador del caminante). Descartada **B** (marca de Follower en cada pin): seis pines con el mismo emblema reproducen DT-77 con otro dibujo, y además **gasta la marca** — si cada POI lleva la marca de la app, la marca pasa a significar "punto de interés".
+**Pines — opción A ratificada.** Pin liso, sin emoji, cuatro estados de color: lejos (#2d3e50), cercano (sístole), narrando (diástole), visto (hueco interior). El emoji se descartó definitivamente — no por estética sino porque no hay forma limpia de derivar tipo desde Wikipedia GeoSearch sin requests adicionales por POI, y una mezcla con cobertura parcial es peor que todos iguales. El color ya cargaba el significado real.
 
-C tiene un argumento que va más allá de la UI: si el emblema marca al caminante y no a los lugares, la pantalla dice lo que dice el manifiesto —el caminante es el protagonista, la ciudad es el escenario—. Pero es una afirmación de identidad, no solo una decisión visual, y toca `_buildUserIcon()`, que es zona de BUG-027. Se decide con el mapa real delante.
+El estado "visto" es trabajo nuevo: `poi.visited` existe pero `updateMarkersState()` no lo consume. Se añade al implementar A.
+
+BUG-071 resuelto en su parte de colisión. DT-77 y DT-78 cerradas por esta decisión. DT-79 va gratis en el mismo commit.
+
+**DT-76 — primera entrada en `arquitectura.md`.** El número existía en `producto.md` desde S37 pero nunca tuvo entrada en arquitectura. Se redactó en S40: DT-76 rota el registro narrativo (tono/voz), DA-85 §3 rota facetas (contenido). No son duplicados — pueden coexistir como dos capas. DT-76 no se implementa hasta que §3 esté validada en campo: si mejora y §3 no estaba, no se sabrá cuál lo hizo.
 
 ### Documentos tocados
 
-- `producto.md` — DT-77/78/79 y BUG-071 añadidos, DT-64 enmendada en su fila, BUG-054 cerrada por rediseño, higiene de fósiles marcada resuelta, anexo S40
-- `arquitectura.md` — enmienda a DA-84 (punto 2)
+- `producto.md` — DT-77/78/79 y BUG-071 añadidos, DT-64 enmendada en su fila, BUG-054 cerrada por rediseño, higiene de fósiles marcada resuelta, decisión A de pines con tabla de cuatro estados, DT-77 y DT-78 cerradas, BUG-071 actualizado con resolución parcial, anexo S40
+- `arquitectura.md` — enmienda a DA-84 (punto 2) + primera entrada de DT-76
 - `bitacora.md` — esta entrada + corrección del conteo de deploys de S39
-- Pendiente: `instrucciones_proyecto.md` (párrafo de identidad visual)
+- `instrucciones_proyecto.md` — ejemplo de la pregunta rectora corregido (botón descartado, cono conservado), identidad visual actualizada (logo oficial = corazón-brújula, manos y círculos en estudio), lección de interfaz añadida
 
 ### Pendiente de campo
 

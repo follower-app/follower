@@ -6391,3 +6391,91 @@ sea con señal.
 ---
 
 *Follower — Bitácora v0.9 | Sesión 41 | 5 Agosto 2026*
+
+---
+
+## Sesión 41 (continuación) — 5 Agosto 2026
+
+Tras el deploy de los bloques 1 y 3, la sesión siguió con el bloque 2, el
+aplazamiento de la brújula y DT-80.
+
+### Bloque 2 — pines (BUG-071, DT-79)
+
+Antes de escribir se verificó la cadena completa: `poi.visited` se marca en
+`narration.js:1560`, `updateMarkersState()` existe en `poi.js:1217` y **sí**
+se llama desde `poi.js:1016`. Sin esa comprobación, el estado `visited`
+habría sido código muerto.
+
+BUG-071 se cerró sin `max-width`: la colisión la resuelve la etiqueta única
+del pin activo, y el recorte lo resuelve quitar el nombre. Verificado en
+`app.js:154-159` que en diástole el sheet se oculta entero y el nombre pasa
+a `.bar-poi-name` en DM Serif a 17 px — la etiqueta del mapa lo repetía a
+9 px. No era que no cupiera: sobraba.
+
+Latencia conocida y aceptada: el pin `visited` repinta en el siguiente tick
+de detección, no al callar la voz. Un par de segundos. El fix sería llamar a
+`updateMarkersState()` desde `markVisited()`, pero eso era una segunda cosa
+en la misma ventana.
+
+### La brújula — dónde se fue el tiempo
+
+Se propuso un card de brújula dentro del wizard. Verificado en
+`app.js:1299-1304` que el wizard corre **solo la primera vez**
+(`Config.isFirstTime()`), y el permiso de `DeviceOrientation` no persiste
+entre recargas en iOS: daría brújula el primer día y nunca más.
+
+La asimetría que zanja el tema, y que conviene no volver a discutir:
+`getCurrentPosition()` **se puede llamar sin gesto** —por eso el GPS
+funciona en recurrente aunque el wizard no aparezca— mientras que
+`DeviceOrientationEvent.requestPermission()` **exige gesto**. Es la única
+API de permisos con esa restricción, y es la razón de que la brújula lleve
+siendo un problema desde S31.
+
+DT-64 queda aplazada con tres rutas documentadas. **Nota de método:** parte
+de la fricción fue mía. Convertí dos mitigaciones de seis líneas —esperar al
+primer evento de orientación, y un guardia de ≥2° para no reconstruir el
+`divIcon` a la frecuencia del sensor— en una consulta de tres puntos, y eso
+hizo parecer que la ruta se estaba complicando. No lo estaba. El bloque se
+aplazó por prioridad real: es el único que no cierra ningún ticket
+bloqueante.
+
+### DT-80 — no era higiene, era un bug vivo
+
+Al leer el matcher apareció que `OSM_CATEGORIES` mezclaba claves del esquema
+OSM con valores, y que el loop tomaba el primer acierto con `'amenity'` en
+tercera posición. **Una iglesia que entra por `amenity=place_of_worship`
+recibía ☕.** Museos y miradores caían en 📍 por `'tourism'` en segunda.
+
+Consecuencia retrospectiva: las entradas ⛪ 🖼️ ⛲ 🔭 de esa tabla
+probablemente no se ejecutaron nunca — lo que **reinterpreta un hallazgo de
+S40**. Los pines de OSM que se veían genéricos no eran falta de
+clasificación: era la tabla interceptándolos. El diagnóstico de "cuatro 🏛️
+idénticos" tenía dos mecanismos detrás, no uno.
+
+El matcher nuevo se probó contra once casos antes de entregarlo, incluido el
+que motivó `OSM_GENERIC_VALUES`: `historic=building` + `amenity=theatre`
+debe dar 🎭 y no 🏛️.
+
+### Correcciones a lo escrito en esta misma sesión
+
+- El enunciado de DT-80 que yo mismo redigité decía que reapuntar la tabla
+  *"cambia qué POIs entran"*. **Falso.** La admisión la decide la query de
+  Overpass; `type` no filtra en ningún punto. Corregido en la ficha.
+- Al armar los documentos eliminé el pie de sesión de S40 en vez de
+  conservarlo entre separadores — exactamente el error que costó tres pies
+  en S38. Detectado y revertido antes de entregar.
+
+### Cierre
+
+`CACHE_VERSION` v76 · `POI_CACHE_VERSION` 7 · `CLASSIFIER_PROMPT_VERSION` v1.
+
+El bump de POIs a 7 **purga la caché**: primer arranque con señal.
+
+Pendiente de código: DT-64. Pendiente de campo: la caminata, que cierra
+BUG-053, BUG-058, DT-72, DT-68 y el discriminador del "· 1", y aporta la
+captura del `peek` que decide si los controles de zoom están tapados desde
+S35.
+
+---
+
+*Follower — Bitácora v0.9 | Sesión 41 (cont.) | 5 Agosto 2026*

@@ -310,7 +310,7 @@ El Prompt Maestro v2.7 (narrador único) tiene versiones en español e inglés. 
 | DT-51 | Grounding de narración — **CIERRE PARCIAL (S32): la misión original está cumplida.** El scratchpad deliberado de v3.7 (cara buena de BUG-059 convertida en técnica: verificación escrita + `---` + capítulo, cortada por `sanitizeNarration()`) llevó autor/fecha al capítulo **4/4 en Sagrada Família** (Safari/Edge/Chrome/Firefox, primer "cumple" del detector en la historia del proyecto, tras 0/n en cinco sesiones y cuatro enfoques de redacción). Detector + strip + scratchpad quedan como arquitectura permanente. Lo que hereda DT-66: el caso "autor/fecha fuera del intro" (Maceta: Pombo/2015 viven tras un encabezado de sección que `exintro` no cruza por definición — imposible por esta vía). Cierre total cuando DT-66 se resuelva o se acepte el límite documentado | Media |
 | DT-61 | Criterio de narrabilidad de POI — evaluar si TODO POI detectado merece capítulo completo, o si los que no tienen sustancia real (sin extracto útil, sin nada observable distintivo) deberían anunciarse simple ("Aquí está la Iglesia San Felipe") en vez de forzar 90-130 palabras y arriesgar inventar contenido para llenar el hueco. Propuesto por Jaime al cierre de Sesión 27, pendiente de definición punto por punto. **Observación de campo (S31, Barcelona sim): el problema tiene cara inversa también — un parque urbano grande y evidente NO existe para Follower (sin artículo Wikipedia geolocalizado; `leisure=park` no está en los tiers curados de Overpass), mientras POIs menores sí narran. Decidir si agregar parques con nombre a la curaduría OSM es parte de esta definición — implicaría `POI_CACHE_VERSION++`.** **Nota S32:** los Niveles A/B/C del `manifiesto_pois.md` v1.0 son ahora la vara editorial para esta definición — un parque urbano grande es Nivel B mínimo → candidato claro a los tiers | Alta |
 | DT-63 | Validar en campo el flujo sin splash (DA-81) — primera vez y usuario recurrente. Ver detalle en sección propia más abajo | Alta |
-| DT-64 | Brújula (DA-84, S31, diseño cerrado sin código): permiso de orientación silencioso dentro del gesto ya existente (`_unlockAudioOnFirstTap`/wizard paso 4 o primer tap del title card) — sin ícono ni estados reposo/latido/activo. Cono visual en el mapa condicionado a `AppState.activePOI` (solo con POI activo en diástole), no a un botón manual. Elimina `#btnCompass` y `_activateCompass()`/`_deactivateCompass()` manuales; conserva el cono SVG combinado del marcador de usuario (BUG-027) y el listener de `DeviceOrientationEvent`. Retoma y redefine el alcance de DT-20. **ENMENDADA S40 — el cono ya NO se condiciona a `AppState.activePOI`:** es permanente durante toda la sesión una vez concedido el permiso, y lo que cambia con la fase es el color (`--color-systole` caminando, `--color-diastole` narrando), no la existencia. Razón: en ciudad desconocida se puede caminar 15 min sin POI en rango, que es exactamente cuando el caminante se siente perdido — condicionar el cono al POI activo lo apaga en el escenario que lo justifica. El cono es *heading*, nunca *bearing*: no gira hacia el POI y no dice "es por allá". El punto 1 (permiso dentro del gesto existente) y la eliminación del botón siguen intactos. Ver enmienda a DA-84 en `arquitectura.md`. Absorbe además el bug del fondo de `.map-compass-btn.active`, que desaparece al eliminarse el botón | Alta |
+| DT-64 | Brújula (DA-84, S31, diseño cerrado sin código): permiso de orientación silencioso dentro del gesto ya existente (`_unlockAudioOnFirstTap`/wizard paso 4 o primer tap del title card) — sin ícono ni estados reposo/latido/activo. Cono visual en el mapa condicionado a `AppState.activePOI` (solo con POI activo en diástole), no a un botón manual. Elimina `#btnCompass` y `_activateCompass()`/`_deactivateCompass()` manuales; conserva el cono SVG combinado del marcador de usuario (BUG-027) y el listener de `DeviceOrientationEvent`. Retoma y redefine el alcance de DT-20. **ENMENDADA S40 — el cono ya NO se condiciona a `AppState.activePOI`:** es permanente durante toda la sesión una vez concedido el permiso, y lo que cambia con la fase es el color (`--color-systole` caminando, `--color-diastole` narrando), no la existencia. Razón: en ciudad desconocida se puede caminar 15 min sin POI en rango, que es exactamente cuando el caminante se siente perdido — condicionar el cono al POI activo lo apaga en el escenario que lo justifica. El cono es *heading*, nunca *bearing*: no gira hacia el POI y no dice "es por allá". El punto 1 (permiso dentro del gesto existente) y la eliminación del botón siguen intactos. Ver enmienda a DA-84 en `arquitectura.md`. Absorbe además el bug del fondo de `.map-compass-btn.active`, que desaparece al eliminarse el botón | Alta **APLAZADA S41 — tres rutas documentadas, ninguna ratificada.** (a) *Permiso en el tap del title card*: unico gesto que se repite cada sesion, cero taps extra, cero UI nueva — recomendada. (b) *Boton en el mapa*: cuesta un tap por sesion y exige reubicarlo; si vuelve, con brujula generica, no con el corazon-brujula, que es el logo oficial y se degrada al usarse como control. (c) *Pantalla de configuracion permanente* con nombre, idioma y brujula: resuelve el caso pero es un DA propio. **Descartado en S41: un paso 4 en el wizard** — el wizard solo corre en primera vez (`app.js:1299-1304`) y el permiso de DeviceOrientation no persiste entre recargas en iOS, asi que daria brujula el primer dia y nunca mas |
 | DT-65 | Curaduría cinematográfica — rama Wikipedia (Fase 2, S32): la compuerta de DA-73 solo filtra OSM; los POIs wiki entran sin filtro y ganan toda fusión. Evidencia: estaciones MIO narradas como capítulos (muchas estaciones de transporte tienen artículo; también bocas de metro en Lisboa/Barcelona). Alcance: blacklist de Nivel D (`manifiesto_pois.md`: metro, MIO, paradas, cajeros, bancos, farmacias, gasolineras, parqueaderos) en la rama wiki por patrón de título y/o categoría, espejo de la blacklist OSM. Implica `POI_CACHE_VERSION++`. Pregunta abierta anexa: tensión Filosofía de Escasez vs. `COMPOSITE_THRESHOLD=8` de DA-72 — decidir en la sesión de este ticket | Alta |
 | DT-66 | Autor/fecha fuera del intro (heredero de DT-51, S32): en artículos CON secciones, `exintro` nunca entrega datos que el editor puso en "Historia" (caso Maceta: Pombo/2015 tras el encabezado — verificado por triple consola, extracto determinista de 1332 chars). Candidatas a evaluar en sesión propia: **(a)** fetch del extracto completo solo para el POI activado al narrar (request extra; en artículos largos 2500 chars podrían tampoco alcanzar); **(b)** Wikidata claims — los POIs ya heredan `wikidata` id en la fusión (DT-49); P170 (creador), P84 (arquitecto), P571 (fecha de creación) son datos estructurados, independientes de dónde vive la prosa. Instinto de sesión: (b) es la definitiva | Media |
 | DT-67 | Tarjeta narrativa persistente (DA-85, S33) — **ABSORBIDA (S35):** el rediseño completo del tab de ciudad (3 estados — closed/peek/expanded — con ciudad+tesis+prólogo siempre presente e iconos de POI bajo "Por descubrir · N" solo cuando hay alguno) cumple el propósito de este ticket. No necesitó sesión de diseño propia con mockup por separado — se resolvió como parte natural de implementar DA-85 §1. Ver arquitectura.md, "Estado de implementación (S35)" bajo DA-85 | Media |
@@ -326,8 +326,8 @@ El Prompt Maestro v2.7 (narrador único) tiene versiones en español e inglés. 
 | DT-76 | **Rotación de ángulo narrativo (S37, del documento de exploración) — CONDICIONADA.** Los cuatro registros de DA-50 no se eliminaron como capacidades, solo el selector. Un modo fijo por caminata es *ortogonal* a la fatiga (entrega N capítulos del mismo registro = misma monotonía); lo que la evidencia respalda es variación *dentro* de la caminata decidida por el sistema. La regla 7 del Prompt Maestro ("no repitas el recurso sensorial del capítulo anterior") ya es un mecanismo anti-saciedad en producción — extenderla al ángulo es un delta de una línea. **No se implementa hasta que DT-74 esté en campo:** si se hacen las dos a la vez y la caminata mejora, no se sabrá cuál lo hizo. Costo real cuando toque: bump de `PROMPT_VERSION` (invalida todas las narraciones cacheadas) + revalidación n≥4 de un prompt 16/16 | Baja |
 | ~~DT-77~~ | **REABIERTA Y CERRADA S41 — por implementacion (DA-88).** El cierre de S40 se apoyaba en una premisa falsa: *"no hay forma limpia de derivar tipo desde Wikipedia GeoSearch sin requests adicionales por POI"*. Hay dos, ninguna por POI — `pageprops` con `ppprop=wikibase_item` viaja gratis en la llamada batcheada de extractos (`poi.js:373-388`), y DT-75 ya especificaba una sola llamada a Haiku sobre extractos en memoria. Medicion de campo (Palmira, radio 2 km, umbral 85% fijado antes de medir): la ruta Wikidata da 25% de cobertura contra la tabla existente y **los cuatro primeros POIs reales pedian tres entradas nuevas** — el mapa `P31 -> emoji` no converge. Cerrada por la ruta modelo + lista cerrada de 25 emojis: mantener una lista de simbolos es trivial, mantener un mapa de claves es imposible. El color sigue diciendo el estado; el glifo pasa a decir el tipo. Fallback 🎬. Ver anexo S41 y `arquitectura.md` DA-88. *(Enunciados S40 y original conservados arriba para trazabilidad.)* | ~~Media~~ |
 | ~~DT-78~~ | **CERRADA S41 — por implementacion, con diagnostico corregido.** No eran dos tablas que fusionar: `gps.js:621` ya leia `poi.icon` del registro, y `app.js:228/237` volvia a resolver por tipo un emoji **ya resuelto en el mismo objeto que recorria**. `OSM_ICONS` (`app.js:193-198`) era una tabla que sobra, no una que mover — por eso divergio (14 entradas contra 12): crecio por el lado del consumidor. Ademas aparecio un **tercer** generico no contado: `let icon = '📍'` en `poi.js:760` para el POI de OSM sin categoria. Los tres colapsan en `CONFIG.FALLBACK_ICON`. Neto: -13 lineas de logica. El icono se decide en un solo punto (`poi.js`); `gps.js` y `app.js` quedan en lectura pura, sin `||` ni tabla propia | ~~Baja~~ |
-| DT-79 | **`300` hardcodeado en `gps.js:612` teniendo `CONFIG.NEARBY_RADIUS` doce líneas arriba (S40).** `addPOIMarker()` decide el estado visual del pin con `const isNearby = distMeters <= 300`, mientras el filtro que alimenta el sheet usa `CONFIG.NEARBY_RADIUS` (`gps.js:28`, valor 300) vía `poi.js:938`. Hoy coinciden y nada falla. El día que se ajuste el radio —y el presupuesto de ritmo de DT-74 bien podría pedirlo— el sheet obedecería y los pines no, produciendo una divergencia silenciosa entre lo que el mapa pinta como "cercano" y lo que la app considera cercano. `getRadiusConfig()` ya expone la constante en el mismo archivo. Divergencia dormida, misma familia que DT-78 | Baja |
-| DT-80 | **`OSM_CATEGORIES` mapea claves de OSM, no valores (S41).** `poi.js:75-87` tiene entradas `'tourism'` y `'amenity'`, que son *claves* del esquema OSM, no valores: una `amenity` puede ser una biblioteca, un teatro o un hospital, y mapear la clave entera a ☕ es adivinar. Los valores reales son `amenity=cafe`, `amenity=library`, `amenity=theatre`. Ademas `'tourism' -> 📍` era un generico escondido dentro de la tabla de tipos, ya retirado en S41. Reapuntar la tabla a la lista cerrada de 25 simbolos **cambia el criterio de admision de la rama OSM**, no solo el dibujo: puede cambiar que POIs entran. Por eso va en ticket propio y con su propio `POI_CACHE_VERSION`, separado del clasificador | Media |
+| ~~DT-79~~ | **CERRADA S41.** `CONFIG.NEARBY_RADIUS` reemplaza al `300` escrito a mano en `addPOIMarker()`. El pin y la deteccion ya no pueden divergir | ~~Baja~~ |
+| ~~DT-80~~ | **CERRADA S41 — y era un bug vivo, no higiene.** `OSM_CATEGORIES` mezclaba claves del esquema OSM (`'tourism'`, `'amenity'`) con valores (`'museum'`, `'church'`), y el matcher aceptaba `tags[key]` tomando el primer acierto. Con `'amenity'` en tercera posicion, **una iglesia que entra por `amenity=place_of_worship` recibia ☕**; la entrada `'church'` con su ⛪ estaba mas abajo y no se alcanzaba nunca. Igual `'tourism'` en segunda: museum, gallery y viewpoint caian todos en 📍. Las entradas ⛪ 🖼️ ⛲ 🔭 probablemente **no se ejecutaron jamas**, lo que reinterpreta un hallazgo de S40: los pines de OSM genericos no eran falta de clasificacion, era la tabla interceptandolos. Sustituida por `OSM_ICON_MAP` (clave -> valor -> emoji, alineado con la lista cerrada de DA-88) mas `OSM_GENERIC_VALUES`, para que un valor paraguas (`historic=building`) no tape a uno especifico (`amenity=theatre`). `POI_CACHE_VERSION` 6 -> 7: purga obligatoria. **Correccion al enunciado original:** decia que reapuntar la tabla *"cambia que POIs entran"*. Es falso — la admision la decide la query de Overpass y `type` no filtra en ningun punto | ~~Media~~ |
 
 ### Bugs de interfaz — reportados Sesión 31
 
@@ -682,7 +682,7 @@ Apareció además un **segundo secreto que DT-9 nunca cubrió**: una key de Open
 
 | ID | Descripción | Causa | Prioridad |
 |----|-------------|-------|-----------|
-| BUG-071 | **Las etiquetas de POI colisionan entre si y se salen de la pantalla.** Evidencia de campo (Palmira, sw v74, capturas 1:16 y 1:17): la etiqueta roja del POI activo —*"…Senora del Rosario del…"*— queda recortada por el borde izquierdo y montada encima de *"Chaman Malagan"*. Ambas ilegibles | El `divIcon` mide 80x60 px (`gps.js:627-628`) pero `.poi-pin-label` lleva `white-space: nowrap` (`explore.css:173`), asi que la etiqueta se desborda sin limite y Leaflet no reposiciona nada. **SOLUCION RATIFICADA S41, PENDIENTE DE IMPLEMENTAR (bloque 2):** la colision la resuelve la etiqueta unica del pin activo; el recorte lo resuelve **quitar el nombre y dejar solo la distancia**. Verificado en `app.js:154-159`: en diastole el sheet se oculta entero y el nombre pasa a `.bar-poi-name` (DM Serif 17 px), asi que la etiqueta del mapa repetia lo que la barra ya dice. Sin nombre no hay recorte posible y no hace falta `max-width` | Alta |
+| ~~BUG-071~~ | **CERRADA S41 — etiquetas de POI colisionando y saliendose de pantalla.** Resuelta sin `max-width`: la colision desaparece porque **solo el pin activo lleva etiqueta**, y el recorte desaparece porque esa etiqueta lleva **solo la distancia**. Verificado en `app.js:154-159`: en diastole el sheet se oculta entero y el nombre pasa a `.bar-poi-name` en DM Serif a 17 px, asi que la etiqueta del mapa lo repetia a 9 px. No era que no cupiera: sobraba. Se retira tambien `.poi-pin-label.active`, que prometia una variante ya inexistente | ~~Alta~~ |
 
 ### Verificado en código: trabajo que ya no hay que hacer
 
@@ -921,3 +921,93 @@ cambia el emoji que llevan dentro.
 ---
 
 *Follower — Producto v0.9 | Sesión 41 | 5 Agosto 2026*
+
+---
+
+# Anexo S41 (cont.) — Bloque 2 de pines, DT-80 y aplazamiento de la brújula
+
+**Fecha:** 5 de agosto de 2026 · **Estado:** implementado
+
+## Bloque 2 — pines
+
+Cierra **BUG-071** y **DT-79**. `gps.js` + `explore.css`.
+
+- **Precedencia de estado: `activo > visto > cercano > lejos`.** "Visto" gana
+  sobre "cercano" a propósito: con DA-86 un POI ya narrado no vuelve a
+  activarse, así que pintarlo en sístole invitaría a algo que no va a
+  ocurrir.
+- **`visited` = pin sin relleno**, contorno de 1,5 px en `--color-smoke-3`,
+  emoji al 45%. El "hueco interior" de la tabla de S40 vivía justo donde
+  ahora va el emoji; y separarlo de `far` por matiz no funcionaba —
+  `--color-border` y `--color-smoke-3` difieren en catorce puntos por canal
+  y sobre Voyager claro los dos leen como "pin oscuro".
+- **Etiqueta solo en el pin activo, solo con la distancia.**
+
+### Latencia conocida del estado `visited`
+
+`poi.visited` se marca en `narration.js:1560` al completar la narración, pero
+el repintado llega vía `updateMarkersState()` desde el tick de detección
+(`poi.js:1016`). El pin no cambia en el instante en que calla la voz, sino
+en el siguiente tick — un par de segundos.
+
+Se dejó así deliberadamente: llamar a `updateMarkersState()` desde
+`markVisited()` sería cambiar dos cosas en la misma ventana. **Si en campo
+se siente como un retraso raro, ese es el fix.**
+
+## DT-80 — la rama OSM mapeaba claves, no valores
+
+Ver la fila del ticket. Lo relevante para producto: **las iglesias de OSM
+salían con ☕ y los museos con 📍**, y las entradas ⛪ 🖼️ ⛲ 🔭 de la tabla
+probablemente nunca se ejecutaron. Eso reinterpreta un hallazgo de S40 —
+los pines de OSM que se veían genéricos no era falta de clasificación, era
+la tabla interceptándolos.
+
+**Dos cambios de comportamiento visibles:**
+
+- `poi.type` pasa a ser el valor OSM real (`'church'`, `'museum'`,
+  `'theatre'`) en vez de la clave (`'amenity'`, `'tourism'`). Se ve en el
+  sheet expandido (`app.js:239`, `poi.type || 'historia'`). Es más
+  informativo, pero **está en inglés y sin traducir** — ticket aparte si
+  molesta.
+- `tourism=attraction` cae a 🎬 a propósito: es un cajón de sastre que puede
+  ser cualquier cosa. Una claqueta honesta antes que un símbolo que afirme
+  algo falso. El contador de degradación dirá cuántas aparecen.
+
+## Brújula — aplazada, no descartada
+
+Ver DT-64 para las tres rutas y sus costos. Lo que cerró esta sesión es lo
+que **no** se va a hacer y por qué: un paso 4 en el wizard no funciona,
+porque el wizard solo corre en primera vez y el permiso de
+`DeviceOrientation` no persiste entre recargas en iOS.
+
+La asimetría que lo decide, y que conviene no volver a discutir:
+`getCurrentPosition()` **se puede llamar sin gesto** —por eso el GPS
+funciona en sesión recurrente aunque el wizard no se muestre— mientras que
+`DeviceOrientationEvent.requestPermission()` **exige gesto**. Es la única
+API de permisos con esa restricción, y es la razón de que la brújula lleve
+siendo un problema desde S31.
+
+**Nota de método:** este bloque se aplazó también porque es el único de la
+sesión que no cierra ningún ticket bloqueante, y porque la observación de
+z-index pendiente de captura (¿está el botón tapado por el sheet desde S35?)
+cambia el análisis de la ruta (b).
+
+## Estado al cierre
+
+| | |
+|---|---|
+| `CACHE_VERSION` | `follower-v76` |
+| `POI_CACHE_VERSION` | 7 |
+| `CLASSIFIER_PROMPT_VERSION` | v1 |
+| `PROMPT_VERSION` | v3.8 |
+| `THESIS_PROMPT_VERSION` | v5 |
+
+**Pendiente de código:** DT-64 (brújula, tres rutas sin ratificar).
+
+**Pendiente de campo:** la caminata. Cierra BUG-053, BUG-058, DT-72, DT-68 y
+el discriminador del "· 1", y aporta la captura del `peek` que decide la
+observación de z-index.
+
+---
+
+*Follower — Producto v0.9 | Sesión 41 (cont.) | 5 Agosto 2026*

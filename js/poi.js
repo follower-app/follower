@@ -60,7 +60,10 @@ const POI = (() => {
     FALLBACK_ICON:      '🎬',   // S41: unico generico del sistema (DT-78). El POI sin
                                 // clasificar lo recibe AQUI, al normalizar — nunca en el
                                 // render. gps.js y app.js solo leen poi.icon.
-    POI_CACHE_VERSION:  6,      // v6 (S41, DT-77/DT-78): la normalizacion pasa a escribir _iconSource
+    POI_CACHE_VERSION:  7,      // v7 (S41, DT-80): la rama OSM pasa a mapear tag=VALOR en vez de
+                                // clave. Los registros cacheados llevan iconos equivocados (iglesias
+                                // con ☕, museos con 📍) y hay que purgarlos.
+                                // v6 (S41, DT-77/DT-78): la normalizacion pasa a escribir _iconSource
                                 // e _iconVersion, y el icono deja de ser un literal fijo — cambia el
                                 // contenido del registro, no solo un campo inerte.
                                 // v5 (BUG-060, S32): exchars eliminado del request — extractos ahora llegan completos hasta 2500 chars reales (antes la API recortaba a 1200 en silencio); purga POIs con extractos truncados
@@ -77,21 +80,83 @@ const POI = (() => {
     DEACTIVATE_CONFIRM_COUNT: 3
   };
 
-  /* ── CATEGORÍAS OSM → icono + tipo ── */
-  const OSM_CATEGORIES = {
-    'historic':      { icon: '🏛️', type: 'historic' },
-    'tourism':       { icon: '📍', type: 'tourism'  },
-    'amenity':       { icon: '☕', type: 'amenity'  },
-    'museum':        { icon: '🖼️', type: 'museum'   },
-    'church':        { icon: '⛪', type: 'church'   },
-    'castle':        { icon: '🏰', type: 'castle'   },
-    'ruins':         { icon: '🏚️', type: 'ruins'    },
-    'monument':      { icon: '🗿', type: 'monument' },
-    'fountain':      { icon: '⛲', type: 'fountain' },
-    'artwork':       { icon: '🎨', type: 'artwork'  },
-    'viewpoint':     { icon: '🔭', type: 'viewpoint'},
-    'archaeological_site': { icon: '⚱️', type: 'archaeological' }
+  /* ── OSM tag=VALOR → icono (DT-80, S41) ──
+     La tabla anterior mezclaba claves del esquema OSM ('tourism', 'amenity')
+     con valores ('museum', 'church'), y el matcher aceptaba `tags[key]`. Como
+     el loop tomaba el primer match y 'amenity' estaba en tercera posicion,
+     una iglesia que entra por amenity=place_of_worship recibia ☕ — la entrada
+     'church' con su ⛪ estaba mas abajo y no se alcanzaba nunca. Igual con
+     'tourism' en segunda posicion: museum, gallery y viewpoint caian todos en
+     📍 antes de llegar a su propia entrada.
+     Las entradas ⛪ 🖼️ ⛲ 🔭 de la tabla vieja probablemente no se ejecutaron
+     jamas.
+
+     Ahora se indexa por clave -> valor -> emoji. Los valores posibles estan
+     acotados por la query de Overpass (ver fetchPOIsFromOSM), salvo historic,
+     que es abierto. Vocabulario alineado con la lista cerrada de DA-88. */
+  const OSM_ICON_MAP = {
+    historic: {
+      church: '⛪', cathedral: '⛪', chapel: '⛪', monastery: '⛪',
+      wayside_shrine: '⛪',
+      castle: '🏰', fort: '🏰', city_gate: '🏰', citywalls: '🏰',
+      ruins: '🏚️',
+      archaeological_site: '⚱️',
+      monument: '🗿', memorial: '🗿', wayside_cross: '🗿',
+      tomb: '🪦',
+      tower: '🗼',
+      aqueduct: '🌉', bridge: '🌉',
+      railway: '🚉',
+      // Genericos — matchean pero no ganan sobre otra clave mas especifica
+      building: '🏛️', manor: '🏛️', farm: '🏛️', yes: '🏛️'
+    },
+    amenity: {
+      place_of_worship: '⛪',
+      fountain:         '⛲',
+      theatre:          '🎭'
+    },
+    tourism: {
+      museum:   '🖼️',
+      gallery:  '🖼️',
+      viewpoint:'🔭',
+      artwork:  '🎨'
+      // 'attraction' sin entrada a proposito: es un cajon de sastre que puede
+      // ser cualquier cosa. Cae al fallback, que es la respuesta honesta.
+    },
+    leisure: {
+      park:   '🌳',
+      garden: '🌳'
+    },
+    man_made: {
+      monument: '🗿',
+      memorial: '🗿',
+      statue:   '🗿'
+    }
   };
+
+  /* Valores paraguas: producen icono, pero siguen buscando algo mas preciso.
+     Sin esto, historic=building taparia a amenity=theatre. */
+  const OSM_GENERIC_VALUES = new Set(['building', 'manor', 'farm', 'yes']);
+
+  /* Devuelve { icon, type } o null. El orden de claves de OSM_ICON_MAP fija
+     la precedencia cuando dos valores especificos matchean a la vez. */
+  function _mapOSMCategory(tags) {
+    let generico = null;
+
+    for (const [key, values] of Object.entries(OSM_ICON_MAP)) {
+      const value = tags[key];
+      if (!value) continue;
+
+      const icon = values[value];
+      if (!icon) continue;
+
+      if (OSM_GENERIC_VALUES.has(value)) {
+        if (!generico) generico = { icon, type: value };
+        continue;
+      }
+      return { icon, type: value };
+    }
+    return generico;
+  }
 
   /* ── INICIALIZAR INDEXEDDB ── */
   function initDB() {
@@ -770,13 +835,11 @@ const POI = (() => {
     let type       = 'generic';
     let iconSource = 'fallback';
 
-    for (const [key, val] of Object.entries(OSM_CATEGORIES)) {
-      if (tags[key] || tags['tourism'] === key || tags['historic'] === key) {
-        icon       = val.icon;
-        type       = val.type;
-        iconSource = 'osm';
-        break;
-      }
+    const match = _mapOSMCategory(tags);
+    if (match) {
+      icon       = match.icon;
+      type       = match.type;   // DT-80: el tipo pasa a ser el valor OSM real
+      iconSource = 'osm';        // ('church', 'museum'), no la clave ('amenity')
     }
 
     // Descripción base desde OSM

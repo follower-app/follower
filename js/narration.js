@@ -24,7 +24,13 @@ const Narration = (() => {
     PROMPT_VERSION: 'v3.8',  // DT-68 (S39): el scratchpad declara "Faceta: <3-5 palabras>" (DA-85 §3 enmienda S38 §5) y el registro cacheado pasa de texto plano a {text, faceta} (§6). El ++ es obligatorio por ambos motivos y una sola invalidacion paga los dos cambios de formato. v3.7 (S32): scratchpad deliberado en grounding wiki (cara buena de BUG-059 convertida en tecnica: chain-of-thought escrito, cortado por sanitizeNarration) + presupuesto de longitud en el scratchpad + regla 8 CIERRE (sin promesa hacia adelante) + regla anti-regano en LIMITES ESTRICTOS. DT-62 CERRADA: canal system verificado punta a punta (cliente + Worker passthrough, prueba directa)
     CARE_MAX_TOKENS: 120,  // DT-42: mensaje de Care, mucho mas corto que un capitulo
     THESIS_PROMPT_VERSION: 'v5',  // BUG-068 v5 (S36c) — FIX DEFINITIVO, causa raíz corregida: el extracto se pedía con el nombre corto de Nominatim ("Palmira"), que en Wikipedia resuelve al artículo de Siria — ningún prompt podía compensar un extracto de origen incorrecto. v5 usa el tag OSM `wikipedia` (vía Nominatim zoom=10+extratags=1) para pedir el extracto correcto desde el origen. El bump invalida cache de tesis generadas con extractos equivocados en v1-v4. v4/v3/v2/v1: intentos previos sobre el prompt, insuficientes por atacar el síntoma y no la causa
-    THESIS_MAX_TOKENS: 400  // scratchpad + tesis (3-8 palabras) + prologo (40-60 palabras)
+    THESIS_MAX_TOKENS: 400,  // scratchpad + tesis (3-8 palabras) + prologo (40-60 palabras)
+    CLASSIFIER_PROMPT_VERSION: 'v1',  // S41 (DT-77/DT-78): clasificador de iconos. Cualquier cambio
+                                      // a ICON_SYSTEM_PROMPT o a ICON_ALLOWED exige ++ en el MISMO
+                                      // commit — poi.js lo usa como _iconVersion y reclasifica solo
+                                      // los POIs desfasados, sin purgar extractos (a diferencia de
+                                      // POI_CACHE_VERSION, que si purga todo)
+    CLASSIFIER_MAX_TOKENS: 700  // ~40 POIs x ~15 tokens de JSON + margen
   };
 
   /* ── DT-36: LIMPIAR NOMBRES DE POIs WIKIPEDIA ──
@@ -1139,6 +1145,105 @@ Los idiomas de cada parte se indican en el mensaje del usuario — la tesis (Par
     return { system, user };
   }
 
+
+  /* ── S41: CLASIFICADOR DE ICONOS (DT-77 / DT-78) ──
+     Wikipedia GeoSearch devuelve type='landmark' para todo (verificado en
+     campo, Palmira: 4 POIs, 4 landmarks), asi que el tipo no se puede
+     derivar del dato. Wikidata P31 si clasifica bien pero exige un mapa
+     P31->emoji de claves ilimitadas: los 4 primeros POIs de Palmira ya
+     pedian 3 entradas nuevas. Haiku recibe la lista cerrada y resuelve el
+     mapeo, que es el trabajo que no converge a mano.
+     Una llamada por ciudad, sobre extractos que ya estan en memoria. */
+
+  const ICON_ALLOWED = [
+    '⛪','🕌','🕍','🏛️','🏰','🏚️','⚱️','🗿','🖼️','🎭','🎞️','📚','🎨',
+    '🌳','⛲','🔭','🌉','🗼','🏭','🏟️','🚉','🎓','🏪','🪦','☕'
+  ];
+
+  // El modelo puede devolver el emoji sin el selector de variacion U+FE0F
+  // ('🏛' en vez de '🏛️'). Comparar en crudo mandaria a fallback un acierto.
+  const _stripVS   = s => s.replace(/\uFE0F/g, '');
+  const ICON_CANON = new Map(ICON_ALLOWED.map(e => [_stripVS(e), e]));
+
+  const ICON_SYSTEM_PROMPT = `Eres un clasificador de iconos para Follower. Recibes lugares y devuelves, para cada uno, el emoji de la lista cerrada que mejor lo representa.
+
+LISTA CERRADA — solo puedes usar estos 25 simbolos:
+⛪  iglesia, catedral, capilla, convento
+🕌  mezquita
+🕍  sinagoga
+🏛️  edificio historico o civil, palacio, ayuntamiento, casona, hacienda
+🏰  castillo, fortaleza, muralla
+🏚️  ruinas
+⚱️  sitio arqueologico
+🗿  monumento, estatua, memorial
+🖼️  museo, galeria
+🎭  teatro, auditorio, opera
+🎞️  cine
+📚  biblioteca, archivo
+🎨  arte publico, mural, escultura urbana
+🌳  parque, jardin, plaza, bulevar, alameda
+⛲  fuente
+🔭  mirador
+🌉  puente, viaducto
+🗼  torre, faro
+🏭  patrimonio industrial, fabrica, ingenio, molino, mina
+🏟️  estadio, complejo deportivo, plaza de toros
+🚉  estacion de tren, metro o tranvia
+🎓  universidad, colegio historico
+🏪  mercado
+🪦  cementerio
+☕  cafe o bar historico
+
+REGLAS
+1. Devuelve UNICAMENTE un objeto JSON. Sin preambulo, sin explicacion, sin bloques de codigo, sin texto antes ni despues.
+2. La clave es el id exacto que recibiste. El valor es un emoji de la lista, o cadena vacia si ninguno encaja.
+3. Nunca uses un emoji que no este en la lista. Ante la duda, cadena vacia. Una cadena vacia es una respuesta correcta; un emoji inventado no.
+4. Cadena vacia tambien si el articulo trata de una persona, un evento, una obra o un concepto en vez de un lugar que se pueda visitar.
+5. Si un lugar encaja en dos categorias, elige la de su funcion principal hoy, no la de su origen. Un convento convertido en museo es 🖼️.
+6. No repitas el id. No agregues ids que no recibiste.
+
+FORMATO DE SALIDA
+{"wiki_11502036":"⛪","wiki_2276045":"🏟️","wiki_11485987":""}`;
+
+  /* Recibe [{ id, name, _extract }] y devuelve { id: emoji|'' } o null.
+     null = la llamada fallo (red, timeout, JSON invalido) y el POI debe
+     conservar su icono provisional para reintentar. Distinto de '' , que
+     significa "el modelo miro y no habia categoria". */
+  async function classifyIcons(items) {
+    if (!Array.isArray(items) || items.length === 0) return null;
+
+    const payload = items.map(it => ({
+      id:      it.id,
+      nombre:  cleanPOIName(it.name),
+      resumen: (it._extract || '').slice(0, 200)
+    }));
+
+    const raw = await callClaude(ICON_SYSTEM_PROMPT, JSON.stringify(payload), CONFIG.CLASSIFIER_MAX_TOKENS);
+    if (!raw) return null;
+
+    let parsed;
+    try {
+      parsed = JSON.parse(raw.replace(/```json|```/g, '').trim());
+    } catch (e) {
+      if (typeof Debug !== 'undefined') {
+        Debug.log('warn', `Narration: clasificador devolvio JSON invalido — ${raw.slice(0, 80)}`);
+      }
+      return null;
+    }
+    if (!parsed || typeof parsed !== 'object') return null;
+
+    // La lista cerrada se hace cumplir AQUI, no solo en el prompt: un emoji
+    // fuera de lista se degrada a '' y el POI recibe el fallback.
+    const out = {};
+    for (const [id, emoji] of Object.entries(parsed)) {
+      if (typeof emoji !== 'string') continue;
+      out[id] = ICON_CANON.get(_stripVS(emoji.trim())) || '';
+    }
+    return out;
+  }
+
+  function getClassifierVersion() { return CONFIG.CLASSIFIER_PROMPT_VERSION; }
+
   /* ── LLAMAR CLAUDE API (vía Cloudflare Worker — key oculta) ──
      DT-42: maxTokens opcional — Care necesita mensajes cortos (~120),
      narración de capítulo sigue usando CONFIG.MAX_TOKENS (380) por default. */
@@ -1506,6 +1611,6 @@ Los idiomas de cada parte se indican en el mensaje del usuario — la tesis (Par
   function isNarrating()    { return _isNarrating; }
   function isPaused()       { return _isPaused; }
 
-  return { trigger, stop, pause, resume, getCurrentText, isNarrating, isPaused, getCityWelcome, getCityIntroFallback, getCityIntroPrefix, getLocalLang, getCareMessage, prefetchCityThesis, getFreshCityWelcome, getCachedCityWelcome, whenCityWelcomeReady, clearCityThesisCache };
+  return { classifyIcons, getClassifierVersion, trigger, stop, pause, resume, getCurrentText, isNarrating, isPaused, getCityWelcome, getCityIntroFallback, getCityIntroPrefix, getLocalLang, getCareMessage, prefetchCityThesis, getFreshCityWelcome, getCachedCityWelcome, whenCityWelcomeReady, clearCityThesisCache };
 
 })();

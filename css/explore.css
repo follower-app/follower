@@ -161,24 +161,36 @@
 .poi-pin.nearby { background: var(--color-systole); }
 .poi-pin.far    { background: var(--color-border); }
 
+/* S41: "visto" = pin sin relleno, no un gris mas oscuro.
+   La tabla de S40 lo definia como hueco interior, pero el hueco vive justo
+   donde ahora va el emoji. Y separarlo de .far por matiz no funciona:
+   --color-border y --color-smoke-3 difieren en catorce puntos por canal y
+   sobre Voyager claro los dos leen como "pin oscuro". Un pin lleno y uno
+   vacio si se distinguen de reojo. */
+.poi-pin.visited {
+  background: transparent;
+  border: 1.5px solid var(--color-smoke-3);
+  box-shadow: none;
+}
+
+.poi-pin.visited .poi-pin-inner { opacity: 0.45; }
+
 .poi-pin.active .poi-pin-inner { font-size: 16px; }
 
+/* S41 (BUG-071): solo el pin activo lleva etiqueta, asi que la variante
+   .active se retira — ya no hay de que variar, y una clase que promete
+   una alternativa inexistente se lee como fallo al depurar. */
 .poi-pin-label {
   margin-top: var(--space-xs);
   font-family: var(--font-ui);
   font-size: 9px;
   font-weight: var(--weight-regular);
-  color: var(--color-ice);
-  background: rgba(10, 16, 24, 0.75);
+  color: #fff;
+  background: rgba(192, 57, 43, 0.85);
   padding: 2px 7px;
   border-radius: var(--radius-pill);
   white-space: nowrap;
   letter-spacing: 0.04em;
-}
-
-.poi-pin-label.active {
-  color: #fff;
-  background: rgba(192, 57, 43, 0.85);
 }
 
 /* ── COLUMNA DERECHA — zoom + brújula ── */

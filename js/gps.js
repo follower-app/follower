@@ -609,10 +609,27 @@ const GPS = (() => {
     const distMeters = AppState.gps
       ? distanceMeters(AppState.gps.lat, AppState.gps.lng, poi.lat, poi.lng)
       : 999;
-    const isNearby  = distMeters <= 300;
+    // DT-79: el radio venia escrito a mano. CONFIG es la fuente unica —
+    // si NEARBY_RADIUS cambia, el pin y la deteccion no pueden divergir.
+    const isNearby  = distMeters <= CONFIG.NEARBY_RADIUS;
 
-    const pinClass  = isActive ? 'active' : isNearby ? 'nearby' : 'far';
-    const labelClass = isActive ? 'active' : '';
+    /* S41: precedencia activo > visto > cercano > lejos.
+       "Visto" gana sobre "cercano" a proposito: con DA-86 un POI ya narrado
+       no vuelve a activarse, asi que pintarlo en sistole estaria invitando
+       a algo que no va a pasar. */
+    const pinClass = isActive     ? 'active'
+                   : poi.visited  ? 'visited'
+                   : isNearby     ? 'nearby'
+                   : 'far';
+
+    /* S41 (BUG-071): etiqueta SOLO en el pin activo, y solo con la distancia.
+       El nombre ya lo lleva .bar-poi-name (app.js) durante la diastole, donde
+       el sheet se oculta entero y el nombre se muestra en DM Serif a 17px —
+       la etiqueta del mapa lo repetia a 9px. Sin nombre no hay desbordamiento
+       posible, asi que tampoco hace falta max-width ni ellipsis. */
+    const label = isActive
+      ? `<div class="poi-pin-label">${Math.round(distMeters)} m</div>`
+      : '';
 
     const icon = L.divIcon({
       className: '',
@@ -620,9 +637,7 @@ const GPS = (() => {
                <div class="poi-pin ${pinClass}">
                  <div class="poi-pin-inner">${poi.icon}</div>
                </div>
-               <div class="poi-pin-label ${labelClass}">
-                 ${poi.name}${isActive ? ` · ${Math.round(distMeters)}m` : ''}
-               </div>
+               ${label}
              </div>`,
       iconSize:   [80, 60],
       iconAnchor: [40, 48]

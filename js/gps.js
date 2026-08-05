@@ -618,7 +618,7 @@ const GPS = (() => {
       className: '',
       html: `<div class="poi-marker-wrap">
                <div class="poi-pin ${pinClass}">
-                 <div class="poi-pin-inner">${poi.icon || '📍'}</div>
+                 <div class="poi-pin-inner">${poi.icon}</div>
                </div>
                <div class="poi-pin-label ${labelClass}">
                  ${poi.name}${isActive ? ` · ${Math.round(distMeters)}m` : ''}

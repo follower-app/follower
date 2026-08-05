@@ -57,7 +57,13 @@ const POI = (() => {
   const CONFIG = {
     FETCH_RADIUS_KM:    2,      // radio de fetch de POIs desde OSM
     REFETCH_KM:         2,      // refetch si nos movemos más de 2km
-    POI_CACHE_VERSION:  5,      // v5 (BUG-060, S32): exchars eliminado del request — extractos ahora llegan completos hasta 2500 chars reales (antes la API recortaba a 1200 en silencio); purga POIs con extractos truncados
+    FALLBACK_ICON:      '🎬',   // S41: unico generico del sistema (DT-78). El POI sin
+                                // clasificar lo recibe AQUI, al normalizar — nunca en el
+                                // render. gps.js y app.js solo leen poi.icon.
+    POI_CACHE_VERSION:  6,      // v6 (S41, DT-77/DT-78): la normalizacion pasa a escribir _iconSource
+                                // e _iconVersion, y el icono deja de ser un literal fijo — cambia el
+                                // contenido del registro, no solo un campo inerte.
+                                // v5 (BUG-060, S32): exchars eliminado del request — extractos ahora llegan completos hasta 2500 chars reales (antes la API recortaba a 1200 en silencio); purga POIs con extractos truncados
                                 // REGLA: incrementar en el MISMO commit que cambie
                                 // query, filtros o normalización de POIs (Sesión 21)
     DB_NAME:            'follower_db',
@@ -343,7 +349,10 @@ const POI = (() => {
       name:        p.title,
       lat:         p.lat,
       lng:         p.lon,
-      icon:        '🏛️',          // icono genérico — Wikipedia no tiene tipo OSM
+      icon:        '🏛️',          // provisional: GeoSearch devuelve type='landmark' para todo.
+                                 // El clasificador (bloque 3) lo reemplaza; hasta entonces 🏛️
+                                 // acierta mas que 🎬 en lo que Wikipedia geolocaliza.
+      _iconSource: 'default',    // 'osm' | 'model' | 'fallback' | 'default'
       type:        'historic',    // tipo por defecto — el más narrable
       description: '',            // Wikipedia no devuelve descripción en geosearch
       tags:        {},            // sin tags OSM — QuickFacts mostrará solo distancia y tipo
@@ -757,13 +766,15 @@ const POI = (() => {
     if (!lat || !lng) return null;
 
     // Determinar tipo e icono
-    let icon = '📍';
-    let type = 'generic';
+    let icon       = CONFIG.FALLBACK_ICON;
+    let type       = 'generic';
+    let iconSource = 'fallback';
 
     for (const [key, val] of Object.entries(OSM_CATEGORIES)) {
       if (tags[key] || tags['tourism'] === key || tags['historic'] === key) {
-        icon = val.icon;
-        type = val.type;
+        icon       = val.icon;
+        type       = val.type;
+        iconSource = 'osm';
         break;
       }
     }
@@ -783,8 +794,57 @@ const POI = (() => {
       description,
       tags,
       visited:     false,
-      cachedAt:    Date.now()
+      cachedAt:    Date.now(),
+      _iconSource: iconSource
     };
+  }
+
+
+  /* ── S41: CLASIFICAR ICONOS DE LA RAMA WIKI (DT-77 / DT-78) ──
+     Solo wiki: los POIs de OSM ya salen tipificados de sus tags y no
+     necesitan modelo. Solo con extracto: sin el, Haiku tendria unicamente
+     el nombre, y "Chaman Malagan" no dice que es.
+     _iconVersion evita reclasificar en cada carga; cuando el prompt cambia
+     de version, solo se recalcula el icono — el extracto no se vuelve a
+     bajar, que es lo que si hace un bump de POI_CACHE_VERSION.
+     Devuelve cuantos registros cambio (0 = nada que guardar ni repintar). */
+  async function _classifyWikiIcons(pois) {
+    if (typeof Narration === 'undefined' || !Narration.classifyIcons) return 0;
+
+    const version = Narration.getClassifierVersion();
+    const pending = pois.filter(p =>
+      p._source === 'wiki' && p._extract && p._iconVersion !== version
+    );
+    if (pending.length === 0) return 0;
+
+    const map = await Narration.classifyIcons(pending);
+    if (!map) {
+      // Fallo de red o JSON invalido: los POIs conservan su icono provisional
+      // y _iconVersion sin escribir, asi que la proxima carga reintenta.
+      if (typeof Debug !== 'undefined') {
+        Debug.log('warn', `POI: clasificador de iconos no respondio — ${pending.length} POIs sin clasificar, se reintenta`);
+      }
+      return 0;
+    }
+
+    let conIcono = 0, sinIcono = 0;
+    for (const poi of pending) {
+      if (!(poi.id in map)) continue;
+      const emoji = map[poi.id];
+      if (emoji) {
+        poi.icon = emoji;  poi._iconSource = 'model';     conIcono++;
+      } else {
+        poi.icon = CONFIG.FALLBACK_ICON;  poi._iconSource = 'fallback';  sinIcono++;
+      }
+      poi._iconVersion = version;
+    }
+
+    // Contador de degradacion: si sinIcono crece, no es el diseno
+    // funcionando — es la lista cerrada quedandose corta en esta ciudad.
+    if (typeof Debug !== 'undefined') {
+      Debug.log('info', `POI: iconos ${conIcono} clasificados / ${sinIcono} a fallback de ${pending.length} (clasificador ${version})`);
+    }
+    return conIcono + sinIcono;
   }
 
   /* ── CARGAR POIs — cascada compuesta DT-52 (Opcion A, Sesion 22) ──
@@ -860,6 +920,17 @@ const POI = (() => {
         renderAllMarkers();
         console.log(`POI: ${pois.length} POIs cargados y renderizados (cascada DT-52)`);
         _flushPendingDetect();  // DT-38: chequeo inmediato sin esperar el siguiente tick GPS
+
+        // S41: la clasificacion de iconos NO bloquea el mapa. Los pines ya
+        // estan pintados con su icono provisional; cuando Haiku responde se
+        // repinta. Un fallo aqui no deja al caminante sin pines.
+        _classifyWikiIcons(pois).then(changed => {
+          if (changed > 0) {
+            savePOIsToDB(pois);
+            renderAllMarkers();
+          }
+        }).catch(e => console.warn(`POI: clasificador de iconos fallo (${e.message})`));
+
         return;
       }
       console.warn('POI: cascada online sin resultados — usando cache IndexedDB');

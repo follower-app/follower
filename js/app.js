@@ -190,13 +190,6 @@ function updateHistCount(force) {
     .sort((a, b) => (a._distanceMeters || 999) - (b._distanceMeters || 999))
     .slice(0, 5);
 
-  const OSM_ICONS = {
-    historic: '🏛️', museum: '🖼️', church: '⛪', castle: '🏰',
-    ruins: '🏚️', monument: '🗿', fountain: '⛲', artwork: '🎨',
-    viewpoint: '🔭', archaeological: '⚱️', tourism: '📍',
-    amenity: '☕', park: '🌳', default: '📍'
-  };
-
   const iconRowEl = document.getElementById('poiIconRow');
   const listEl    = document.getElementById('nearbySelectorList');
   const titleEl   = document.getElementById('nearbySelectorTitle');
@@ -225,7 +218,7 @@ function updateHistCount(force) {
   // distancia, sin nombre. Tap expande la lista completa con ese resaltado
   // (más seguro caminando que narrar directo desde un icono de 38px).
   iconRowEl.innerHTML = sorted.map(poi => {
-    const icon = OSM_ICONS[poi.type] || OSM_ICONS.default;
+    const icon = poi.icon;   // DT-78: resuelto en poi.js al normalizar
     const dist = poi._distanceMeters != null ? `${poi._distanceMeters}m` : '';
     return `<div class="icon-chip" onclick="_expandAndHighlightPOI('${poi.id}')">
       ${icon}<span class="icon-chip-dist">${dist}</span>
@@ -234,7 +227,7 @@ function updateHistCount(force) {
 
   // Lista completa (expandido)
   listEl.innerHTML = sorted.map(poi => {
-    const icon     = OSM_ICONS[poi.type] || OSM_ICONS.default;
+    const icon     = poi.icon;   // DT-78: resuelto en poi.js al normalizar
     const dist     = poi._distanceMeters ? `· ${poi._distanceMeters}m` : '';
     const isActive = AppState.activePOI?.id === poi.id;
     return `<div class="style-card${isActive ? ' active' : ''}" data-poi-id="${poi.id}"

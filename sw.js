@@ -8,7 +8,7 @@
 
 // Incrementar CACHE_VERSION fuerza descarga de todos los archivos
 // en el proximo arranque — incluso si el navegador tiene version cacheada.
-const CACHE_VERSION = 'follower-v75';  // S41 (DT-77/DT-78/DA-88): fuente unica del icono de POI (poi.js, app.js, gps.js) + clasificador de iconos via Haiku contra lista cerrada (narration.js). POI_CACHE_VERSION sube a 6 en el mismo deploy: el primer arranque purga POIs cacheados y vuelve a bajar POIs y extractos
+const CACHE_VERSION = 'follower-v76';  // S41 cont.: BUG-071/DT-79 (etiqueta solo en pin activo con distancia, estado visited sin relleno, NEARBY_RADIUS desde CONFIG) + DT-80 (rama OSM mapea tag=valor, no clave: las iglesias salian con ☕). POI_CACHE_VERSION sube a 7 — purga obligatoria, los POIs OSM cacheados llevan iconos equivocados
 
 const STATIC_ASSETS = [
   './',

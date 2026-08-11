@@ -1587,6 +1587,64 @@ const Debug = (() => {
       });
     }
 
+    // ── INVENTARIO DE POIs (S42) ──
+    // El panel ya mostraba coordenadas en la pestaña de busqueda, pero el
+    // export no las llevaba: un diagnostico de coordenada mala obligaba a
+    // inferirla desde el comportamiento. 6 decimales (~11cm) para poder
+    // discutir bordes de radio; la pantalla se queda en 4 por espacio.
+    lines.push('INVENTARIO DE POIs EN MEMORIA');
+    lines.push('─'.repeat(50));
+    const _expPois = (typeof POI !== 'undefined' && typeof POI.getPOIs === 'function')
+      ? POI.getPOIs()
+      : [];
+
+    if (_expPois.length === 0) {
+      lines.push('Sin POIs cargados en memoria.');
+    } else {
+      const _gps = s.gps || null;
+      const _hasGeo = !!(_gps && typeof GPS !== 'undefined' && typeof GPS.distanceMeters === 'function');
+      const _radios = (typeof GPS !== 'undefined' && typeof GPS.getRadiusConfig === 'function')
+        ? GPS.getRadiusConfig()
+        : null;
+
+      lines.push(`  Total cargados:   ${_expPois.length}`);
+      if (_gps) lines.push(`  Centro (GPS):     ${_gps.lat.toFixed(6)}, ${_gps.lng.toFixed(6)}`);
+      if (_radios) {
+        lines.push(`  Radio activacion: ${_radios.poiRadius}m · cercania: ${_radios.nearbyRadius}m`);
+      }
+      lines.push('');
+
+      // Distancia fresca, no la del ultimo detectPOI: _distanceMeters puede
+      // estar rancio si el chequeo no corrio despues de moverse.
+      const _rows = _expPois.map(p => ({
+        poi:  p,
+        dist: _hasGeo ? GPS.distanceMeters(_gps.lat, _gps.lng, p.lat, p.lng) : null
+      }));
+      _rows.sort((a, b) => (a.dist ?? Infinity) - (b.dist ?? Infinity));
+
+      const MAX_EXPORT_POIS = 40;
+      const _shown = _rows.slice(0, MAX_EXPORT_POIS);
+
+      _shown.forEach(({ poi, dist }) => {
+        const d    = dist === null ? '  ?  ' : `${String(Math.round(dist)).padStart(5)}m`;
+        const src  = poi._source || '?';
+        const isrc = poi._iconSource ? `/${poi._iconSource}` : '';
+        const vis  = poi.visited ? ' · VISITADO' : '';
+        lines.push(`${d}  ${poi.icon || '?'} ${poi.name}`);
+        lines.push(`         ${poi.lat.toFixed(6)}, ${poi.lng.toFixed(6)} · ${src} · ${poi.type || 'sin tipo'}${isrc}${vis}`);
+      });
+
+      if (_rows.length > MAX_EXPORT_POIS) {
+        lines.push('');
+        lines.push(`  (${_rows.length - MAX_EXPORT_POIS} POIs mas alla del top ${MAX_EXPORT_POIS} — no listados)`);
+      }
+      if (!_hasGeo) {
+        lines.push('');
+        lines.push('  NOTA: sin GPS disponible — distancias no calculadas, orden arbitrario.');
+      }
+    }
+    lines.push('');
+
     lines.push('DETALLE CRONOLÓGICO DE TIEMPOS');
     lines.push('─'.repeat(50));
     if (_metrics.length === 0) {

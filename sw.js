@@ -8,7 +8,7 @@
 
 // Incrementar CACHE_VERSION fuerza descarga de todos los archivos
 // en el proximo arranque — incluso si el navegador tiene version cacheada.
-const CACHE_VERSION = 'follower-v76';  // S41 cont.: BUG-071/DT-79 (etiqueta solo en pin activo con distancia, estado visited sin relleno, NEARBY_RADIUS desde CONFIG) + DT-80 (rama OSM mapea tag=valor, no clave: las iglesias salian con ☕). POI_CACHE_VERSION sube a 7 — purga obligatoria, los POIs OSM cacheados llevan iconos equivocados
+const CACHE_VERSION = 'follower-v77';  // S42: DT-89 — inventario de POIs en el export de debug (nombre, coordenada a 6 decimales, distancia recalculada, _source, _iconSource, visited; tope 40). El panel ya mostraba coordenadas en pantalla pero el export no las llevaba: diagnosticar la coordenada falsa de "Las novias del gato" (617m de desvio en Wikipedia) obligo a inferirla desde el comportamiento. POI_CACHE_VERSION NO sube: no cambia query, filtros ni normalizacion
 
 const STATIC_ASSETS = [
   './',

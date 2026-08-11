@@ -6479,3 +6479,169 @@ S35.
 ---
 
 *Follower — Bitácora v0.9 | Sesión 41 (cont.) | 5 Agosto 2026*
+
+---
+
+## Sesión 42 — 11 Agosto 2026
+
+**Sesión de diagnóstico e implementación.** Se abrió para rediseñar los
+radios de POI y terminó demostrando que los radios no eran el problema. Un
+archivo JS modificado, cuatro tickets nuevos, y una medición que le da
+unidad al presupuesto de ritmo que DT-74 lleva persiguiendo desde S37.
+
+Versiones verificadas al abrir: `CACHE_VERSION` **v76**, `POI_CACHE_VERSION`
+7. Se anota porque la lectura rápida de S41 sugería v74 y no lo era —
+segunda vez que pasa (en S39 el panel decía v73 sobre un código en v74).
+
+### El enunciado del ticket estaba mal, no el código
+
+La caminata de Gato de Tejada había dejado como hallazgo que "el radio de
+descubrimiento y el de activación se están tratando como uno". Al traer
+`poi.js` y `gps.js` vivos antes de proponer nada, resultó que **ya estaban
+separados**, y en cuatro constantes, no en dos: `FETCH_RADIUS_KM` 2 km,
+`REFETCH_KM` 2 km, `NEARBY_RADIUS` 300 m, `POI_RADIUS_METERS` 120 m.
+`detectPOI()` los recibe como parámetros distintos y los aplica en filtros
+independientes.
+
+**La Regla de Oro se aplica también al enunciado de un ticket propio.** Una
+percepción de campo escrita como diagnóstico técnico —"se están tratando
+como uno"— habría costado una sesión de rediseño sobre una premisa falsa.
+
+### Qué pasó realmente en la caminata
+
+La secuencia reportada era: parado frente al Gato de Tejada, Follower narró
+"Las novias del gato"; tras caminar ~100 m, narró "El Gato del Río".
+
+Se reprodujo con `DebugSim.teleportTo()` y se confirmó con el inventario de
+POIs recién implementado:
+
+| POI | Coordenada en la app | vs. Wikidata |
+|---|---|---|
+| El Gato del Río | `3.4513, -76.5448` | **4 m** |
+| Las novias del gato | `3.4511, -76.5439` | **617 m** |
+
+La coordenada de las Novias cae **dentro del cauce del río Cali**, visible
+en captura del mapa: un conjunto de esculturas de fibra de vidrio no está en
+el agua. El Gato coincide con Wikidata dentro del error de redondeo de
+cuatro decimales.
+
+Cadena completa: se viene por el sendero desde el oriente; las Novias, mal
+ubicadas ~100 m antes del monumento, entran en radio primero y narran 44 s;
+esos 44 s son 60 m de caminata, así que al terminar el capítulo ya se está
+frente al gato; 100 m más adelante el Gato entra en su propio radio y narra,
+cuando ya se pasó.
+
+**Un solo dato falso produjo los dos síntomas** que se habían anotado como
+problemas separados: el capítulo equivocado en el lugar correcto, y el
+capítulo correcto en el lugar equivocado. Y ninguno de los dos se arregla
+tocando un radio: con coordenadas que erran cientos de metros, **cualquier
+valor de `POI_RADIUS_METERS` queda por debajo del ruido del dato**.
+
+Nota importante para no sobregeneralizar: **GeoSearch no falla en general.**
+Falla ese artículo. El Gato, cargado por la misma vía y en la misma llamada,
+está bien ubicado.
+
+### El número que le faltaba a DT-74
+
+Medido sobre los dos capítulos reales de la sesión:
+
+| Capítulo | Chars | Voz | Metros a 1,35 m/s |
+|---|---|---|---|
+| Las novias del gato | 696 | 44,1 s | **60 m** |
+| El Gato del Río | 784 | 49,8 s | **67 m** |
+
+"Los capítulos se sienten largos" era percepción de campo. **"Un capítulo
+consume 60-67 metros" es una medida.** Le da al presupuesto de ritmo una
+unidad natural que nunca tuvo, y que no es la que se venía buscando: el
+techo no es "N capítulos por caminata" sino **metros mínimos entre
+narraciones**.
+
+Con El Gato del Río y Las novias separados 102 m en los datos de la app, no
+cabe un capítulo entre ambos. **Y esto sobrevive aunque la geoetiqueta se
+corrija** — es el problema de fondo, independiente de DT-91.
+
+### DT-89 — inventario de POIs en el export
+
+El diagnóstico anterior costó varias horas de teletransportes, exports y
+aritmética manual. El dato estaba a un clic: `renderPOIList` (debug.js:729)
+ya imprimía coordenadas en la pestaña de búsqueda. Lo que faltaba es que
+`exportLog()` nunca recorría la lista de POIs.
+
+**La lección no es sobre este bug: el instrumento sabía más de lo que el
+export contaba.**
+
+Implementado como bloque entre "RESUMEN TÉCNICO DE TIEMPOS" y "DETALLE
+CRONOLÓGICO" —antes de los logs, porque el inventario es contexto para
+leerlos, no apéndice—. Por POI: nombre, coordenada a **6 decimales**,
+distancia, `_source`, `type`, `_iconSource` y `visited`. Encabezado con
+total, centro GPS y radios vigentes leídos de `GPS.getRadiusConfig()`. Tope
+de 40 con nota de cuántos quedan fuera.
+
+Tres decisiones que conviene no revertir sin leer esto:
+
+1. **La distancia se recalcula contra `AppState.gps`, no se lee
+   `poi._distanceMeters`.** Ese campo lo escribe `detectPOI` y queda rancio
+   si el chequeo no corrió tras moverse. Habría metido un dato viejo justo
+   en el instrumento de diagnóstico. `renderSearch` sí usa el cacheado: es
+   una divergencia deliberada entre pantalla y export.
+2. **Seis decimales** (~11 cm) frente a los cuatro de la pantalla (~11 m).
+   Cuatro alcanzaron para detectar un error de 617 m, pero no para discutir
+   si un POI está a 118 o a 121 del borde del radio — que fue exactamente la
+   pregunta que quedó sin resolver a mitad de la sesión.
+3. **Sin GPS lista igual**, sin distancias y con nota explícita. Un export
+   sin permiso de ubicación sigue mostrando coordenadas, que es cuando más
+   se necesitan.
+
+`POI_CACHE_VERSION` **no** sube: el cambio solo lee lo que ya está en
+memoria, no toca query, filtros ni normalización. Purgar habría sido
+gratuito y habría costado los 35 POIs recién cargados.
+
+### Lo que se decidió no hacer
+
+- **DT-90 (captura global de errores) se aplazó**, aunque el hueco es real y
+  está verificado: no hay `window.onerror` ni `unhandledrejection` en ningún
+  módulo. Se documentó y se dejó para sesión propia — una variable a la vez.
+- **Instrumentación de red (wrapper de `fetch`)**: se descartó como
+  prioridad. Ninguno de los bugs cerrados en las últimas sesiones se habría
+  encontrado con un log de red, y con el inventario de POIs en el export
+  buena parte de su valor queda cubierta. Riesgo añadido: envolver `fetch`
+  global intercepta tiles de Leaflet, decenas por minuto.
+- **Instrumentación de ciclo de vida**: se bajó de prioridad al releer la
+  sesión de la caminata. La lectura de "desalojo de pestaña de iOS" **se
+  había retirado en esa misma sesión** cuando se aclaró que los title cards
+  repetidos venían de taps deliberados sobre pines. Lo que sí sigue en pie
+  es el reloj congelado (119.553 ms medidos contra 634 s de pared).
+
+### Observado y no atendido
+
+- **BUG-059 loguea dos veces** el mismo filtrado de preámbulo (404 y 185
+  chars, cada uno duplicado). Ya visto en la caminata de agosto.
+- **Worker Cloudflare status=400 al arranque**, consistente (DT-21).
+- **Overpass 504 en los tres mirrors**; la cascada DT-52 degradó a Wikipedia
+  correctamente.
+- **`Voice: recuperación por visibilitychange`** apareció en escritorio.
+  Dato para la pregunta de ciclo de vida, pendiente de reproducir en iPhone.
+- **Ambos POIs del gato traen `type: historic`.** Con la coordenada
+  descartada como discriminador, el tipo tampoco distingue nada.
+
+### Cierre
+
+`CACHE_VERSION` v77 · `POI_CACHE_VERSION` 7 (sin cambio) ·
+`CLASSIFIER_PROMPT_VERSION` v1 · `PROMPT_VERSION` v3.8 ·
+`THESIS_PROMPT_VERSION` v5.
+
+Pendiente de código: DT-90, DT-92, DT-64.
+
+Pendiente de decisión de producto: DT-91 (b), y la sesión de
+curaduría/ritmo, que ahora tiene por primera vez una unidad medida.
+
+Pendiente de campo: la caminata sigue debiendo BUG-053, BUG-058, DT-72,
+DT-68 y el discriminador del "· 1". Se suma el primer export con inventario
+de POIs en dispositivo real, que valida DT-89.
+
+Tarea suelta, fuera de código: corregir la geoetiqueta de "Las novias del
+gato" en Wikipedia.
+
+---
+
+*Follower — Bitácora v0.9 | Sesión 42 | 11 Agosto 2026*

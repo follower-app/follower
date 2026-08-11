@@ -321,13 +321,17 @@ El Prompt Maestro v2.7 (narrador único) tiene versiones en español e inglés. 
 | DT-69b | **CERRADA (S37, sw v71).** Las páginas de desambiguación pasaban la guarda de DT-69: la regla "ausencia de geoetiqueta = aceptar" no anticipó que el candidato sin coordenadas más probable de todos es precisamente una desambiguación. En campo (Palmira): DT-69 descartó correctamente la Palmira siria, y acto seguido `en.wikipedia/Palmira` —desambiguación sin coordenadas— pasó, llegó a Haiku como lista de acepciones y produjo borrador malformado con fuga de scratchpad (BUG-059 filtró 521 chars). Fix: `prop=extracts\|coordinates\|pageprops` con `ppprop=disambiguation`; al acotar `ppprop`, `page.pageprops` solo existe si la página **es** desambiguación. Descarte antes de la guarda de coordenadas, mismo `continue`. **Limitación declarada:** se apoya en la propiedad oficial de MediaWiki — una página que actúe como desambiguación sin la plantilla pasaría igual. No se agregaron heurísticas de texto (riesgo de falso positivo sobre artículo legítimo) | Media |
 | DT-72 | **El hint OSM de DA-87 no llega desde la periferia (S37, evidencia de campo).** Mismo dispositivo, mismo día, misma app: desde Ingenio Manuelita (km 7 vía Palmira-Buga, 5,1 km del centro) no apareció ninguna línea `BUG-068 v5: nombre canónico` y el primer candidato probado fue la cascada de adivinanza; desde el centro de Palmira el hint llegó limpio. Hipótesis: `fetchCityName` con `zoom=10` resuelve desde zona rural una entidad OSM distinta (corregimiento, límite municipal) que no lleva el tag `wikipedia`. No es cosmético: la gente arranca caminatas fuera de los centros constantemente, y ahí la ciudad se queda sin identidad (cae a degradación genérica). **Primer paso es diagnóstico, no código:** loguear los `extratags` crudos que devuelve Nominatim y comparar centro vs. rural antes de decidir el fix. Bloquea DT-71. **S39 — instrumentación desplegada (sw v72), diagnóstico pendiente de campo:** `gps.js` loguea ahora el payload crudo del reverse (`osm_type/osm_id`, `class`, `type`, `addresstype`, claves de `extratags`, valor literal de `extratags.wikipedia`) para separar tres hipótesis que hoy son indistinguibles desde fuera — objeto principal equivocado, objeto correcto sin tag, o `extratags` ausente. Se añadió además una **sonda por nombre** (endpoint `search` estructurado con `city`+`country`+`extratags=1`, 1.2s de espera por la política de 1 req/s), que solo dispara cuando el hint sale null y **nunca alimenta `prefetchCityThesis`**: consulta la relación administrativa independientemente de dónde esté parado el caminante, que es el eje del problema. Si la sonda acierta, ES el fix y no solo una pista. Descartada la sonda por zoom alternativo: elegir el zoom es adivinar, e informa solo si el problema es el objeto y otro zoom acierta | Alta |
 | ~~DT-73~~ | **`checkWorker()` en debug.js reporta "ok" con cualquier status (S37).** Pega a `/weather` sin parámetros y recibe 400, pero la línea `_dbgWorkerStatus = res.status ? 'ok' : 'error'` marca cualquier status numérico como truthy — el indicador de salud del Worker reporta "ok" incluso con 400 o 500. El panel no ha estado diciendo nada. **CERRADA (S39, sw v72).** El fix propuesto originalmente (`res.ok`) habría roto el indicador al revés: `checkWorker()` pega a `/weather` SIN lat/lon y un Worker sano responde 400 — su propia validación (worker.js:64-69). `res.ok` habría reportado error permanente sobre un Worker perfectamente vivo. Implementado en su lugar `res.status < 500`, cuya semántica es la correcta: "el Worker respondió con lógica propia". Pendiente aún el comentario fósil de `Care.resetWalk()` en care.js ("PENDIENTE: cablear esta llamada en app.js" — `app.js:539` ya la llama), al que se suma un fósil nuevo detectado en S39: el comentario de `Debug.retestCityWelcome()` promete probar "el camino fresco (tesis hablada + sheet expandido)", imposible en ciudad ya marcada desde DA-86 — induce a leer un pase como fallo | Media |
-| DT-74 | **Presupuesto de ritmo (S37, del documento de exploración).** DT-61 y DT-65 están planteados como filtros de *calidad* ("¿este POI merece capítulo?"); falta un filtro de *ritmo*: aunque los 20 POIs detectados fueran todos excelentes, narrarlos todos destruye la experiencia. Techo de narraciones por caminata o por unidad de tiempo, independiente del mérito individual. Es el número que la Filosofía de Escasez nunca tuvo. Rangos de partida desde literatura de museos y tours guiados (no evidencia de campo de Follower): ~1/3 de elementos visitados, declive de atención a 30-45 min, 6-12 paradas en un tour autoguiado a pie, ~8 capítulos como techo real de una caminata. **Transversal: ni DT-61 ni DT-65 ni DT-68 se dimensionan bien sin él.** Ver `docs/exploracion_ritmo_y_curaduria.md` §3 | Alta |
+| DT-74 | **Presupuesto de ritmo (S37, del documento de exploración).** DT-61 y DT-65 están planteados como filtros de *calidad* ("¿este POI merece capítulo?"); falta un filtro de *ritmo*: aunque los 20 POIs detectados fueran todos excelentes, narrarlos todos destruye la experiencia. Techo de narraciones por caminata o por unidad de tiempo, independiente del mérito individual. Es el número que la Filosofía de Escasez nunca tuvo. Rangos de partida desde literatura de museos y tours guiados (no evidencia de campo de Follower): ~1/3 de elementos visitados, declive de atención a 30-45 min, 6-12 paradas en un tour autoguiado a pie, ~8 capítulos como techo real de una caminata. **Transversal: ni DT-61 ni DT-65 ni DT-68 se dimensionan bien sin él.** Ver `docs/exploracion_ritmo_y_curaduria.md` §3. **Nota S42 — el presupuesto tiene unidad natural, y es métrica, no temporal.** Medido sobre dos capítulos reales: 696 chars → 44,1 s → **60 m** de caminata a 1,35 m/s; 784 chars → 49,8 s → **67 m**. Un capítulo *consume* 60-67 metros. Con El Gato del Río y Las novias separados **102 m** en los datos de la app, no cabe un capítulo entre ambos sin que termine después de haber pasado el segundo POI — y eso ocurre aunque las coordenadas sean correctas. Reencuadra el ticket: el techo no es "N capítulos por caminata" sino **metros mínimos entre narraciones**, lo que permite discutir por separado calidad (DT-61/DT-65) y dato (DT-91) | Alta |
 | DT-75 | **Clasificador temático de POIs (S37, del documento de exploración).** Etiquetar temáticamente todos los POIs de una ciudad para usar el tema como criterio de selección. Factible y barato: `_attachExtracts()` ya trae el extracto intro de **todos** los POIs wiki al cargar (poi.js:364, lotes de 20), así que clasificar ~40 POIs es **una sola llamada a Haiku** (títulos + primera frase → etiquetas JSON, ~US$0,002, cacheable junto al POI cache, entra al régimen de `POI_CACHE_VERSION`). **Alcance recomendado para v1: prioridad, no exclusión** — cuando el presupuesto de ritmo (DT-74) obligue a elegir 8 de 20, escoger maximizando diversidad temática en vez de por cercanía. Nunca puede producir una caminata muda. La lente completa (la tesis elige el género y filtra POIs) queda como graduación, condicionada a dos riesgos abiertos: quién elige la lente (usuario = selector = audioguía, contradice DA-50) y el piso en ciudades de cobertura escasa. Ver `docs/exploracion_ritmo_y_curaduria.md` §5.2 | Media |
 | DT-76 | **Rotación de ángulo narrativo (S37, del documento de exploración) — CONDICIONADA.** Los cuatro registros de DA-50 no se eliminaron como capacidades, solo el selector. Un modo fijo por caminata es *ortogonal* a la fatiga (entrega N capítulos del mismo registro = misma monotonía); lo que la evidencia respalda es variación *dentro* de la caminata decidida por el sistema. La regla 7 del Prompt Maestro ("no repitas el recurso sensorial del capítulo anterior") ya es un mecanismo anti-saciedad en producción — extenderla al ángulo es un delta de una línea. **No se implementa hasta que DT-74 esté en campo:** si se hacen las dos a la vez y la caminata mejora, no se sabrá cuál lo hizo. Costo real cuando toque: bump de `PROMPT_VERSION` (invalida todas las narraciones cacheadas) + revalidación n≥4 de un prompt 16/16 | Baja |
 | ~~DT-77~~ | **REABIERTA Y CERRADA S41 — por implementacion (DA-88).** El cierre de S40 se apoyaba en una premisa falsa: *"no hay forma limpia de derivar tipo desde Wikipedia GeoSearch sin requests adicionales por POI"*. Hay dos, ninguna por POI — `pageprops` con `ppprop=wikibase_item` viaja gratis en la llamada batcheada de extractos (`poi.js:373-388`), y DT-75 ya especificaba una sola llamada a Haiku sobre extractos en memoria. Medicion de campo (Palmira, radio 2 km, umbral 85% fijado antes de medir): la ruta Wikidata da 25% de cobertura contra la tabla existente y **los cuatro primeros POIs reales pedian tres entradas nuevas** — el mapa `P31 -> emoji` no converge. Cerrada por la ruta modelo + lista cerrada de 25 emojis: mantener una lista de simbolos es trivial, mantener un mapa de claves es imposible. El color sigue diciendo el estado; el glifo pasa a decir el tipo. Fallback 🎬. Ver anexo S41 y `arquitectura.md` DA-88. *(Enunciados S40 y original conservados arriba para trazabilidad.)* | ~~Media~~ |
 | ~~DT-78~~ | **CERRADA S41 — por implementacion, con diagnostico corregido.** No eran dos tablas que fusionar: `gps.js:621` ya leia `poi.icon` del registro, y `app.js:228/237` volvia a resolver por tipo un emoji **ya resuelto en el mismo objeto que recorria**. `OSM_ICONS` (`app.js:193-198`) era una tabla que sobra, no una que mover — por eso divergio (14 entradas contra 12): crecio por el lado del consumidor. Ademas aparecio un **tercer** generico no contado: `let icon = '📍'` en `poi.js:760` para el POI de OSM sin categoria. Los tres colapsan en `CONFIG.FALLBACK_ICON`. Neto: -13 lineas de logica. El icono se decide en un solo punto (`poi.js`); `gps.js` y `app.js` quedan en lectura pura, sin `||` ni tabla propia | ~~Baja~~ |
 | ~~DT-79~~ | **CERRADA S41.** `CONFIG.NEARBY_RADIUS` reemplaza al `300` escrito a mano en `addPOIMarker()`. El pin y la deteccion ya no pueden divergir | ~~Baja~~ |
 | ~~DT-80~~ | **CERRADA S41 — y era un bug vivo, no higiene.** `OSM_CATEGORIES` mezclaba claves del esquema OSM (`'tourism'`, `'amenity'`) con valores (`'museum'`, `'church'`), y el matcher aceptaba `tags[key]` tomando el primer acierto. Con `'amenity'` en tercera posicion, **una iglesia que entra por `amenity=place_of_worship` recibia ☕**; la entrada `'church'` con su ⛪ estaba mas abajo y no se alcanzaba nunca. Igual `'tourism'` en segunda: museum, gallery y viewpoint caian todos en 📍. Las entradas ⛪ 🖼️ ⛲ 🔭 probablemente **no se ejecutaron jamas**, lo que reinterpreta un hallazgo de S40: los pines de OSM genericos no eran falta de clasificacion, era la tabla interceptandolos. Sustituida por `OSM_ICON_MAP` (clave -> valor -> emoji, alineado con la lista cerrada de DA-88) mas `OSM_GENERIC_VALUES`, para que un valor paraguas (`historic=building`) no tape a uno especifico (`amenity=theatre`). `POI_CACHE_VERSION` 6 -> 7: purga obligatoria. **Correccion al enunciado original:** decia que reapuntar la tabla *"cambia que POIs entran"*. Es falso — la admision la decide la query de Overpass y `type` no filtra en ningun punto | ~~Media~~ |
+| ~~DT-89~~ | **CERRADA (S42, sw v77) — inventario de POIs en el export.** El panel ya imprimía coordenadas en la pestaña de búsqueda (`renderPOIList`, debug.js:729) pero `exportLog()` nunca recorría la lista de POIs: diagnosticar la coordenada falsa de "Las novias del gato" costó una sesión de teletransportes e inferencia desde el comportamiento, con el dato a un clic en la pantalla equivocada. Bloque nuevo entre "RESUMEN TÉCNICO DE TIEMPOS" y "DETALLE CRONOLÓGICO": total cargados, centro GPS, radios vigentes leídos de `GPS.getRadiusConfig()`, y por POI nombre, coordenada a **6 decimales** (~11 cm — 4 decimales no alcanzan para discutir bordes de radio), distancia, `_source`, `type`, `_iconSource` y `visited`. Tope de 40 con nota de cuántos quedan fuera. **Decisión de diseño: la distancia se recalcula contra `AppState.gps`, no se lee `poi._distanceMeters`** — ese campo lo escribe `detectPOI` y queda rancio si el chequeo no corrió tras moverse; habría metido un dato viejo justo en el instrumento de diagnóstico. Divergencia deliberada con `renderSearch`, que sí usa el cacheado. Sin GPS lista igual, sin distancias y con nota explícita. `POI_CACHE_VERSION` **no** sube: no cambia query, filtros ni normalización | ~~Media~~ |
+| DT-90 | **Captura global de errores en debug.js (S42).** No existe `window.onerror` ni `unhandledrejection` en ningún módulo — verificado contra código vivo en `debug.js`, `app.js`, `narration.js`, `poi.js`, `gps.js`, `weather.js` e `index.html`. El panel solo muestra lo que se instrumentó a mano: un `TypeError` en un handler de GPS, un `await` rechazado en la cadena de narración o un fallo dentro de un `catch` silencioso desaparecen sin dejar rastro, y tampoco entran al export. Es el hueco que más pesa en caminata, porque los bugs que importan son justamente los que no se anticipó instrumentar. Alcance: dos listeners que enrutan a `Debug.log('error', ...)` con mensaje, archivo, línea y stack recortado. **Invariante que condiciona el diseño: "nunca mostrar errores crudos al usuario" — la captura es exclusivamente para panel y export, jamás toca la UI.** Punto a ratificar antes de escribir código: `log()` llama a `persistState()` en cada entrada, y un error dentro del loop de `watchPosition` escribiría en localStorage en cada tick; requiere deduplicación por firma o throttle antes de persistir | Alta |
+| DT-91 | **Geoetiqueta falsa de fuente — caso "Las novias del gato" (S42).** Medido con el inventario de DT-89: la app ubica el POI en `3.4511, -76.5439`, dentro del cauce del río Cali; Wikidata lo pone en `3.446667, -76.540556`, a **617 m**. El Gato del Río en cambio coincide con Wikidata dentro de **4 m** — **GeoSearch no falla en general, falla ese artículo**. Consecuencia en campo (caminata Gato de Tejada, 8 ago): parado frente al monumento el POI más cercano eran las gatas mal ubicadas a ~30 m, que narraron; el Gato entró en radio ~100 m después y narró tarde. Dos frentes distintos: **(a)** corregir la geoetiqueta en Wikipedia — cierra este caso, no escala; **(b)** decidir qué hace Follower ante una coordenada de fuente incorrecta, para lo que hoy no hay señal de detección disponible (contrastar contra Wikidata cuesta un request por POI y tampoco es autoridad). **La separación real de 102 m entre ambos POIs sobrevive aunque (a) se ejecute** — ver DT-74 y DT-61 | Alta |
+| DT-92 | **Los contadores del export se contradicen entre sí (S42).** Tres inconsistencias en un mismo reporte: "POIs activados: 1" junto a "Narraciones completas: 2 (200%)" — la activación manual desde el panel no incrementa el contador de `trackExp`; "Intervalo entre nar.: 388s avg" dos líneas encima de "Sin datos de ritmo (< 2 narraciones)"; y "Tiempo total de sesión: 1min" sobre un detalle cronológico que abarca de 15:38 a 15:46. Las mediciones directas (voz, Worker, lag texto→voz) no están afectadas: el problema está en las capas agregadas, que calculan sobre una noción de sesión que los teletransportes rompen. **Bloquea usar el score cinemático y el reparto sístole/diástole como evidencia para DT-74** — el instrumento tiene que ser confiable antes de calibrar el presupuesto de ritmo con él | Media |
 
 ### Bugs de interfaz — reportados Sesión 31
 
@@ -1011,3 +1015,118 @@ observación de z-index.
 ---
 
 *Follower — Producto v0.9 | Sesión 41 (cont.) | 5 Agosto 2026*
+
+---
+
+## Anexo Sesión 42 — 11 Agosto 2026
+
+**Sesión de diagnóstico e implementación.** Un hallazgo de campo que se creía
+de diseño de radios resultó ser un dato falso de la fuente. Un archivo JS
+modificado, cuatro tickets nuevos, y una medición que le da unidad al
+presupuesto de ritmo.
+
+Versiones verificadas al abrir: `CACHE_VERSION` v76 (no v74, como habría
+sugerido la lectura de S41 sin verificar), `POI_CACHE_VERSION` 7.
+
+### La premisa del hallazgo de campo era falsa
+
+La caminata de Gato de Tejada había dejado anotado que "el radio de
+descubrimiento y el de activación se están tratando como uno". Al traer el
+código vivo, **ya estaban separados**, y no en dos sino en cuatro:
+
+| Radio | Valor | Dónde | Qué hace |
+|---|---|---|---|
+| `FETCH_RADIUS_KM` | 2 km | poi.js:58 | Descarga desde Wikipedia/OSM |
+| `REFETCH_KM` | 2 km | poi.js:59 | Cuándo volver a descargar |
+| `NEARBY_RADIUS` | 300 m | gps.js:28 | Pin "cercano" + `AppState.nearbyPOIs` |
+| `POI_RADIUS_METERS` | 120 m | gps.js:27 | Activa narración |
+
+`detectPOI(lat, lng, activeRadius, nearbyRadius)` los recibe como parámetros
+distintos y los aplica en dos filtros independientes. El diseño que se iba a
+hacer ya existía. **Se evitó una sesión entera de rediseño sobre una premisa
+falsa por aplicar la Regla de Oro antes de aceptar el enunciado del ticket.**
+
+### El mecanismo real, confirmado con datos
+
+| POI | Coordenada en la app | vs. Wikidata |
+|---|---|---|
+| El Gato del Río | `3.4513, -76.5448` | **4 m** |
+| Las novias del gato | `3.4511, -76.5439` | **617 m** |
+
+La coordenada de las Novias cae dentro del cauce del río — un conjunto de
+esculturas de fibra de vidrio no está en el agua. El Gato coincide con
+Wikidata dentro del error de redondeo de cuatro decimales.
+
+Cadena completa: se viene por el sendero desde el oriente; las Novias, mal
+ubicadas ~100 m antes del monumento, entran en radio primero y narran 44 s;
+esos 44 s son 60 m, así que al terminar el capítulo ya se está frente al
+gato; 100 m más adelante el Gato entra en su propio radio y narra, cuando
+ya se pasó. **Un solo dato malo produjo los dos síntomas reportados:** el
+capítulo equivocado en el lugar correcto, y el correcto en el lugar
+equivocado.
+
+### El número que reencuadra DT-74
+
+| Capítulo | Chars | Voz | Metros a 1,35 m/s |
+|---|---|---|---|
+| Las novias del gato | 696 | 44,1 s | **60 m** |
+| El Gato del Río | 784 | 49,8 s | **67 m** |
+
+"Los capítulos se sienten largos" era percepción. **"Un capítulo consume
+60-67 metros de caminata" es una medida**, y le da al presupuesto de ritmo
+una unidad natural que no tenía: métrica, no temporal. Con dos POIs a 102 m,
+no cabe un capítulo entre ellos. Esto es independiente de DT-91: sobrevive
+aunque la geoetiqueta se corrija.
+
+### Nota de método
+
+El diagnóstico costó varias horas de teletransportes, exports y aritmética
+manual, teniendo el dato a un clic en la pestaña de búsqueda del propio
+panel. La lección no es sobre este bug: **el instrumento sabía más de lo que
+el export contaba.** De ahí DT-89, y de ahí que DT-90 y DT-92 sean de la
+misma familia — el panel pierde información en el camino hacia donde se
+puede leer.
+
+Corolario para DT-90: con el inventario de POIs en el export, buena parte de
+lo que justificaba un wrapper de `fetch` queda cubierta. La instrumentación
+de red baja de prioridad.
+
+### Observado y no atendido
+
+- **BUG-059 sigue logueando dos veces** el mismo filtrado de preámbulo (404
+  chars y 185 chars, cada uno duplicado). Ya observado en la caminata de
+  agosto. O el sanitizador corre dos veces, o el log está en dos rutas.
+- **Worker Cloudflare status=400 al arranque**, consistente (DT-21).
+- **Overpass 504 en los tres mirrors** en la sesión de la mañana; la cascada
+  DT-52 degradó correctamente a Wikipedia.
+- **`Voice: recuperación por visibilitychange — síntesis muerta tras volver
+  del background`**, esta vez en escritorio. Dato para la pregunta abierta de
+  ciclo de vida, pendiente de reproducir en iPhone.
+
+## Estado al cierre
+
+| | |
+|---|---|
+| `CACHE_VERSION` | `follower-v77` |
+| `POI_CACHE_VERSION` | 7 *(sin cambio — DT-89 no toca query, filtros ni normalización)* |
+| `CLASSIFIER_PROMPT_VERSION` | v1 |
+| `PROMPT_VERSION` | v3.8 |
+| `THESIS_PROMPT_VERSION` | v5 |
+
+**Pendiente de código:** DT-90 (captura global de errores), DT-92
+(contadores del export), DT-64 (brújula, tres rutas sin ratificar).
+
+**Pendiente de decisión de producto:** DT-91 (b) — qué hace Follower ante
+una coordenada de fuente incorrecta. Y la sesión de curaduría/ritmo que
+DT-74, DT-61 y DT-65 llevan pidiendo, ahora con la unidad métrica medida.
+
+**Pendiente de campo:** la caminata sigue debiendo BUG-053, BUG-058, DT-72,
+DT-68 y el discriminador del "· 1". Se suma el primer export con inventario
+de POIs, que valida DT-89 en dispositivo real.
+
+**Tarea suelta, fuera de código:** corregir la geoetiqueta de "Las novias del
+gato" en Wikipedia.
+
+---
+
+*Follower — Producto v0.9 | Sesión 42 | 11 Agosto 2026*

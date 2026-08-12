@@ -6645,3 +6645,75 @@ gato" en Wikipedia.
 ---
 
 *Follower — Bitácora v0.9 | Sesión 42 | 11 Agosto 2026*
+
+---
+
+## Sesión 42 (adenda) — 12 Agosto 2026
+
+**Cierre del frente (a) de DT-91.** Sin código. Se documenta porque el
+mecanismo real resultó distinto del que quedó escrito el día anterior.
+
+### La coordenada no estaba donde se creía
+
+S42 dejó anotado que la geoetiqueta de "Las novias del gato" venía de
+Wikipedia GeoSearch. Correcto, pero incompleto: **el artículo no tiene
+coordenada propia**. El wikitexto no trae `{{coord}}` ni parámetros de
+posición en `{{Ficha de monumento}}`. La ficha la hereda de Wikidata
+`Q41039140`.
+
+La cadena completa, ahora confirmada extremo a extremo:
+
+```
+Wikidata Q41039140 → {{Ficha de monumento}} → geo_tags de es.wikipedia
+                   → GeoSearch → poi.js → Follower
+```
+
+### El defecto real era la precisión, no el valor
+
+El ítem declaraba **±0.00899947°, unos 1.000 m**, para un conjunto
+escultórico urbano. Con ese margen el punto no afirma dónde están las gatas:
+afirma que están en algún lugar de un kilómetro. Eso explica la
+inconsistencia que costó varios intentos entender — la propia interfaz de
+Wikidata mostraba `3°26'48"N, 76°32'26"W` en la etiqueta mientras enlazaba a
+`3.45111111, -76.54388889`, unos 500 m aparte. **No había dos declaraciones:
+había una sola sin resolución suficiente para significar lo mismo en dos
+lecturas.**
+
+Corolario que corrige lo escrito ayer: los "617 m de discrepancia entre
+Wikipedia y Wikidata" no eran dos fuentes en desacuerdo, sino una fuente
+imprecisa leída de dos maneras.
+
+### La corrección
+
+Valor `3.451, -76.544`, precisión inferida de los tres decimales: ±0.001°
+(~100 m). **Tres decimales y no cuatro a propósito** — las gatas se reparten
+por ~600 m de bulevar, y declarar 11 m de precisión sobre un conjunto
+disperso es tan inexacto como declarar 1 km, solo que en la otra dirección.
+El punto se tomó del centro del recorrido en el Bulevar del Río, no del
+pedestal del Gato: quien busque el conjunto y llegue ahí, llega bien.
+
+Verificado el mismo día en `es.wikipedia.org/w/api.php?action=query&prop=coordinates`:
+devuelve ya `3.451, -76.544`. La propagación fue de minutos, no de días.
+
+### Lo que esto no arregla
+
+**La separación entre El Gato del Río y Las novias pasó de 102 m a ~92 m.**
+Prácticamente lo mismo. Con capítulos que consumen 60-67 metros de caminata,
+los dos POIs siguen sin caber uno detrás del otro. La edición valió por
+Wikipedia — una coordenada en el cauce de un río con precisión de un
+kilómetro es un defecto real del ítem — pero **no movió el problema de
+Follower ni un metro útil**.
+
+Queda como recordatorio de proporción: se invirtió media sesión en corregir
+un dato externo cuya corrección era previsiblemente marginal para el
+producto. El frente (b) de DT-91 —qué hace Follower ante una coordenada de
+fuente incorrecta— sigue intacto, y es el que importa.
+
+### Pendiente menor
+
+Confirmar que `Q41039140` quedó con una sola declaración de *coordinate
+location*. Si hay dos, los consumidores volverán a elegir distinto.
+
+---
+
+*Follower — Bitácora v0.9 | Sesión 42 (adenda) | 12 Agosto 2026*

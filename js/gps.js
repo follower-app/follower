@@ -26,6 +26,12 @@ const GPS = (() => {
     POI_CHECK_INTERVAL: 5000,    // ms entre chequeos de POIs cercanos
     POI_RADIUS_METERS:  120,     // radio para activar narración (era 80 — muy estricto con GPS urbano)
     NEARBY_RADIUS:      300,     // radio para mostrar pin como "cercano"
+    // DT-74: piso metrico entre narraciones. Un capitulo consume 60-67m de
+    // caminata (medido en S42: 696 chars -> 44,1s -> 60m; 784 -> 49,8s -> 67m
+    // a 1,35 m/s), asi que 200m es un reparto silencio:narracion de ~2:1 —
+    // la metafora sistole/diastole expresada en metros. Es un PISO, no una
+    // agenda: nunca crea un capitulo, solo suprime. Poner 0 lo desactiva.
+    RHYTHM_MIN_METERS:  200,
     STEPS_PER_METER:    1.3,     // pasos por metro (estimado)
     CITY_ANCHOR_KM:     10,      // DA-86 B: re-resolver ciudad solo a >10km del ancla donde se fijó
     MAP_ZOOM:           17,      // zoom inicial del mapa
@@ -596,8 +602,9 @@ const GPS = (() => {
      pero no mutar CONFIG directamente. */
   function getRadiusConfig() {
     return {
-      poiRadius:     CONFIG.POI_RADIUS_METERS,
-      nearbyRadius:  CONFIG.NEARBY_RADIUS
+      poiRadius:       CONFIG.POI_RADIUS_METERS,
+      nearbyRadius:    CONFIG.NEARBY_RADIUS,
+      rhythmMinMeters: CONFIG.RHYTHM_MIN_METERS   // DT-74 — el export lo lee de aqui, igual que los radios
     };
   }
 

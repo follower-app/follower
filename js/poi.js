@@ -14,6 +14,10 @@ const POI = (() => {
   let _db             = null;     // instancia IndexedDB
   let _pendingDetect  = null;     // DT-38: posición pendiente de detectPOI tras carga inicial
   let _visitedInSession = new Set(); // BUG-044: IDs narrados en esta sesión — sobrevive resetPOIs()
+  // DT-74: ancla del piso metrico — km recorridos y posicion al ARRANCAR el
+  // capitulo anterior. null = todavia no hubo narracion en esta caminata.
+  let _kmAtLastNarration  = null;
+  let _posAtLastNarration = null;
   let _isFetchingPOIs = false;    // candado — evita fetches paralelos a Overpass (BUG-014)
   let _outOfRadiusStreak = 0;     // BUG-046: chequeos consecutivos sin closestPOI antes de desactivar
 
@@ -1042,6 +1046,42 @@ const POI = (() => {
 
 
   /* ── DETECTAR POI CERCANO — DA-3 función única ── */
+  /* ── DT-74: PISO METRICO ENTRE NARRACIONES ──
+     Devuelve null si se puede narrar, o el detalle del rechazo si no.
+     La unidad son metros CAMINADOS (AppState.kmWalked, que ya descarta saltos
+     de GPS >50m por tick en gps.js:184), no desplazamiento en linea recta:
+     es la misma unidad que midio S42 y sobrevive a que el caminante de una
+     vuelta y vuelva al mismo punto.
+     Se loguea igual el desplazamiento, para poder ver en campo si el jitter
+     del GPS estando quieto esta inflando kmWalked. Si resulta que si, el
+     arreglo va en updateDistance() y no aqui — una variable a la vez. */
+  function _pisoRitmo(lat, lng) {
+    if (_kmAtLastNarration === null) return null;   // primer capitulo: sin piso
+
+    const minimo = (typeof GPS !== 'undefined' && typeof GPS.getRadiusConfig === 'function')
+      ? GPS.getRadiusConfig().rhythmMinMeters
+      : 200;
+    if (!minimo) return null;                        // 0 o ausente = piso desactivado
+
+    const caminados = Math.round(((AppState.kmWalked || 0) - _kmAtLastNarration) * 1000);
+
+    // Negativo solo si kmWalked se reinicio sin pasar por resetVisited(). En vez
+    // de bloquear para siempre, el ancla se suelta y la proxima narracion la fija.
+    if (caminados < 0) {
+      _kmAtLastNarration  = null;
+      _posAtLastNarration = null;
+      return null;
+    }
+
+    if (caminados >= minimo) return null;
+
+    const desplazamiento = _posAtLastNarration
+      ? Math.round(GPS.distanceMeters(lat, lng, _posAtLastNarration.lat, _posAtLastNarration.lng))
+      : -1;
+
+    return { caminados, minimo, desplazamiento };
+  }
+
   function detectPOI(lat, lng, activeRadius, nearbyRadius) {
     if (_pois.length === 0) return;
 
@@ -1083,6 +1123,28 @@ const POI = (() => {
       if (typeof Debug !== 'undefined') Debug.trackExp('poi_eligible');
 
       _outOfRadiusStreak = 0; // BUG-046: seguimos dentro de algún radio — resetear contador
+
+      // ── DT-74: la compuerta va ANTES de la bifurcacion narrando/no-narrando ──
+      // Si fuera solo antes de activatePOI(), el POI detectado durante una
+      // narracion activa se encolaria por el camino de siempre y se saltaria el
+      // piso — que es justo el caso mas frecuente en centro historico denso.
+      // Se descarta en silencio, no se encola: la cola desencolaria al terminar
+      // el capitulo en curso, 60-67m mas adelante, narrando un lugar que ya
+      // quedo atras (el sintoma del Gato del Rio, ahora causado por nosotros).
+      // Encolar ademas convertiria el piso en aplazamiento: el numero de
+      // capitulos por caminata no bajaria, solo se desplazaria, y la saciedad
+      // que DT-74 existe para atacar sobreviviria intacta.
+      // El pin se queda visible y `visited` NO se marca — el POI sigue siendo
+      // elegible si el caminante vuelve a pasar con el piso ya cumplido.
+      // La compuerta vive solo aqui: onMarkerTap() y activateFromBar() llaman
+      // a activatePOI() directamente y son taps deliberados, nunca se filtran.
+      const rechazo = _pisoRitmo(lat, lng);
+      if (rechazo) {
+        if (typeof Debug !== 'undefined') {
+          Debug.log('info', `Ritmo: ${closestPOI.name} sin capitulo — ${rechazo.caminados}m caminados desde el capitulo anterior (piso ${rechazo.minimo}m · desplazamiento ${rechazo.desplazamiento}m)`);
+        }
+        return;
+      }
 
       // S2-A2: si hay narración activa, encolar en lugar de ignorar
       const narrando = typeof Narration !== 'undefined' && Narration.isNarrating();
@@ -1197,6 +1259,13 @@ const POI = (() => {
   function activatePOI(poi) {
     AppState.activePOI = poi;
     setPhase('diastole');
+
+    // DT-74: el ancla del piso se fija al ARRANCAR el capitulo, no al terminarlo.
+    // Terminar depende del ritmo de caminata; arrancar es un dato limpio.
+    _kmAtLastNarration  = AppState.kmWalked || 0;
+    _posAtLastNarration = AppState.gps
+      ? { lat: AppState.gps.lat, lng: AppState.gps.lng }
+      : null;
 
     if (typeof Debug !== 'undefined') {
       Debug.trackExp('poi_narrated', {
@@ -1392,6 +1461,11 @@ const POI = (() => {
     },
     resetVisited: () => {   // llamado al iniciar nueva sesión
       _visitedInSession.clear();
+      // DT-74: el ancla se suelta aqui porque este hook corre en el mismo punto
+      // donde AppState.kmWalked vuelve a 0 (app.js). Si no, el primer capitulo
+      // de la caminata siguiente compararia contra un km de la anterior.
+      _kmAtLastNarration  = null;
+      _posAtLastNarration = null;
     },
     renderExpanded,
     onMarkerTap,

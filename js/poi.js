@@ -141,6 +141,78 @@ const POI = (() => {
      Sin esto, historic=building taparia a amenity=theatre. */
   const OSM_GENERIC_VALUES = new Set(['building', 'manor', 'farm', 'yes']);
 
+  /* ── DT-75: FAMILIAS TEMATICAS DERIVADAS DEL ICONO ──
+     El icono no es una curaduria — es representacion. Pero al construirlo en
+     S41 quedo siendo la UNICA taxonomia que cubre el 100% de los POIs: la
+     rama wiki la resuelve Haiku (narration.js, lista cerrada de 25) y la rama
+     OSM sale de OSM_ICON_MAP con el mismo vocabulario. Por eso la familia se
+     deriva aqui con un mapa local en vez de pedir una segunda clasificacion:
+     cero llamadas, cero prompt, cero bump de POI_CACHE_VERSION ni de
+     CLASSIFIER_PROMPT_VERSION, y cubre OSM, que la via Haiku no toca.
+
+     Limite declarado: sirve para DIVERSIDAD, no para merito. Dos iglesias
+     siguen siendo dos ⛪ aunque una sea catedral y la otra capilla de barrio.
+     El eje calidad es DT-61 y esto no lo resuelve.
+
+     No confundir con la FACETA de DA-85 §3: la faceta la declara el modelo en
+     su scratchpad, es texto libre de 3-5 palabras, va por capitulo y gobierna
+     el TRATAMIENTO (desde que angulo se cuenta). La familia sale del icono,
+     es lista cerrada de siete, va por POI y gobierna la SELECCION (cual
+     recibe capitulo). Ejes distintos del modelo de curaduria — no fusionar. */
+  const POI_FAMILIAS = {
+    '⛪': 'Fe',              '🕌': 'Fe',              '🕍': 'Fe',
+    '🏛️': 'Piedra y poder',  '🏰': 'Piedra y poder',  '🏚️': 'Piedra y poder',
+    '⚱️': 'Piedra y poder',
+    '🗿': 'Memoria',         '🪦': 'Memoria',
+    '🖼️': 'Escena y arte',   '🎭': 'Escena y arte',   '🎞️': 'Escena y arte',
+    '📚': 'Escena y arte',   '🎨': 'Escena y arte',
+    '🌳': 'Aire libre',      '⛲': 'Aire libre',      '🔭': 'Aire libre',
+    '🌉': 'Ingeniería',      '🗼': 'Ingeniería',      '🏭': 'Ingeniería',
+    '🚉': 'Ingeniería',
+    '🏟️': 'Vida en común',   '🎓': 'Vida en común',   '🏪': 'Vida en común',
+    '☕': 'Vida en común'
+  };
+
+  /* El modelo puede devolver el emoji sin el selector de variacion U+FE0F, y
+     el mismo riesgo existe al leer un icono cacheado de una version anterior.
+     Se normaliza igual que en narration.js para que la busqueda no falle por
+     un byte invisible. */
+  const _stripVSFam = s => String(s || '').replace(/\uFE0F/g, '');
+  const _FAMILIA_CANON = new Map(
+    Object.entries(POI_FAMILIAS).map(([emoji, fam]) => [_stripVSFam(emoji), fam])
+  );
+
+  /* Devuelve la familia o null. null es una respuesta legitima: el FALLBACK_ICON
+     (🎬) no pertenece a ninguna familia, y un POI sin familia NUNCA se excluye —
+     solo deja de aportar al desempate por diversidad. */
+  function familiaDePOI(poi) {
+    if (!poi || !poi.icon) return null;
+    return _FAMILIA_CANON.get(_stripVSFam(poi.icon)) || null;
+  }
+
+  /* Distribucion de familias del conjunto cargado. Es el numero que dice si la
+     diversidad tematica tiene material con que trabajar en esta ciudad: si 30
+     de 35 POIs caen en la misma familia, el desempate por diversidad no va a
+     poder hacer nada y el problema es de cobertura, no de criterio. */
+  function _logFamilias(pois) {
+    if (typeof Debug === 'undefined' || !Array.isArray(pois) || pois.length === 0) return;
+
+    const conteo = new Map();
+    let sinFamilia = 0;
+    pois.forEach(p => {
+      const fam = familiaDePOI(p);
+      if (!fam) { sinFamilia++; return; }
+      conteo.set(fam, (conteo.get(fam) || 0) + 1);
+    });
+
+    const detalle = [...conteo.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .map(([fam, n]) => `${fam} ${n}`)
+      .join(' · ');
+
+    Debug.log('info', `Familias: ${conteo.size}/7 presentes en ${pois.length} POIs — ${detalle || 'ninguna'} · sin familia ${sinFamilia}`);
+  }
+
   /* Devuelve { icon, type } o null. El orden de claves de OSM_ICON_MAP fija
      la precedencia cuando dos valores especificos matchean a la vez. */
   function _mapOSMCategory(tags) {
@@ -996,6 +1068,11 @@ const POI = (() => {
             savePOIsToDB(pois);
             renderAllMarkers();
           }
+          // DT-75: se loguea DESPUES del clasificador — antes, la rama wiki
+          // todavia lleva iconos provisionales y la distribucion mentiria.
+          // Corre aunque changed sea 0: los POIs pueden venir ya clasificados
+          // de una carga anterior (_iconVersion persiste en IndexedDB).
+          _logFamilias(pois);
         }).catch(e => console.warn(`POI: clasificador de iconos fallo (${e.message})`));
 
         return;
@@ -1471,6 +1548,7 @@ const POI = (() => {
     onMarkerTap,
     activateFromBar,
     resetPOIs,
+    getFamilia: familiaDePOI,   // DT-75 — consumido por el desempate por diversidad y por el export
     getPOIs: () => _pois
   };
 

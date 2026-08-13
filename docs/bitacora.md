@@ -6717,3 +6717,320 @@ location*. Si hay dos, los consumidores volverán a elegir distinto.
 ---
 
 *Follower — Bitácora v0.9 | Sesión 42 (adenda) | 12 Agosto 2026*
+
+---
+
+## Sesión 43 — 13 Agosto 2026
+
+**Sesión de curaduría: diseño con ratificación y cinco commits.** Se abrió
+para resolver el eje de ritmo que DT-74 llevaba pidiendo desde S37 y terminó
+tocando también la regla 1 del Prompt Maestro, por una observación de campo
+que apareció a mitad de sesión y resultó tener causa verificable en el
+prompt vivo.
+
+Versiones verificadas al abrir contra `raw.githubusercontent.com`, no contra
+el panel: `CACHE_VERSION` v77, `POI_CACHE_VERSION` 7, `PROMPT_VERSION` v3.8,
+`THESIS_PROMPT_VERSION` v5, `CLASSIFIER_PROMPT_VERSION` v1.
+
+### El modelo de curaduría tiene tres ejes, y dos de ellos no eran los que se creían
+
+La pregunta de partida —"¿la curaduría se divide en iconos, duración de la
+narración y tipo de POI?"— resultó estar desplazada en dos de sus tres
+cortes, y aclararlo fue lo que ordenó el resto de la sesión.
+
+| Eje | La pregunta | Salida | Tickets |
+|---|---|---|---|
+| **Admisión** | ¿Esto existe para Follower? | Pin en el mapa | DT-65, DT-28, DT-29 |
+| **Selección** | De lo que existe, ¿qué recibe capítulo? | Narración | DT-74, DT-61, DT-75 |
+| **Tratamiento** | ¿Cómo suena ese capítulo? | Registro y ángulo | DT-76, DA-85 §3 |
+
+Dos correcciones que quedan asentadas:
+
+- **La duración no es un eje abierto.** 90-130 palabras ya está en el óptimo
+  de la literatura (§2.1 del documento de exploración). Lo que S42 midió no
+  fue que los capítulos sean largos sino cuántos metros consume uno. El eje
+  abierto es la **frecuencia**. Acortar capítulos para que quepan más es el
+  movimiento que convierte a Follower en audioguía.
+- **El icono no es un eje de curaduría, es representación.** Sirve como
+  instrumento —ver DT-75— pero si mañana los 25 emojis fueran 25 siluetas
+  SVG, la curaduría no se movería.
+
+**"Tipo de POI a mostrar" mezclaba admisión con selección**, y hasta hoy
+estaban fusionadas de hecho: todo lo admitido era candidato a narrar, porque
+`detectPOI()` solo miraba distancia. El piso métrico las separa — un POI
+puede existir como pin y no recibir capítulo esta caminata. Sin esa
+separación, "menos capítulos" significaría "menos ciudad".
+
+Asimetría útil entre ejes: **admisión y selección son reversibles,
+tratamiento no.** El piso se ajusta cambiando una constante; tocar el ángulo
+narrativo cuesta `PROMPT_VERSION++` e invalidación total de caché. Es la
+razón estructural, no solo de método, por la que DT-76 va última.
+
+### DT-75 estaba medio construido y su ficha no lo sabía
+
+`_classifyWikiIcons()` (poi.js:874) y `classifyIcons()` (narration.js:1212)
+ya eran exactamente la infraestructura que la ficha de DT-75 pedía levantar:
+una llamada Haiku por ciudad, sobre extractos ya en memoria, lista cerrada
+impuesta también del lado cliente, cacheada por `_iconVersion`, no
+bloqueante y con reintento.
+
+Y algo que la ficha no contemplaba: **las dos ramas comparten vocabulario.**
+`OSM_ICON_MAP` (poi.js:97) emite emojis de la misma lista de 25 que usa
+Haiku. El icono es, sin haberse diseñado para eso, **la única taxonomía que
+cubre el 100% de los POIs vengan de donde vengan**.
+
+Consecuencia: la etiqueta temática se deriva con un mapa local de 25
+entradas. Cero llamadas, cero prompt, cero bump de `POI_CACHE_VERSION` ni de
+`CLASSIFIER_PROMPT_VERSION`, y cubre OSM, que la vía Haiku no toca.
+Verificado al implementar: la tabla cierra exactamente sobre ambas ramas —
+25 familias, ningún símbolo de la lista cerrada sin familia, ninguno de
+`OSM_ICON_MAP` fuera.
+
+**Colateral para DT-65:** la regla 4 del clasificador ya manda `''` cuando el
+artículo trata de una persona, un evento o un concepto, y 🚉 es el emoji del
+Nivel D que motivó ese ticket. Es **señal, no veredicto** — Atocha también es
+🚉 — pero `_iconSource === 'fallback'` más familia Ingeniería es una lista de
+candidatos que antes no existía.
+
+### El presupuesto de ritmo es la metáfora del proyecto en metros
+
+Si un capítulo consume 60-67 m, el piso de separación **es el reparto
+sístole/diástole expresado en metros**. Deja de ser un número que haya que
+defender.
+
+| Opción | Piso | Silencio:narración |
+|---|---|---|
+| A | ~130 m | 1:1 |
+| **B — ratificada** | **200 m** | **2:1** |
+| C | ~260 m | 3:1 |
+
+A deja media caminata narrada, que es densidad de audioguía. C elige el
+extremo conservador sin haber medido el intermedio.
+
+**Encuadre que conviene no perder: el piso nunca crea un capítulo, solo
+suprime.** En periferia no se activa jamás; solo muerde en centro histórico
+denso, que es donde duele.
+
+Tres decisiones de implementación:
+
+1. **La unidad son metros caminados** (`AppState.kmWalked`, que ya descarta
+   saltos >50 m por tick en gps.js:184), no desplazamiento en línea recta. Es
+   la misma unidad que midió S42 y sobrevive a que el caminante dé una vuelta
+   a la manzana y regrese. *Riesgo declarado, no medido:* el jitter del GPS
+   estando quieto puede inflar `kmWalked`. Por eso el log de cada rechazo
+   lleva **las dos** cifras — si el campo muestra que infla, el arreglo va en
+   `updateDistance()` y no en la compuerta.
+2. **La compuerta va antes de la bifurcación narrando/no-narrando.** Si
+   estuviera solo antes de `activatePOI()`, el POI detectado durante una
+   narración se encolaría por el camino de siempre y se saltaría el piso —
+   el caso más frecuente en centro denso.
+3. **Descarte silencioso, no encolado.** La cola desencolaría al terminar el
+   capítulo en curso, 60-67 m más adelante, narrando un lugar ya pasado: el
+   síntoma del Gato del Río, ahora causado por nosotros. Y encolar
+   convertiría el piso en aplazamiento — el número de capítulos por caminata
+   no bajaría, solo se desplazaría, y la saciedad que DT-74 ataca
+   sobreviviría intacta. **El piso solo hace su trabajo si de verdad
+   suprime.**
+
+El pin se conserva y `visited` **no** se marca: el POI sigue siendo elegible
+si el caminante vuelve a pasar con el piso ya cumplido. No se pierde, se deja
+pasar esta vez. `onMarkerTap()` y `activateFromBar()` no se filtran — son
+taps deliberados.
+
+### La regla 1 ofrecía tres ejemplos y el modelo eligió siempre el mismo
+
+Observación de campo de Jaime: los capítulos abren siempre con "mira arriba"
+o equivalente. **Confirmado en código:** la regla 1 daba tres ejemplos, y uno
+era *"Mira hacia..."*.
+
+**Hipótesis del mecanismo:** la regla 2 exige inmediatamente después el rasgo
+imposible de ignorar. De los tres ejemplos, solo ese fusiona las reglas 1 y 2
+en una frase; los otros identifican y necesitan una segunda para el rasgo.
+Bajo un presupuesto de 90-130 palabras, fusionar sale gratis. El prompt no lo
+pidió, pero lo premió.
+
+Hueco verificado: **la regla 7 prohíbe repetir la idea central y el recurso
+sensorial del capítulo anterior, pero no dice nada de la fórmula de
+apertura.** No había ningún mecanismo anti-saciedad al nivel de la primera
+frase.
+
+Y los tres ejemplos eran **todos deícticos**: ampliar el menú habría
+producido "Ahora estás llegando a" quince veces en vez de "Mira hacia arriba"
+quince veces. No era el ejemplo, era que la apertura estuviera obligada a
+identificar. Por eso se retiran los tres en vez de sustituirlos.
+
+Se descartó explícitamente *"estamos ahora en..."* como alternativa: es la
+fórmula canónica de audioguía y mete a Follower como un cuerpo caminando al
+lado, cuando el compañero invisible es voz.
+
+### No sabemos dónde está parado el caminante — y el prompt tampoco lo intenta
+
+`buildPrompt()` (narration.js:1120) manda cuatro cosas: nombre, ciudad,
+capítulo anterior y extracto. **Ningún dato espacial.** "Mira hacia arriba"
+se escribía a ciegas.
+
+| | Estado |
+|---|---|
+| **Bearing** (dónde está el POI respecto al caminante) | Calculable — ambas coordenadas existen |
+| **Heading de dispositivo** (`DeviceOrientation`) | Solo con botón y permiso; DT-64 aplazada. Con el teléfono en el bolsillo, mide el bolsillo |
+| **Rumbo de marcha** (`coords.heading`) | **Disponible desde siempre y descartado**: `gps.js:415-421` lee solo lat/lng/accuracy |
+
+**Hallazgo que reabre un tema cerrado:** `coords.heading` no es la brújula de
+DT-64. Es rumbo de desplazamiento, viene del GPS que ya corre, no pide
+permiso, y **mientras se camina es hacia dónde mira el cuerpo**. Es la única
+fuente de dirección compatible con "el teléfono va en el bolsillo".
+
+Ironía anotada: **"arriba" es la única deixis que no depende de la
+orientación** — una torre está arriba se mire hacia donde se mire. Era la más
+segura de las tres y fue la que se saturó. Sustituirla por "a tu derecha"
+habría cambiado una frase inocua y repetida por una precisa y falsa tres de
+cada cuatro veces.
+
+**Refinamiento del criterio del cono** (que prohíbe bearing y dirigir): el
+corte no está en el sistema de referencia sino en la función.
+
+- *"Lo tienes a tu derecha"*, con el POI ya en radio → resuelve **dónde
+  miro**. Es devolver orientación, lo mismo que hace el cono. Del lado bueno.
+- *"Camina hacia la derecha para llegar"*, con el POI fuera de radio → es
+  navegación, dirige la ruta, contradice el Modo Libre. Del lado malo.
+
+Pero **la orientación no puede vivir dentro del capítulo**: el texto se genera
+al disparar y suena 45-50 s, o sea 60-67 m de caminata; una dirección
+horneada en el texto ya es falsa cuando la voz la pronuncia. Tiene que ser
+frase corta aparte, calculada al momento de hablar. Es otro subsistema, y por
+eso no altera la regla 1 — que sigue prohibiendo la deixis lateral dentro del
+capítulo por esa misma razón temporal.
+
+### Accesibilidad — lo que se encontró al buscar
+
+Búsqueda en los cuatro documentos vivos: accesibilidad aparece **una sola
+vez**, en la bitácora de DT-54, como *"convergencia con la visión v2.0 de
+accesibilidad (audio-first)"*. **No hay DA, no hay ticket, no hay
+especificación.** Es aspiración escrita al pasar.
+
+Lo que sí quedó claro: **las aperturas por reconocimiento asumen vista,
+enteras.** "El único edificio con azulejos" es inútil para un caminante
+ciego. Hueco real de la propuesta, anotado.
+
+Y dos razones para que la solución no sea meter rumbos en la narración
+general: el GPS urbano tiene ±10-30 m y dirigir a una persona con
+discapacidad visual con ese error puede apuntarla al otro lado de una calle;
+y la práctica de navegación no vidente usa reloj relativo a la dirección de
+marcha, no puntos cardinales — lo que **necesita rumbo, no brújula**, y
+vuelve al mismo hallazgo de `coords.heading`.
+
+La prohibición de deixis lateral juega **a favor** del caso accesible: un
+caminante ciego que oye "mira a tu derecha" está peor que uno que oye "no hay
+forma de confundirlo".
+
+### El bump de prompt no destruye el corpus
+
+El único `delete` sobre el store `narrations` es `clearCityThesisCache()`
+(narration.js:1018), por clave puntual. **No hay purga por cambio de
+`PROMPT_VERSION`:** los registros de v3.8 sobreviven, solo dejan de coincidir
+con la clave nueva.
+
+Consecuencia operativa: la foto del "antes" se puede tomar después del bump,
+y los cuatro cambios caben en un solo despliegue en vez de dos. Se ahorró una
+sesión de campo.
+
+*Efecto lateral no atendido:* el store acumula versiones muertas
+indefinidamente. Candidato a DT propio.
+
+### El conteo de aperturas necesitaba dos cifras, no una
+
+Al probar el agrupador contra registros sintéticos:
+
+```
+v3.8 | n=4 | primera: mira 3 · ahora 1
+    "mira hacia arriba y"
+    "mira hacia arriba el"
+    "mira hacia el cielo"
+    "ahora estas llegando a"
+```
+
+Tres fórmulas distintas y **un solo gesto**. Agrupar solo por las cuatro
+primeras palabras habría reportado 75% de diversidad sobre un corpus que abre
+igual tres de cada cuatro veces. Por eso el reporte lleva también el conteo
+de primera palabra — **es la cifra que responde la hipótesis, y la otra sola
+la habría enmascarado.**
+
+### Hallazgo al implementar la regla 1
+
+`SYSTEM_PROMPT` tiene **dos variantes de idioma** y la inglesa (línea 192)
+arrastraba los mismos tres ejemplos deícticos traducidos. Cambiar solo la
+española habría dejado el bug vivo en inglés y, peor, habría hecho que el
+conteo de aperturas midiera un corpus mezclado. Ambas enmendadas en paralelo.
+
+### Lo que se decidió no hacer
+
+- **El desempate por diversidad temática no entra en este despliegue.** No
+  por disciplina abstracta: **no sabemos si tiene trabajo que hacer.** Se
+  activa solo cuando hay dos o más POIs en radio simultáneamente y con
+  familias distintas, y nadie ha contado cuántas veces ocurre. Y el piso
+  cambia el conjunto sobre el que operaría — diseñarlo contra el régimen
+  viejo sería calibrar sobre un mundo que desaparece en el mismo despliegue.
+- **DT-76 y DA-85 §3 siguen bloqueadas.** Ninguna espera diseño: DT-76 tiene
+  su camino elegido y §3 tiene código escrito e inerte. Ambas esperan la
+  caminata, y ahora una caminata concreta — la primera con el piso puesto.
+- **Orientación opcional**: no se implementó nada. El paso cero es capturar
+  `heading` y `speed` en `AppState.gps` y loguearlos para saber con qué
+  frecuencia iOS los entrega a paso humano. Diagnóstico antes que código.
+
+### La adenda de S42 confirma el piso desde el otro lado
+
+Al reunir los documentos para cerrar se descubrió que la copia leída al abrir
+la sesión estaba **desactualizada**: `bitacora.md` tenía 6647 líneas al
+arrancar y 6719 al cerrar, con la adenda del 12 de agosto que cierra el
+frente (a) de DT-91. Mismo caché de rama de `raw.githubusercontent.com` que
+nos engañó con `sw.js`, esta vez sobre un documento vivo — y en el sentido
+peligroso, porque un documento viejo no da error, solo miente en silencio.
+
+Lo que la adenda aporta a esta sesión: corregida la geoetiqueta en Wikidata,
+**la separación entre El Gato del Río y Las novias pasó de 102 m a ~92 m**.
+Sigue muy por debajo del piso de 200 m ratificado hoy, así que el segundo
+capítulo se suprimiría igual. Es la confirmación desde el otro lado de lo que
+DT-74 venía sosteniendo: **el problema de fondo sobrevive a la corrección del
+dato**, y la adenda llegó a esa misma conclusión por su cuenta ("no movió el
+problema de Follower ni un metro útil").
+
+### Nota de método
+
+El push del commit 1 falló con `Internal Server Error` de GitHub. Los objetos
+subieron completos y el fallo llegó al actualizar la referencia — error del
+servidor, nada local que reparar. Reintento limpio.
+
+Más útil: durante la verificación del bump, `raw.githubusercontent.com/.../main/sw.js`
+seguía devolviendo v77 con el commit ya en el remoto. **Pedir el archivo por
+SHA de commit en vez de por rama devuelve el contenido real sin pasar por el
+caché.**
+
+Se anota con más peso del que parecía al principio, porque el mismo caché
+mordió dos veces en la misma sesión y la segunda fue peor: con `sw.js` el
+síntoma era visible (la versión no coincidía); con `bitacora.md` no había
+síntoma ninguno — se leyó un documento vivo incompleto y solo se detectó al
+reunir los archivos para cerrar. **La Regla de Oro dice que el árbitro es el
+código, pero da por supuesto que el árbitro está diciendo la verdad.** Ante
+un documento o archivo recién tocado, pedir por SHA.
+
+### Cierre
+
+`CACHE_VERSION` **v78** · `POI_CACHE_VERSION` 7 (sin cambio) ·
+`PROMPT_VERSION` **v3.9** · `THESIS_PROMPT_VERSION` v5 ·
+`CLASSIFIER_PROMPT_VERSION` v1.
+
+Cinco commits: `debug.js` (conteo de aperturas), `gps.js`+`poi.js` (piso
+métrico), `poi.js` (familias), `narration.js` (regla 1 + bump), `sw.js`.
+
+**Todo lo de esta sesión es *confirmado en código*, nada es *confirmado en
+campo*.** El piso de 200 m, el mecanismo de la regla 1 y la utilidad del
+desempate son hipótesis con implementación, no resultados.
+
+Pendiente de campo, en el mismo export: cuántos capítulos suprimió el piso y
+con qué relación entre metros caminados y desplazamiento; cuántas familias
+presenta Cali; el conteo de aperturas v3.8 frente a v3.9; y cuántas veces
+hubo dos POIs en radio a la vez — que decide si el desempate merece sesión.
+
+---
+
+*Follower — Bitácora v0.9 | Sesión 43 | 13 Agosto 2026*

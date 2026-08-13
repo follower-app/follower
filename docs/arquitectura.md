@@ -3478,3 +3478,156 @@ no con el mockup.
 ---
 
 *Follower — Arquitectura v0.9 | Sesión 41 | 5 Agosto 2026*
+
+---
+
+## DA-89 — Piso métrico entre narraciones
+
+**Sesión 43 · Ratificada e implementada · sw v78**
+
+`detectPOI()` elegía el POI más cercano dentro del radio activo y lo narraba.
+Distancia era el único criterio, así que **admisión y selección estaban
+fusionadas de hecho**: todo lo que entraba al conjunto era candidato a
+capítulo.
+
+**Decisión:** un piso de **200 m caminados** entre el arranque de una
+narración y el arranque de la siguiente. `RHYTHM_MIN_METERS` en `gps.js`,
+expuesta en `getRadiusConfig()`; compuerta `_pisoRitmo()` en `poi.js`.
+
+**Razonamiento.** Un capítulo consume 60-67 m de caminata (medido en S42:
+696 chars → 44,1 s → 60 m; 784 → 49,8 s → 67 m a 1,35 m/s). Con esa medida,
+el piso deja de ser un número arbitrario y pasa a ser **el reparto
+sístole/diástole expresado en metros**: 200 m es silencio:narración ≈ 2:1.
+La alternativa de 130 m (1:1) deja media caminata narrada, que es densidad de
+audioguía; 260 m (3:1) elige el extremo conservador sin haber medido el
+intermedio.
+
+**Lo que el piso NO es:** no es una agenda. Nunca crea un capítulo, solo
+suprime. En periferia no se activa jamás; solo muerde en centro histórico
+denso, que es donde el problema existe.
+
+**Por qué descarte y no encolado.** La cola desencola al terminar el capítulo
+en curso — 60-67 m más adelante — así que un POI encolado narraría un lugar
+ya pasado: el síntoma del Gato del Río, esta vez causado por nosotros.
+Y encolar convertiría el piso en aplazamiento: el número de capítulos por
+caminata no bajaría, solo se desplazaría, y la saciedad que el piso ataca
+sobreviviría intacta. **El piso solo hace su trabajo si de verdad suprime.**
+
+**Por qué el pin se conserva.** Suprimir un pin sería la app mintiendo sobre
+la ciudad. Un pin sin capítulo es un lugar que existe y no le tocó turno.
+`visited` **no** se marca: el POI sigue siendo elegible si el caminante
+vuelve a pasar con el piso ya cumplido. No se pierde, se deja pasar.
+
+**Por qué metros caminados y no desplazamiento.** Es la unidad que midió S42,
+y sobrevive a que el caminante dé una vuelta a la manzana y regrese al mismo
+punto — donde el desplazamiento diría "no te has movido" y suprimiría un
+capítulo que sí tuvo su silencio. *Riesgo declarado y no medido:* el jitter
+del GPS estando quieto puede inflar `kmWalked`. Por eso cada rechazo loguea
+**ambas** cifras; si el campo confirma la inflación, el arreglo va en
+`updateDistance()` y no en la compuerta — una variable a la vez.
+
+**Por qué la compuerta va antes de la bifurcación.** Si estuviera solo antes
+de `activatePOI()`, el POI detectado durante una narración activa se
+encolaría por el camino de siempre y se saltaría el piso — el caso más
+frecuente en centro denso. `onMarkerTap()` y `activateFromBar()` quedan
+fuera: son taps deliberados, y el piso solo gobierna lo automático.
+
+**Consecuencia de diseño:** admisión y selección quedan separadas. Un POI
+puede existir como pin y no recibir capítulo esta caminata. Sin esa
+separación, "menos capítulos" significaría "menos ciudad".
+
+---
+
+## DA-90 — La familia temática se deriva del icono
+
+**Sesión 43 · Ratificada e implementada (parcial) · sw v78**
+
+**Decisión:** las siete familias temáticas se derivan del icono del POI con
+un mapa local de 25 entradas (`POI_FAMILIAS`, `poi.js`), no con una segunda
+clasificación por modelo.
+
+**Razonamiento.** El clasificador de iconos de S41 se construyó para
+representación, no para curaduría. Pero al construirse con lista cerrada y
+con **el mismo vocabulario en las dos ramas** —`OSM_ICON_MAP` emite emojis de
+la misma lista de 25 que usa Haiku— quedó siendo, sin haberse diseñado para
+eso, **la única taxonomía que cubre el 100% de los POIs vengan de donde
+vengan**.
+
+Derivarla localmente cuesta cero llamadas, cero prompt, cero bump de
+`POI_CACHE_VERSION` ni de `CLASSIFIER_PROMPT_VERSION`, y **cubre la rama
+OSM**, que la vía Haiku no toca.
+
+**Límite declarado:** sirve para **diversidad**, no para **mérito**. Dos
+iglesias siguen siendo dos ⛪ aunque una sea catedral y la otra capilla de
+barrio. El eje calidad es DT-61 y esto no lo resuelve.
+
+**No confundir con la faceta de DA-85 §3.** Ver la tabla comparativa en
+`producto.md` (S43). En resumen: la faceta la declara el modelo, es texto
+libre, va por capítulo y gobierna el **tratamiento**; la familia sale del
+icono, es lista cerrada, va por POI y gobierna la **selección**. Ejes
+distintos del modelo de curaduría — **no fusionar**.
+
+**Dependencia de orden que sale de ahí:** la validación de campo de DA-85 §3
+debe ser posterior al piso métrico. Si el piso cambia qué POIs reciben
+capítulo, cambia el reparto de facetas declaradas; medir la rotación antes
+sería medir un régimen que va a desaparecer.
+
+**Lo que queda fuera:** el desempate por diversidad. Se activa solo cuando
+hay ≥2 POIs en radio simultáneamente con familias distintas, y no hay
+medición de cuántas veces ocurre. Se decide con campo, no con diseño.
+
+---
+
+## DA-84 — Nota (S43): `coords.heading` no es `DeviceOrientation`
+
+**No modifica DA-84.** Se anota porque reabre un supuesto que la brújula
+arrastraba desde S31.
+
+`DeviceOrientation` mide hacia dónde apunta el aparato, exige gesto para el
+permiso, y no persiste entre recargas en iOS. Con el teléfono en el bolsillo
+—que es la premisa del producto— mide el bolsillo.
+
+`position.coords.heading` es otra cosa: **rumbo de desplazamiento**, derivado
+del movimiento, servido por el mismo `watchPosition` que ya corre, sin
+permiso adicional. **Mientras se camina, el rumbo de marcha es hacia dónde
+mira el cuerpo.** Es la única fuente de dirección compatible con "el teléfono
+va en el bolsillo".
+
+**Verificado en código:** `gps.js:415-421` lee `latitude`, `longitude` y
+`accuracy`, y descarta `heading` y `speed`. El dato estuvo disponible desde
+el primer día.
+
+No cambia el veredicto de DA-84 sobre la brújula ni desbloquea DT-64 —el cono
+sigue necesitando orientación de dispositivo—, pero sí abre la vía de la
+orientación opcional sin depender de ese ticket.
+
+---
+
+## Refinamiento del criterio del cono (S43)
+
+DA-84 y las instrucciones del proyecto fijan que el cono muestra *heading* y
+nunca *bearing*: no gira hacia el POI y no dice "es por allá". Al discutir la
+orientación para el caminante quedó claro que **el corte no está en el
+sistema de referencia sino en la función**:
+
+- *"Lo tienes a tu derecha"*, con el POI ya dentro del radio activo →
+  resuelve **dónde miro**. Es devolverle orientación al caminante, lo mismo
+  que hace el cono. **Del lado bueno de la línea.**
+- *"Camina hacia la derecha para llegar"*, con el POI fuera de radio → es
+  navegación, dirige la ruta y contradice el Modo Libre. **Del lado malo.**
+
+Cambiar de marco relativo a cardinal no cambia el acto: "al noreste" sigue
+dirigiendo. Y los puntos cardinales tienen además un problema propio —casi
+nadie se orienta así de pie en la calle—, por lo que convertirían la apertura
+en un acertijo.
+
+**Restricción temporal que aplica a las dos:** el capítulo se genera al
+disparar y suena 45-50 s ≈ 60-67 m de caminata. **Cualquier dirección
+horneada en el texto ya es falsa cuando la voz la pronuncia.** Por eso la
+regla 1 prohíbe la deixis lateral dentro del capítulo, y por eso la
+orientación —si se construye— tiene que ser una frase corta aparte, calculada
+en el momento de hablar.
+
+---
+
+*Follower — Arquitectura v0.9 | Sesión 43 | 13 Agosto 2026*

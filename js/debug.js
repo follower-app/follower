@@ -773,6 +773,7 @@ const Debug = (() => {
       </div>
       <div class="dbg-actions-row">
         <button id="dbg-export-btn" onclick="Debug.exportLog()">📤 Exportar .txt</button>
+        <button id="dbg-aperturas-btn" onclick="Debug.analizarAperturas()">🔤 Aperturas</button>
       </div>`;
     }
 
@@ -787,6 +788,7 @@ const Debug = (() => {
     return items + `
       <div class="dbg-actions-row">
         <button id="dbg-export-btn" onclick="Debug.exportLog()">📤 Exportar .txt</button>
+        <button id="dbg-aperturas-btn" onclick="Debug.analizarAperturas()">🔤 Aperturas</button>
         <button id="dbg-clear-btn" onclick="Debug.clearLogs()">Limpiar logs</button>
       </div>
     `;
@@ -1370,6 +1372,107 @@ const Debug = (() => {
         <button id="dbg-clear-btn" onclick="Debug.startTestSession()">🔄 Nueva sesión</button>
       </div>
     `;
+  }
+
+  /* ── BUG-071: CONTEO DE APERTURAS DE CAPITULOS ──
+     Foto del "antes" previa a tocar la regla 1 del Prompt Maestro. El corpus
+     ya esta en el dispositivo: el store 'narrations' guarda cada capitulo con
+     la clave prefijada por PROMPT_VERSION, y un bump NO borra los registros
+     viejos — el unico delete del store es por clave puntual
+     (narration.js:1018), asi que las claves de v3.8 solo dejan de coincidir.
+     Por eso el conteo se puede correr antes o despues de v3.9 y sigue viendo
+     v3.8: el orden entre este commit y el bump es libre.
+     Emite pocas lineas de log (no una por capitulo) para no inflar _logs ni
+     disparar persistState en bucle. Al escribir en _logs entra solo al
+     export, sin tocar exportLog(), que es sincrono y no puede esperar a
+     IndexedDB. */
+  const _APERTURA_PALABRAS = 4;
+
+  function _normalizarApertura(text) {
+    return String(text)
+      .trim()
+      .toLowerCase()
+      .normalize('NFD').replace(/[\u0300-\u036f]/g, '')  // sin acentos
+      .replace(/[^a-z0-9\s]/g, ' ')                      // sin puntuacion
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, _APERTURA_PALABRAS)
+      .join(' ');
+  }
+
+  function analizarAperturas() {
+    try {
+      const req = indexedDB.open('follower_db', 1);
+      req.onerror   = () => log('warn', 'Aperturas: no se pudo abrir IndexedDB');
+      req.onsuccess = (e) => {
+        const db = e.target.result;
+        let tx;
+        try {
+          tx = db.transaction('narrations', 'readonly');
+        } catch (err) {
+          log('warn', 'Aperturas: store narrations no disponible todavia');
+          return;
+        }
+        const getAll = tx.objectStore('narrations').getAll();
+        getAll.onerror   = () => log('warn', 'Aperturas: lectura del store fallo');
+        getAll.onsuccess = () => _reportarAperturas(getAll.result || []);
+      };
+    } catch (err) {
+      log('warn', `Aperturas: ${err.message}`);
+    }
+  }
+
+  /* El store mezcla capitulos ({id, text, faceta}) con la cache de tesis y
+     prologo ({id, value}). Solo los capitulos tienen .text — ese es el filtro,
+     y es mas fiable que mirar el prefijo de la clave. */
+  function _reportarAperturas(rows) {
+    const porVersion = new Map();
+
+    rows.forEach(r => {
+      if (!r || typeof r.text !== 'string' || !r.text.trim()) return;
+      const version = String(r.id || '').split('_')[0] || '?';
+      if (!porVersion.has(version)) porVersion.set(version, []);
+      porVersion.get(version).push(_normalizarApertura(r.text));
+    });
+
+    if (porVersion.size === 0) {
+      log('info', 'Aperturas: no hay capitulos cacheados todavia');
+      return;
+    }
+
+    [...porVersion.entries()]
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .forEach(([version, aperturas]) => {
+        const total = aperturas.length;
+
+        const conteo = new Map();
+        aperturas.forEach(a => conteo.set(a, (conteo.get(a) || 0) + 1));
+        const ranking = [...conteo.entries()].sort((a, b) => b[1] - a[1]);
+
+        log('info', `Aperturas ${version}: ${total} capitulos · ${ranking.length} formulas distintas · ${total - ranking.length} repeticiones`);
+
+        // La primera palabra separa el gesto de la formula: "mira hacia arriba"
+        // y "mira hacia el cielo" son dos formulas distintas y un mismo gesto.
+        // Es la cifra que responde la hipotesis de BUG-071.
+        const porPrimera = new Map();
+        aperturas.forEach(a => {
+          const p = a.split(' ')[0] || '?';
+          porPrimera.set(p, (porPrimera.get(p) || 0) + 1);
+        });
+        const topPrimera = [...porPrimera.entries()]
+          .sort((a, b) => b[1] - a[1])
+          .slice(0, 5)
+          .map(([p, n]) => `${p} ${n}`)
+          .join(' · ');
+        log('info', `  primera palabra: ${topPrimera}`);
+
+        ranking.slice(0, 8).forEach(([formula, n]) => {
+          log('info', `  ${n}x (${Math.round((n / total) * 100)}%) "${formula}"`);
+        });
+        if (ranking.length > 8) {
+          log('info', `  … ${ranking.length - 8} formulas mas, con 1-2 apariciones`);
+        }
+      });
   }
 
   /* ── EXPORTAR REPORTE A .TXT ── */
@@ -2024,6 +2127,7 @@ const Debug = (() => {
     getSessionMetrics: () => _sessionMetrics,
     getSessionStartedAt: () => _sessionStartedAt,
     exportLog,
+    analizarAperturas,
     switchTab,
     activatePOI,
     flyToPOI,

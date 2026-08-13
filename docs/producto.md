@@ -1131,3 +1131,98 @@ confirmar que quedó una sola declaración de *coordinate location* en el ítem.
 ---
 
 *Follower — Producto v0.9 | Sesión 42 | 11 Agosto 2026*
+
+---
+
+# Sesión 43 — 13 Agosto 2026
+
+## Modelo de curaduría — tres ejes
+
+Marco de referencia para DT-61, DT-65, DT-74, DT-75 y DT-76. No es un ticket:
+es el vocabulario con el que se discuten todos ellos.
+
+| Eje | La pregunta | Salida | Tickets |
+|---|---|---|---|
+| **Admisión** | ¿Esto existe para Follower? | Pin en el mapa | DT-65, DT-28, DT-29 |
+| **Selección** | De lo que existe, ¿qué recibe capítulo? | Narración | DT-74, DT-61, DT-75 |
+| **Tratamiento** | ¿Cómo suena ese capítulo? | Registro y ángulo | DT-76, DA-85 §3 |
+
+- **La duración del capítulo NO es un eje abierto.** 90-130 palabras está en
+  el óptimo de la literatura. El eje abierto es la **frecuencia**. Acortar
+  capítulos para que quepan más convierte a Follower en audioguía.
+- **El icono NO es un eje de curaduría** — es representación. Sirve como
+  instrumento (DT-75), no como criterio.
+- **Admisión y selección son reversibles; tratamiento no.** El piso métrico
+  se ajusta cambiando una constante; el ángulo narrativo cuesta
+  `PROMPT_VERSION++` e invalidación total de caché.
+
+## Faceta ≠ familia — no fusionar
+
+Dos taxonomías conviven sobre la misma caminata desde S43, y son ejes
+distintos:
+
+| | **Faceta** (DA-85 §3) | **Familia** (DT-75) |
+|---|---|---|
+| Origen | La declara el modelo en su scratchpad | Derivada del icono, mapa local |
+| Forma | Texto libre, 3-5 palabras | Lista cerrada de 7 |
+| Granularidad | Por capítulo | Por POI |
+| Eje | **Tratamiento** — desde qué ángulo se cuenta | **Selección** — cuál recibe capítulo |
+
+**Dependencia de orden:** la validación de campo de DA-85 §3 debe ser
+posterior al piso métrico. Si el piso cambia qué POIs reciben capítulo,
+cambia el reparto de facetas que el modelo declara — medir la rotación antes
+sería medir un régimen que va a desaparecer.
+
+## Tickets
+
+| ID | Descripción | Estado |
+|---|---|---|
+| BUG-071 | **Los capítulos abren siempre con la misma fórmula deíctica ("mira arriba" o equivalente).** Observación de campo de Jaime, **confirmada en código**: la regla 1 del Prompt Maestro ofrecía tres ejemplos de apertura y uno —*"Mira hacia..."*— fusionaba las reglas 1 y 2 en una sola frase, así que ganaba siempre bajo el presupuesto de 90-130 palabras. *Hipótesis del mecanismo*, no confirmada. Hueco verificado: la regla 7 prohíbe repetir idea central y recurso sensorial del capítulo anterior, pero **nada sobre la fórmula de apertura** — no había mecanismo anti-saciedad en la primera frase. Los tres ejemplos eran todos deícticos, así que ampliar el menú habría repetido el patrón con otra máscara: se retiran los tres. **FIX APLICADO (S43, sw v78, `PROMPT_VERSION` v3.9):** la identificación deja de estar obligada a ser la primera frase (pasa a "dentro de las dos primeras") y se prohíbe la deixis lateral, en **ambas variantes de idioma** — la inglesa (narration.js:192) arrastraba los mismos tres ejemplos traducidos. Razón de la prohibición, escrita dentro de la regla: `buildPrompt()` no manda ningún dato espacial, y aunque lo mandara, el texto se genera al arrancar y suena durante 60-67 m de caminata — cualquier dirección llega tarde. Instrumento de validación en el mismo despliegue: botón 🔤 Aperturas en `debug.js`, que recorre el store `narrations` y reporta, por `PROMPT_VERSION`, total de capítulos, fórmulas distintas y **conteo de primera palabra** (esta última separa el gesto de la fórmula: "mira hacia arriba" y "mira hacia el cielo" son dos fórmulas y un mismo gesto). Pendiente validación n≥4 en escritorio con `DebugSim.teleportTo()` — **no consume caminata** | Alta |
+| DT-74 | **RATIFICADA E IMPLEMENTADA (S43, sw v78) — opción B, piso de 200 m.** El presupuesto de ritmo es el reparto sístole/diástole expresado en metros: si un capítulo consume 60-67 m (medido S42), 200 m es una relación silencio:narración de ~2:1. Opciones evaluadas: A ~130 m (1:1, deja media caminata narrada = densidad de audioguía), **B 200 m (2:1)**, C ~260 m (3:1, extremo conservador sin haber medido el intermedio). `RHYTHM_MIN_METERS` en `gps.js`, expuesta en `getRadiusConfig()`; compuerta `_pisoRitmo()` en `poi.js`. **Tres decisiones que no conviene revertir sin leer esto:** (1) la unidad son **metros caminados** (`AppState.kmWalked`, que ya descarta saltos >50 m por tick), no desplazamiento — es la unidad que midió S42 y sobrevive a una vuelta a la manzana; riesgo declarado y no medido: el jitter del GPS parado puede inflarla, por eso el log de cada rechazo lleva **ambas** cifras, y si el campo lo confirma el arreglo va en `updateDistance()`, no en la compuerta; (2) la compuerta va **antes** de la bifurcación narrando/no-narrando — si fuera solo antes de `activatePOI()`, el POI detectado durante una narración se encolaría por el camino de siempre y se saltaría el piso; (3) **descarte silencioso, no encolado** — encolar narraría 60-67 m más adelante un lugar ya pasado (el síntoma del Gato del Río causado por nosotros) y convertiría el piso en aplazamiento: el número de capítulos no bajaría, solo se desplazaría. El pin se conserva y `visited` **no** se marca: el POI sigue siendo elegible al volver a pasar. `onMarkerTap()` y `activateFromBar()` no se filtran — son taps deliberados. **El piso nunca crea un capítulo, solo suprime**; en periferia no se activa. Pendiente de campo: cuántas supresiones y con qué relación metros/desplazamiento | Alta — implementada, sin validar |
+| DT-75 | **RATIFICADA E IMPLEMENTADA PARCIALMENTE (S43, sw v78).** Hallazgo que reduce el ticket: el clasificador ya existía desde S41 (`_classifyWikiIcons()` poi.js:874 + `classifyIcons()` narration.js:1212), y **las dos ramas comparten vocabulario** — `OSM_ICON_MAP` emite emojis de la misma lista cerrada de 25 que usa Haiku. El icono es, sin haberse diseñado para eso, **la única taxonomía que cubre el 100% de los POIs**. Por eso la familia se deriva con un mapa local (`POI_FAMILIAS`, poi.js) en vez de pedir una segunda clasificación: cero llamadas, cero prompt, cero bump de `POI_CACHE_VERSION` ni de `CLASSIFIER_PROMPT_VERSION`, y **cubre OSM**, que la vía Haiku no toca. Siete familias: Fe · Piedra y poder · Memoria · Escena y arte · Aire libre · Ingeniería · Vida en común. Verificado al implementar: la tabla cierra exactamente sobre ambas ramas (25 mapeadas, ninguna de la lista cerrada sin familia, ninguna de `OSM_ICON_MAP` fuera). **Límite declarado: sirve para diversidad, no para mérito** — dos iglesias siguen siendo dos ⛪; el eje calidad es DT-61. Log por carga: `Familias: N/7 presentes en M POIs`, que dice si la ciudad tiene material para la diversidad o si el problema es de cobertura. **Lo que falta: el desempate.** Cuando el piso obligue a elegir, escoger maximizando diversidad en vez de cercanía. No entró en S43 a propósito: se activa solo cuando hay ≥2 POIs en radio simultáneamente con familias distintas, y **nadie ha contado cuántas veces ocurre**; además el piso cambia el conjunto sobre el que operaría. Se decide con la caminata | Media |
+| DT-65 | **Señal nueva desde S43, no cierre.** La regla 4 del clasificador de iconos ya devuelve `''` cuando el artículo trata de una persona, un evento o un concepto en vez de un lugar visitable, y 🚉 es el emoji del Nivel D que motivó este ticket (estaciones MIO). `_iconSource === 'fallback'` + familia Ingeniería es una lista de candidatos a degradación que antes no existía. **Es señal, no veredicto**: Atocha también es 🚉. El alcance del ticket no cambia | Alta |
+| DT-61 | Sin cambio de alcance en S43, pero queda situado: es el eje **calidad** dentro del modelo de tres ejes, y ni el piso métrico (ritmo) ni las familias (diversidad) lo tocan. Sigue siendo el único que pregunta si un POI concreto merece capítulo | Alta |
+| DT-76 | Sin cambios. **Sigue bloqueada, y ahora por una caminata concreta: la primera con el piso métrico puesto.** No espera diseño — el camino está elegido (extender la regla 7 al ángulo). Nota S43: además de la razón de atribución, hay una estructural — tratamiento es el único eje irreversible, porque cuesta `PROMPT_VERSION++` e invalidación total | Baja |
+
+## Nuevos, sin ficha completa
+
+| Propuesto | Descripción | Estado |
+|---|---|---|
+| **Orientación opcional** | Frase corta que resuelve *dónde miro* con el POI ya en radio ("lo tienes a tu derecha"), **nunca** *por dónde voy*. Fuente: `coords.heading` — rumbo de desplazamiento del propio GPS, sin permiso, y **mientras se camina es hacia dónde mira el cuerpo**, así que es la única fuente compatible con "el teléfono va en el bolsillo". No es `DeviceOrientation` (DT-64), que con el teléfono en el bolsillo mide el bolsillo. Hoy `gps.js:415-421` lee solo lat/lng/accuracy y **descarta `heading` y `speed`**. Cuatro cubos gruesos, nunca grados ni puntos cardinales, silencio si no hay rumbo fresco. **No puede vivir dentro del capítulo**: el texto se genera al disparar y suena 60-67 m, cualquier dirección horneada llega tarde — tiene que ser frase aparte calculada al hablar. **Paso cero, diagnóstico no código:** capturar `heading`/`speed` en `AppState.gps` y loguearlos para saber con qué frecuencia iOS los entrega a paso humano. El interruptor de "opcional" choca con la ruta (c) de DT-64 (pantalla de configuración): conviene que sean la misma DA | Por crear |
+| **Accesibilidad** | Búsqueda en los cuatro documentos vivos: aparece **una sola vez**, en la bitácora de DT-54, como *"convergencia con la visión v2.0 de accesibilidad (audio-first)"*. **No hay DA, no hay ticket, no hay especificación.** Hueco real detectado en S43: las aperturas por reconocimiento asumen vista, enteras. Tramo previo más barato que cualquier rumbo: auditoría ARIA/VoiceOver del title card, el wizard y los controles, y saber sin mirar si hay capítulo sonando. **Advertencia de seguridad:** el GPS urbano tiene ±10-30 m; dirigir a una persona con discapacidad visual con ese error puede apuntarla al otro lado de una calle. La práctica no vidente usa reloj relativo a la dirección de marcha, no puntos cardinales — necesita rumbo, no brújula | Por crear |
+| **Purga de versiones muertas en el store `narrations`** | El único `delete` del store es por clave puntual (narration.js:1018). Un bump de `PROMPT_VERSION` no borra: los registros viejos sobreviven y solo dejan de coincidir. Bueno para el análisis de corpus —permitió tomar la foto del antes después del bump— y malo a largo plazo: el store crece indefinidamente | Por crear |
+
+## Estado al cierre
+
+| | |
+|---|---|
+| `CACHE_VERSION` | `follower-v78` |
+| `POI_CACHE_VERSION` | 7 *(sin cambio — nada toca query, filtros ni normalización)* |
+| `CLASSIFIER_PROMPT_VERSION` | v1 |
+| `PROMPT_VERSION` | **v3.9** |
+| `THESIS_PROMPT_VERSION` | v5 |
+
+**Todo lo de S43 es *confirmado en código*, nada es *confirmado en campo*.**
+El piso de 200 m, el mecanismo de la regla 1 y la utilidad del desempate son
+hipótesis con implementación.
+
+**Pendiente de código:** DT-90, DT-92, DT-64. Se suma el desempate por
+diversidad (DT-75), condicionado a datos de campo.
+
+**Pendiente de decisión de producto:** DT-91 (b). Nuevas: orientación
+opcional y accesibilidad, ambas sin ficha.
+
+**Pendiente de campo — todo en el mismo export:** cuántos capítulos suprimió
+el piso y con qué relación metros caminados/desplazamiento; cuántas familias
+presenta Cali; conteo de aperturas v3.8 frente a v3.9; y cuántas veces hubo
+dos POIs en radio a la vez, que decide si el desempate merece sesión. Siguen
+debiendo BUG-053, BUG-058, DT-72, DT-68, el discriminador del "· 1" y el
+primer export con inventario de POIs (DT-89).
+
+**Correr 🔤 Aperturas antes de generar capítulos nuevos** y exportar el .txt
+ahí mismo: el corpus de v3.8 sobrevive al bump, pero no a una purga de
+IndexedDB por presión de almacenamiento.
+
+---
+
+*Follower — Producto v0.9 | Sesión 43 | 13 Agosto 2026*

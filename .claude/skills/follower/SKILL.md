@@ -21,16 +21,27 @@ Ritmo sistole/diastole como metafora del latido:
 
 Care Strip: cuidado humano contextual (clima, fatiga, hidratacion, densidad de POIs) como canal paralelo e independiente de los capitulos narrativos - nunca mezclar la cola de cuidado con la cola narrativa.
 
-Filosofia de POIs: si Wikipedia tiene articulo, es lo bastante notable para Follower.
+Filosofia de POIs: si Wikipedia tiene articulo, es lo bastante notable para Follower. **Pero notable no es lo mismo que bien ubicado:** la coordenada llega de la fuente sin validar, y puede errar cientos de metros o venir declarada con precision de kilometros. Ver DT-91.
 
 ## Sistema de diseno
-- color-night: #0d1420
-- color-systole: #1a5276
-- color-gold: #f0c87a
-- color-smoke: #c8d4e0
-- color-alert: #e74c3c
-- Tipografias: DM Serif Display Italic (texto de display/narrativo), Inter (UI)
-- Marca: corazon-brujula ("corazon C2") como simbolo central
+
+**Los valores viven en `css/main.css` (`:root`) y en `assets/`. No se duplican aqui.**
+Paleta, tipografias, pesos, espaciado y radios estan ahi definidos y comentados: si hacen
+falta para decidir, se traen. Un hex copiado aqui miente el dia que cambie el CSS, y
+miente en silencio.
+
+Vocabulario de tokens (para razonar y para pedir el archivo correcto):
+`--color-night` · `--color-systole` · `--color-diastole` · `--color-gold` ·
+`--color-smoke` · `--color-alert`
+
+Lo que el CSS no puede decir, y por eso vive aqui:
+- **Sistole = caminando, diastole = narrando. Nunca invertir.** No es un error de color:
+  rompe el significado.
+- El logo oficial es el **corazon-brujula** (`assets/logo.svg`, `assets/icons/icon-master.svg`).
+  Hay direcciones alternativas en estudio, no vigentes; ninguna sustituye al oficial
+  mientras no se ratifique.
+- **El emblema no entra en un pin.** A 16px el trazo cae a sub-pixel; a ~38px (marcador
+  del caminante) funciona. Si aparece en el mapa, aparece una sola vez y sobre quien camina.
 - Slogan: "your city soundtrack"
 
 ## Stack tecnico
@@ -39,10 +50,17 @@ HTML/CSS/JS vanilla - sin frameworks, sin npm, sin build step. Leaflet.js para m
 ## Regla de Oro (critica - aplicar siempre)
 El panel/documentacion es fotografia estatica. El arbitro real es el codigo en GitHub. Antes de editar o afirmar el estado de cualquier archivo, traer la version viva desde raw.githubusercontent.com/follower-app/follower/main/[path]. Ante cualquier "ya quedo hecho", verificar contra el codigo, no contra el resumen.
 
+**Corolario: la Regla de Oro aplica tambien al enunciado de un ticket propio.** Un hallazgo de campo escrito como diagnostico tecnico es una hipotesis, no un hecho. En S42 el ticket decia que el radio de descubrimiento y el de activacion "se estaban tratando como uno"; el codigo vivo mostro cuatro radios ya separados. Traer los archivos antes de aceptar la premisa evito una sesion completa de rediseno sobre algo que no existia.
+
 ## Donde vive el estado dinamico (no lo asumas, ve a buscarlo)
 
-Buscar en un solo documento NO es buscar. Las DA viven en arquitectura.md y los DT/BUG en producto.md: un grep de producto.md que no encuentra algo NO prueba que no este especificado. Antes de declarar que algo falta en la documentacion, buscarlo en los cinco documentos.
+Buscar en un solo documento NO es buscar. Las DA viven en arquitectura.md y los DT/BUG en producto.md: un grep de producto.md que no encuentra algo NO prueba que no este especificado. Antes de declarar que algo falta en la documentacion, buscarlo en todos los documentos listados abajo.
 Antes de responder sobre el estado actual del proyecto (bugs abiertos, en que va una arquitectura, que se decidio en la ultima sesion), consulta:
+- docs/contexto_maestro.md - alma del producto: que es, que NO es, hipotesis principal,
+  ADN, filosofia de experiencia. Casi no caduca; se lee al discutir identidad o alcance.
+  **Ojo con el vocabulario: alli "Regla de Oro" significa "la ciudad siempre es la
+  protagonista", no la regla de verificacion de este documento. Son dos cosas distintas
+  con el mismo nombre.**
 - docs/producto.md - bugs, features, estado de producto
 - docs/arquitectura.md - decisiones DA-1 a la actual
 - docs/bitacora.md - historial de sesiones
@@ -52,15 +70,11 @@ Antes de responder sobre el estado actual del proyecto (bugs abiertos, en que va
 
 Estos documentos cambian cada sesion. Este Skill NO los duplica - solo indica que existen y donde estan.
 
-## Convenciones de sesion (fijas, no cambian)
-- Protocolo de cierre: commit -> actualizar panel -> actualizar instrucciones de proyecto -> chat nuevo, en ese orden
-- Una decision a la vez; opciones presentadas como A/B/C con recomendacion y razonamiento; el usuario ratifica antes de implementar
-- Cero codigo durante sesiones de diseno/definicion
-- sw.js siempre se commitea al final, por separado
-- PowerShell en Windows: sin && para encadenar comandos, sin head; mensajes de commit sin caracteres acentuados
-- PowerShell: NUNCA escribir archivos de configuracion con redireccion `>` — los guarda en UTF-16 LE y git los lee como UTF-8. Un .gitignore asi no aplica ninguna de sus reglas y falla en silencio. Usar Set-Content con -Encoding ascii
-- La documentacion se actualiza en la misma sesion que el codigo, nunca de forma especulativa
-- Deploys: index.html se sirve cache-first, skipWaiting() deshabilitado a proposito (no interrumpir audio activo). F5 normal no trae el HTML mas reciente.
+**Historicos, no vigentes** (se conservan como registro, no mandan sobre nada):
+`docs/restauracion_poi_js.md` (plan de la regresion DA-68, S19) y
+`docs/dt42_care_miniprompt.md` (spec de Care generativo, S19, ya implementada).
+`REGLAS_IA.md` fue vaciado en S42: era un fosil de la S21 que competia con las
+instrucciones del proyecto. Hoy solo contiene el mapa de que documento manda sobre que.
 
 ## Sistema de tickets
 - DA-###: decisiones de arquitectura (en arquitectura.md)
@@ -68,27 +82,20 @@ Estos documentos cambian cada sesion. Este Skill NO los duplica - solo indica qu
 - BUG-###: bugs (en producto.md)
 - Historial de sesiones en bitacora.md
 
-## Disciplina de validacion
-- Hipotesis etiquetadas explicitamente; hallazgos clasificados como "hipotesis", "confirmado en codigo" o "confirmado en campo"
-- Logs de debug exportados de iPhone son la fuente de verdad de campo (no hay acceso a Web Inspector)
-- n>=4 de muestreo probabilistico antes de cerrar un ticket
-- Un cambio a la vez
-
 ## Versionado de cache (critico, no olvidar)
 - POI_CACHE_VERSION++ en el mismo commit si cambia query/filtros/normalizacion de POIs
 - PROMPT_VERSION++ en el mismo commit si cambia el Prompt Maestro de capitulos
 - THESIS_PROMPT_VERSION versiona la generacion de tesis de ciudad, por separado
 
-## Lecciones aprendidas (aplicar, no repetir el error)
-- El scratchpad deliberado (borrador de verificacion antes de cada capitulo) es la tecnica que logro que autor/fecha aparezcan naturalmente en las narraciones
-- Los extractos de Wikipedia se truncaban silenciosamente en ~1200 caracteres pese a pedir 2500 - el fix se hizo del lado cliente, no confiar en el limite de la API
-- El desbloqueo de audio en iOS requiere gesto touchend directo y real - touchstart con passive:true es interceptado por Leaflet antes del handler; esto es una restriccion dura de la plataforma, no un workaround pendiente
-- La clave de cache debe incluir el fingerprint del extracto, no solo la version del prompt
-- Las secciones de "estado de implementacion" son obligatorias en toda documentacion - ya hubo una regresion por un documento que afirmaba algo hecho que el codigo no soportaba
-- Sacar un archivo del arbol NO lo saca del historial de git. En un repo publico, lo unico que mata el riesgo de una credencial filtrada es ROTARLA en el proveedor; reescribir el historial no deshace una exposicion pasada y los forks conservan copia igual. Revisar tambien el nombre del campo: una key de un proveedor puede estar guardada bajo el nombre de otro
-- Un mismo sintoma puede tener dos mecanismos detras con almacenamientos distintos (ej: el texto que sobrevive al cierre de la app es cache de IndexedDB; que no se re-narre es una marca en localStorage). Antes de dar una validacion por buena, preguntar que mecanismo prueba exactamente la observacion
-- Cuando dos causas producen el mismo codigo de error, probar el servicio DIRECTAMENTE, sacando de la ecuacion la capa intermedia. El Worker es passthrough puro: propaga status y body sin tocar, asi que un 401 suyo y uno del proveedor son indistinguibles desde la app
-- Arquitectura narrativa (actos/epilogo) mas alla de la tesis es Fase 2+ hasta que evidencia de campo lo justifique - sobre-ingenierizar capas narrativas antes de validar es un anti-patron explicito para este proyecto
+## Criterio de trabajo — no vive aqui
+
+Convenciones de sesion, disciplina de validacion, PowerShell y las lecciones aprendidas
+viven en **las instrucciones del proyecto** (claude.ai) y en **`~/.claude/CLAUDE.md`**
+(Claude Code). No se duplican en este Skill: este Skill carga condicionalmente segun
+coincidencia con su descripcion, y una regla de comportamiento que a veces aplica y a
+veces no es peor que no tenerla.
+
+Unica redundancia deliberada: la Regla de Oro de arriba. Es la mas cara de olvidar.
 
 ## Al trabajar visualmente (Claude Design)
 - Respetar sistole/diastole sin invertir colores

@@ -1,150 +1,122 @@
-# 🎬 Follower — Instrucciones del Proyecto
+# 🎬 Follower — Criterio de trabajo (REGLAS_IA.md)
 
-## Qué es este proyecto
-
-Follower es una PWA de exploración cinematográfica que usa narración AI en tiempo real, GPS y cuidado humano contextual para convertir cualquier paseo en una experiencia memorable. La ciudad misma es la banda sonora.
-
-Stack: HTML + CSS + JS Vanilla · Leaflet.js · Claude Haiku (vía Cloudflare Worker) · Web Speech API · OpenWeatherMap · Wikipedia GeoSearch · GitHub Pages · PWA
-Sin frameworks. Sin npm. Sin build step.
-
-## Regla de Oro
-
-Antes de modificar cualquier archivo SIEMPRE preguntar: "¿El archivo [nombre] está actualizado?" — nunca trabajar sobre versiones desactualizadas.
-
-**Contexto crítico:** los archivos del panel del proyecto son la fuente de verdad, pero cada chat recibe una *fotografía estática* tomada al iniciar. Si hay sospecha de desfase, el árbitro es el repo en GitHub (`raw.githubusercontent.com/follower-app/follower/main/...`). La regresión DA-68 (7 features perdidas) nació de saltarse esta regla.
-
-**Protocolo de cierre de sesión:** commit → actualizar panel de archivos → actualizar estas instrucciones → abrir chat nuevo. En ese orden.
-
-## Documentos del proyecto
-
-- README.md → visión, flujo, pantallas, roadmap
-- REGLAS_IA.md → reglas completas de trabajo
-- docs/contexto_maestro.md → alma del producto, principios fundamentales, pregunta rectora
-- docs/producto.md → producto, usuarios, principios, DTs activas
-- docs/arquitectura.md → decisiones DA-1 a DA-73
-- docs/bitacora.md → historial, bugs, deuda técnica (hasta Sesión 22)
-- docs/manifiesto_narrativo.md → voz narrativa, capítulos, tesis de ciudad
-- docs/manifiesto_care_strip.md → hospitalidad urbana, voz del cuidado
-- docs/prompt_maestro_follower.md → Prompt Maestro v2.7 oficial
-- docs/dt42_care_miniprompt.md → spec de Care generativo (system + prompts por trigger)
-- docs/restauracion_poi_js.md → plan de restauración DA-68 (ejecutado — histórico)
-
-## Arquitectura de archivos
-
-```
-follower/
-├── index.html          → shell mínimo, sin selector de narrador
-├── sw.js               → service worker v15 (siempre último en commits)
-├── manifest.json       → PWA config
-├── css/                → main, splash, explore, poi, modal, components
-├── js/                 → app, config, gps, poi, narration, voice,
-│                          weather, care, routes, debug, debug-sim
-│                          (music.js stubbed — ciudad sonora vive en el prompt)
-├── assets/             → logo.svg (pendiente DT-1), icons/
-└── docs/               → contexto_maestro, producto, arquitectura,
-                           bitacora, manifiesto_narrativo,
-                           manifiesto_care_strip, prompt_maestro_follower,
-                           dt42_care_miniprompt, restauracion_poi_js
-```
-
-## Reglas críticas
-
-- Sístole `#1a5276` = caminando · Diástole `#c0392b` = narrando · Nunca invertir
-- GPS nunca se interrumpe — es el latido de la app
-- La ciudad sonora vive en el prompt narrativo, no en archivos de audio — `music.js` stubbed
-- Modo Libre es default — Modo Recorrido es siempre opt-in
-- Offline obligatorio — la experiencia nunca se rompe
-- POIs: **cascada compuesta DA-72** — `wiki local+es → si neto < COMPOSITE_THRESHOLD (8) → Overpass nwr curado (Tier 1 siempre; Tier 2 = parks/gardens/fountains solo si sigue el hambre; fusión wiki-gana) → si neto < EMERGENCY_MIN (3) → en.wikipedia → IndexedDB`
-- Curaduría OSM: compuerta 0 (sin nombre → fuera) + blacklist (brand, worship por denominación/keywords). **Curar antes de exponer (DA-73):** todo corre antes del store — una sola compuerta protege narrador y Care
-- Dedup DT-49: título normalizado sin prefijos de tipología + <25m intra-OSM / 60m inter-fuente; wiki gana siempre; el perdedor lega `inscription`/`wikidata`
-- Contrato DT-51: `_source: 'wiki'|'osm'` + `_osmType` — wiki narra con hechos, osm narrará lo observable (pendiente DT-51)
-- Wikipedia: cadena de idiomas [local → es] ACUMULA resultados; en.wikipedia es emergencia al FINAL de la cascada (modo `emergencyOnly`) — DA-69 + DA-72. Filtro editorial `gsprop=type` descarta artículos no-lugar — DA-70
-- **Versionado del cache de POIs (DA-71):** cualquier cambio en query, filtros o normalización de POIs incrementa `POI_CACHE_VERSION` en el MISMO commit. Criterio nuevo con cache viejo es regresión de datos silenciosa — misma familia que DA-68, en datos en vez de código
-- Checklist al tocar poi.js: ¿cambió qué se pide, filtra o normaliza? → `POI_CACHE_VERSION++` · ¿cambió cualquier archivo servido? → sw.js bump, commit final aparte
-- Care y cola narrativa son sistemas independientes a propósito: la cola guarda historias (POIs), el Care es momento presente — nunca se encola
-- sw.js siempre último en commits
-- Nunca mostrar errores al usuario — siempre hay fallback
-- Narración: objetivo 130-160 palabras, máximo duro 170 (`max_tokens: 380`)
-- Pregunta rectora: ¿Esto nos acerca a una experiencia cinematográfica o a una audioguía tradicional?
-
-## Funciones únicas — nunca duplicar
-
-- `detectNearby()` / `enqueuePOI()` / `processQueue()` → poi.js
-- `fetchWikipediaPOIs()` / `fetchPOIsFromOSM()` → poi.js
-- `classifyOSMElement()` / `dedupOSMPOIs()` / `fuseWithWikipedia()` → poi.js (DA-72)
-- `markVisited()` / `resetVisited()` → poi.js (API pública)
-- `trigger(poi, lang, topic)` → narration.js
-- `getFarewell()` → narration.js
-- `getCareMessage(type, candidatos, ctx)` → narration.js
-- `getLocalLang(countryCode)` → narration.js (única fuente de idioma — DT-41; nunca duplicar con rangos lat/lng)
-- `checkCareContext()` / `checkSpecialZone()` → care.js
-- `cleanPOIName()` → narration.js
-- `distanceMeters()` / `getRadiusConfig()` → gps.js
-- `setPhase(phase)` → app.js
-- `navigateTo(screen)` → app.js
-- `welcomeCity(city)` → app.js
-
-## Estado actual
-
-v0.9 — Sesión 21 completada. **Pipeline Wikipedia corregido tras evidencia
-de campo Cali/Pasto:** fusión acumulativa de idiomas (el loop sobrescribía —
-causa de los 3 POIs en inglés de Pasto), filtro editorial `gsprop=type`
-contra artículos no-lugar (la ciudad misma llegaba como POI y el narrador
-alucinaba sobre ella), y purga versionada del cache (`POI_CACHE_VERSION`,
-359 POIs heredados purgados). en.wikipedia degradada a emergencia (<3 POIs
-acumulados). Commits `71462d9` + `1fef001`. sw.js v13.
-
-Care generativo (DT-42) activo. Pausa por tránsito (DA-55) activa. Narrador
-único (Prompt Maestro v2.7) en producción.
-
-Próximo: **validación de campo** — Pasto en simulador (>5 POIs en español,
-log de purga v0→v1, log de filtro editorial) + hipótesis TTF pendiente de
-Sesión 20.
-
-## Completado en Sesiones 19-21
-
-- Sesión 19: fix query Overpass rota (BUG-045, 100% fallos por 20h de
-  campo) · arqueología git de la regresión DA-68 · plan de restauración
-- Sesión 20: restauración completa de las 6 features (ver bitácora) ·
-  protocolo de cierre de sesión formalizado · DT-48 registrada · sw.js v12
-- Sesión 21: causa raíz POIs Pasto (loop sobrescribiente) · filtro
-  editorial gsprop · purga versionada del cache · DA-69/70/71 ·
-  DT-49/50/51 · BUG-046/047 registrados · sw.js v13
-
-## Pendientes críticos
-
-- **Validación de campo** del pipeline Wikipedia corregido (Pasto en
-  simulador) + hipótesis TTF de Sesión 20
-- **Triaje Overpass**: 16/16 fallos en campo Sesión 21 (¿recaída BUG-045?)
-  — sesión dedicada
-- BUG-046: markVisited en narraciones canceladas (re-disparo en bucle —
-  fix candidato: marcar visited al iniciar)
-- BUG-047: `max_tokens: 380` vs objetivo de palabras del prompt —
-  truncamiento a media palabra (decisión de producto)
-- DT-9: revocar key OpenAI de commits históricos
-- DT-44: medir si la autoevaluación interna del v2.7 afecta latencia
-  (antes de tocar más `narration.js`)
-- DT-45: UI de bienvenida animada
-- DT-47: wizard de configuración (pendiente de diseño)
-- DT-48: query Overpass `nwr` (reevaluar con datos de campo)
-- DT-49: dedup fina de POIs (diseño listo — título normalizado + <25m)
-- DT-50: versionar cache de narraciones (mismo patrón que DA-71)
-- DT-51: grounding con extracts (cierra alucinación tipo Pasto)
-- DT-19: MP3s de intro no existen — el sistema funciona en silencio sin ellos
-
-## El Narrador
-
-Una sola voz. No hay selector de narradores. El Prompt Maestro v2.7 define
-la voz completa — ya implementado en `narration.js`. Ver
-`docs/prompt_maestro_follower.md`.
-
-## Identidad
-
-Logo: Corazón C2 con brújula · Slogan: "your city soundtrack"
-Fuentes: DM Serif Display (display) + Inter (UI)
-App: https://follower-app.github.io/follower/
-Worker: https://followernarration.jaimeand.workers.dev
+> **Este archivo es la fuente canónica del criterio de trabajo de Follower.** Vive en el
+> repo, versionado en git, y sirve a las dos superficies: Claude Code lo lee aquí, y el
+> campo de *instrucciones del proyecto* de claude.ai es una copia pegada de este archivo.
+>
+> **Si los dos difieren, gana este.** Al cambiar algo: editar aquí, commitear, y volver a
+> pegar el contenido en las instrucciones del proyecto. Sin ese segundo paso quedan dos
+> versiones y la de claude.ai —que no tiene historial— es la que va a mentir.
+>
+> **La misma regla aplica al `SKILL.md`:** la copia canónica es la del repo
+> (`.claude/skills/follower/SKILL.md`); la que se sube empaquetada a la interfaz de Skills
+> es derivada. Todo par repo↔interfaz se sincroniza **desde** el repo, nunca al revés.
+> Commitear sin subir deja activo el skill viejo; subir sin commitear deja el repo atrás.
+>
+> Este documento es dueño de **una sola cosa: lo que no tiene otro dueño posible.** Criterio que no se deriva de ningún archivo, invariantes que ningún código declara, convenciones sobre cómo se trabaja. Todo lo demás —qué es el producto, su estado, su vara editorial— vive en el repo y se lee ahí.
+>
+> **Filtro de admisión:** antes de agregar algo, preguntar *¿qué documento es el dueño de esto?* Si la respuesta no es "las instrucciones", va allá. Un hallazgo de sesión, por bueno que sea, no es un principio: va a la bitácora.
 
 ---
 
-*Follower — REGLAS_IA.md | v0.9 | Sesión 21 | 3 Julio 2026*
+## Quién manda sobre qué
+
+La redundancia no molesta por ocupar espacio: molesta porque cuando las dos copias divergen, nadie sabe cuál gana, y la que se lee primero suele ser la vieja.
+
+| Documento | Manda sobre | Cambia |
+|---|---|---|
+| **`docs/contexto_maestro.md`** | Qué es Follower, qué NO es, hipótesis, ADN del producto | Rara vez |
+| **Estas instrucciones** | Criterio, invariantes, convenciones de trabajo | Cuando cambia un principio |
+| **`SKILL.md`** | Identidad breve, vocabulario y **dónde ir a mirar** | Rara vez |
+| **`arquitectura.md`** | Decisiones ratificadas y su razonamiento (DA) | Cada decisión |
+| **`producto.md`** | Tickets, estado, alcance (DT, BUG) | Cada sesión |
+| **`bitacora.md`** | Qué pasó, con qué evidencia y en qué orden | Cada sesión |
+| **Manifiestos** | Vara editorial de narración, POIs y care | Rara vez |
+| **`README.md`** | Puerta de entrada pública: qué es, cómo se despliega, índice | Rara vez |
+| **El código** | Lo que la app hace de verdad | Cada commit |
+
+**Regla de conflicto: el documento más específico gana sobre el más general, y el código gana sobre todos.** Si estas instrucciones dicen una cosa y una DA dice otra, manda la DA — se tomó mirando el caso. Si la DA dice una cosa y el código hace otra, manda el código y la DA está desactualizada.
+
+*Excepción declarada:* las instrucciones que dicen **dónde mirar** son redundantes con el código a propósito, porque solo sirven estando fuera de él. La Regla de Oro es el caso — "el árbitro es el código" no puede vivir en el código.
+
+*Colisión de vocabulario a tener presente:* en `contexto_maestro.md`, "Regla de Oro" significa *la ciudad siempre es la protagonista*. Aquí significa *el árbitro es el código*. Son dos cosas distintas con el mismo nombre.
+
+## La pregunta rectora
+
+**¿Esto nos acerca a una experiencia cinematográfica o a una audioguía tradicional?** Si acerca a audioguía, es la decisión equivocada. Es el filtro de toda decisión de producto, no un eslogan.
+
+*Ejemplo real de rechazo por este criterio:* la brújula tenía un botón flotante en el mapa con tres estados y tap para activar. Se eliminó — un control que hay que operar caminando contradice "el teléfono va en el bolsillo". El cono en cambio se conserva y es permanente: es un indicador pasivo de hacia dónde estás dado, no una instrucción. La distinción que separa las dos cosas es que **el cono muestra heading, nunca bearing**: no gira hacia el POI y no dice "es por allá". Lo que falla la pregunta rectora es lo que exige interacción o dirige al caminante, no lo que simplemente le devuelve orientación.
+
+## Identidad visual — las reglas, no los valores
+
+**Los valores viven en `css/main.css` (`:root`) y en `assets/`.** Paleta, tipografía, pesos, espaciado y radios están ahí definidos y comentados. No se duplican aquí: si hicieran falta, se leen. Un hex copiado miente el día que cambie el CSS, y miente en silencio.
+
+Lo que el CSS no puede decir y por eso vive aquí:
+
+- **Sístole / Diástole son la metáfora central, no una paleta.** Azul caminando, rojo narrando. **Nunca invertir.** Invertirlos no es un error de color: rompe el significado.
+- **El logo oficial es el corazón-brújula** (`assets/logo.svg`, `assets/icons/icon-master.svg`, y el mismo path en la Etapa 2 del title card): corazón de trazo en `--color-smoke`, aguja bicolor con norte en rojo, pivote central. Follower se identifica a sí mismo como una brújula. Hay direcciones alternativas **en estudio, no vigentes** — manos (smoke + gold) y dos círculos. Ninguna sustituye al oficial mientras no se ratifique.
+- **El emblema no entra en un pin.** A 16 px el trazo del corazón cae a sub-píxel y la aguja lo tapa; a ~38 px (marcador del caminante) funciona bien. Si el emblema aparece en el mapa, aparece una sola vez y sobre quien camina.
+- Cualquier elemento nuevo se juzga con la pregunta rectora antes que con la guía de estilo.
+
+## Invariantes que rompen la experiencia si se tocan sin pensarlo
+
+- GPS nunca se interrumpe · Offline obligatorio · **Nunca mostrar errores crudos al usuario**
+- Una sola puerta de desbloqueo de audio: el tap en la Etapa 2 del title card, igual primera vez y recurrente
+- `userName` solo vive en welcome/farewell, **nunca llega al Worker**
+- Care y cola narrativa son independientes por diseño: el cuidado es hospitalidad del presente, los capítulos son historias que pueden esperar
+
+## Regla de Oro
+
+**El resumen es fotografía estática; el árbitro es el código.** Ante "ya quedó hecho", se verifica en `raw.githubusercontent.com/follower-app/follower/main/...`, no en la memoria ni en un panel.
+
+**Corolario 1 — buscar en un solo documento no es buscar.** Las DA viven en `arquitectura.md`, los DT y BUG en `producto.md`. Un grep fallido en uno no prueba que algo no esté especificado.
+
+**Corolario 2 — el árbitro también puede mentir.** `raw.githubusercontent.com` cachea por rama, así que un archivo recién subido puede seguir devolviendo la versión anterior durante minutos, sin error y sin aviso. Ante un archivo tocado hoy, pedirlo por SHA de commit — ruta inmutable, sin caché:
+
+```
+raw.githubusercontent.com/follower-app/follower/<sha>/<path>
+```
+
+**Corolario 3 — aplica al enunciado del ticket, no solo al código.** Un hallazgo de campo escrito como diagnóstico técnico sigue siendo una hipótesis. En S42 el ticket afirmaba que el radio de descubrimiento y el de activación "se trataban como uno"; el código vivo mostró cuatro radios ya separados. Traer los archivos antes de aceptar la premisa evitó una sesión completa de rediseño sobre algo que no existía.
+
+## Protocolo de arranque de chat
+
+En vez de un resumen de estado que caduca, leer lo vivo:
+
+1. **`docs/bitacora.md`**, última entrada — qué pasó y por qué
+2. **`docs/producto.md`**, tabla de tickets — qué está abierto y con qué prioridad
+3. **`docs/arquitectura.md`** — las DA del tema que se vaya a tocar
+4. **El código de los archivos implicados** — antes de proponer cambios
+5. **Nunca asumir versiones.** `sw.js` para `CACHE_VERSION`, `narration.js` para `PROMPT_VERSION` y `THESIS_PROMPT_VERSION`, `poi.js` para `POI_CACHE_VERSION`
+
+Bajo demanda, cuando el tema los toca: `contexto_maestro.md` (identidad y alcance), los manifiestos (`narrativo`, `pois`, `care_strip`), `prompt_maestro_follower.md`, y `exploracion_ritmo_y_curaduria.md` para el presupuesto de ritmo.
+
+## Convenciones de trabajo
+
+- **Tickets:** DA (decisión de arquitectura) · DT (deuda técnica) · BUG
+- **Bumps de versión** (`POI_CACHE_VERSION`, `PROMPT_VERSION`, `THESIS_PROMPT_VERSION`) van en el **mismo commit** que el cambio que los motiva
+- **`sw.js` siempre al final y en commit aparte.** Si cambió un archivo servido, hay bump
+- **Deploys:** `index.html` se sirve cache-first y `skipWaiting()` está deshabilitado a propósito (no interrumpir audio activo). **No hay entorno local: un push es un despliegue.** F5 no trae lo último — usar 🔄 Actualizar app o cerrar todas las pestañas
+- **Al anexar a los docs:** `Ctrl+End` antes de pegar. El pie de sesión anterior debe quedar encerrado entre separadores. En S38 se perdieron tres pies por pegar encima
+- **Cierre de sesión:** commit → actualizar `docs/` → chat nuevo. *Estas instrucciones solo se tocan cuando cambia un principio o una convención, no cada sesión*
+- **Una variable a la vez.** Si se cambian dos cosas y la caminata mejora, no se sabe cuál lo hizo. Validación de campo n≥4 cuando el comportamiento no es determinista
+- **Diagnóstico antes que código.** Instrumentar y medir antes de proponer el fix
+- **Funciones únicas — nunca duplicar.** Antes de crear una función, `grep` el archivo correspondiente. Los módulos con más riesgo son `poi.js`, `narration.js` y `app.js`
+
+## PowerShell (Windows)
+
+- Sin `&&` para encadenar, sin `head`; mensajes de commit sin acentos
+- **Nunca escribir archivos de configuración con `>`**: los guarda en UTF-16 LE y git los lee como UTF-8. Un `.gitignore` así no aplica ninguna regla y falla en silencio. Usar `Set-Content -Encoding ascii`
+
+## Lecciones que han costado tiempo
+
+*Techo: ocho entradas. Una novena desplaza a la más débil — cada lección vive completa en la bitácora de su sesión, y esta lista es un índice de las que siguen mordiendo, no un archivo histórico.*
+
+- **Un mismo síntoma puede tener dos mecanismos detrás con almacenamientos distintos.** Preguntar siempre qué prueba exactamente la observación, no qué parece probar
+- **Ante dos causas con el mismo código de error, probar el servicio directamente**, sacando la capa intermedia de la ecuación. El Worker es passthrough puro: propaga status y body sin tocar
+- **Los comentarios fósiles no son cosméticos.** Un comentario que promete un comportamiento que ya no existe hace leer un pase como fallo
+- **Sacar un archivo del árbol no lo saca del historial de git.** En repo público, lo único que mata una credencial filtrada es rotarla en el proveedor. Revisar también el nombre del campo: una key puede estar guardada bajo el nombre de otro proveedor
+- **Sobre auditorías externas:** otros modelos han descrito como propuesta lo ya implementado y como completo lo aspiracional. Útiles como generadores de vocabulario, poco fiables como auditoría. Pasarles los documentos vivos antes de pedir una
+- **Para interfaz, el árbitro es la captura.** En S40 se dibujaron tres mockups del mapa y los tres estuvieron mal —basemap oscuro cuando Voyager es claro, pines sin ícono, pantalla sin franja de care ni barra de debug—. Ninguna cuarta pasada lo habría corregido: lo corrigieron dos capturas del iPhone. Antes de razonar sobre una pantalla, pedirla
+- **Antes de inferir un dato del comportamiento, preguntar cuál es la observación más directa disponible.** En S42 se dedujeron coordenadas de POI a partir de qué narración se disparaba, durante varios turnos, teniendo el dato impreso a un clic en el panel. **El instrumento sabía más de lo que el export contaba:** si el panel conoce un dato y su salida no lo lleva, eso es un defecto del instrumento y se arregla antes de seguir diagnosticando
+- **Las coordenadas de la fuente pueden estar mal y no hay señal para detectarlo.** Síntomas de "narra el POI equivocado" o "narra tarde" pueden no ser de radio ni de código. Con coordenadas que erran cientos de metros, cualquier valor de `POI_RADIUS_METERS` queda por debajo del ruido del dato: calibrar radios es inútil antes de verificar la calidad de la coordenada

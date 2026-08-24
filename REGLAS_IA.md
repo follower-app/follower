@@ -2,11 +2,7 @@
 
 > **Este archivo es el original versionado de la Parte II de las instrucciones de proyecto de Follower.** La copia que vive en claude.ai se pega desde aquí, entera y sin editar. Si el criterio cambia, se cambia aquí, se commitea y se vuelve a pegar completo. Una sola edición hecha directamente en la interfaz reinstala la divergencia que esta reorganización eliminó — y nada la delata.
 >
-> Encima de este bloque va la **Parte I — Andamiaje**, transversal, que no vive en este repo: es `~/.claude/CLAUDE.md`. Lo que la Parte I ya manda **no se repite aquí**.
->
-> **Filtro de admisión.** Antes de agregar algo, preguntar *¿qué documento es el dueño de esto?* Si la respuesta no es "estas instrucciones", va allá. Este documento es dueño de una sola cosa: **lo que no tiene otro dueño posible** — criterio que no se deriva de ningún archivo, invariantes que ningún código declara, convenciones sobre cómo se trabaja. Un hallazgo de sesión, por bueno que sea, no es un principio: va a la bitácora.
->
-> **Prueba de caducidad.** Si una frase se puede verificar leyendo un archivo, sobra. No entran aquí: versiones, números de ticket abiertos, listas de archivos, valores de diseño, estado de ninguna clase. Sí entran las referencias históricas a sesiones pasadas (`S38`, `S40`), porque son hechos sobre el pasado y no caducan.
+> Encima de este bloque va la **Parte I — Andamiaje**, que es transversal y no vive en este repo: es `~/.claude/CLAUDE.md`. Lo que la Parte I ya manda **no se repite aquí**: Regla de Oro y sus corolarios, regla de conflicto, dueño único de cada documento, taxonomía de hallazgos, A/B/C antes de código, una variable a la vez, cierre de sesión y PowerShell.
 
 ---
 
@@ -57,8 +53,6 @@ En vez de un resumen de estado que caduca, leer lo vivo:
 Bajo demanda, cuando el tema los toca: el contexto maestro (identidad y alcance), los manifiestos, el prompt maestro, y el documento de ritmo y curaduría.
 
 ## Lecciones que han costado tiempo
-
-*Techo: ocho entradas. Una novena desplaza a la más débil — cada lección vive completa en la bitácora de su sesión, y esta lista es un índice de las que siguen mordiendo, no un archivo histórico.*
 
 - **Un mismo síntoma puede tener dos mecanismos detrás con almacenamientos distintos.** Preguntar siempre qué prueba exactamente la observación, no qué parece probar
 - **Ante dos causas con el mismo código de error, probar el servicio directamente**, sacando la capa intermedia de la ecuación. El Worker es passthrough puro: propaga status y body sin tocar

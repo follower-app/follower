@@ -56,6 +56,9 @@ El panel/documentacion es fotografia estatica. El arbitro real es el codigo en G
 
 Buscar en un solo documento NO es buscar. Las DA viven en arquitectura.md y los DT/BUG en producto.md: un grep de producto.md que no encuentra algo NO prueba que no este especificado. Antes de declarar que algo falta en la documentacion, buscarlo en todos los documentos listados abajo.
 Antes de responder sobre el estado actual del proyecto (bugs abiertos, en que va una arquitectura, que se decidio en la ultima sesion), consulta:
+- REGLAS_IA.md (raiz) - criterio de trabajo, invariantes de experiencia, convenciones
+  propias del proyecto y protocolo de arranque de chat. Es la Parte II de las
+  instrucciones de proyecto de claude.ai (la Parte I es `~/.claude/CLAUDE.md`).
 - docs/contexto_maestro.md - alma del producto: que es, que NO es, hipotesis principal,
   ADN, filosofia de experiencia. Casi no caduca; se lee al discutir identidad o alcance.
   **Ojo con el vocabulario: alli "Regla de Oro" significa "la ciudad siempre es la
@@ -73,8 +76,6 @@ Estos documentos cambian cada sesion. Este Skill NO los duplica - solo indica qu
 **Historicos, no vigentes** (se conservan como registro, no mandan sobre nada):
 `docs/restauracion_poi_js.md` (plan de la regresion DA-68, S19) y
 `docs/dt42_care_miniprompt.md` (spec de Care generativo, S19, ya implementada).
-`REGLAS_IA.md` fue vaciado en S42: era un fosil de la S21 que competia con las
-instrucciones del proyecto. Hoy solo contiene el mapa de que documento manda sobre que.
 
 ## Sistema de tickets
 - DA-###: decisiones de arquitectura (en arquitectura.md)
@@ -90,10 +91,11 @@ instrucciones del proyecto. Hoy solo contiene el mapa de que documento manda sob
 ## Criterio de trabajo — no vive aqui
 
 Convenciones de sesion, disciplina de validacion, PowerShell y las lecciones aprendidas
-viven en **las instrucciones del proyecto** (claude.ai) y en **`~/.claude/CLAUDE.md`**
-(Claude Code). No se duplican en este Skill: este Skill carga condicionalmente segun
-coincidencia con su descripcion, y una regla de comportamiento que a veces aplica y a
-veces no es peor que no tenerla.
+viven en **`REGLAS_IA.md`** (raiz del repo, criterio especifico de Follower) y en
+**`~/.claude/CLAUDE.md`** (comportamiento agnostico de proyecto). Ambos se pegan juntos
+como instrucciones de proyecto en claude.ai (Parte I + Parte II). No se duplican en este
+Skill: este Skill carga condicionalmente segun coincidencia con su descripcion, y una
+regla de comportamiento que a veces aplica y a veces no es peor que no tenerla.
 
 Unica redundancia deliberada: la Regla de Oro de arriba. Es la mas cara de olvidar.
 

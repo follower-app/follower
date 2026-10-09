@@ -225,7 +225,7 @@ El Prompt Maestro v2.7 (narrador único) tiene versiones en español e inglés. 
 | **Slogan** | *your city soundtrack* |
 | **Paleta** | Sístole `#1a5276` · Diástole `#c0392b` · Dorado `#f0c87a` · Noche `#0d1b2a` |
 | **Tipografía** | DM Serif Display (display / bienvenida ciudad) + Inter (UI) |
-| **Tiles de mapa** | CartoDB Voyager — color, información y legibilidad bajo sol en iPhone |
+| **Tiles de mapa** | CartoDB Voyager — color, información y legibilidad bajo sol en iPhone. Requiere API key de CARTO desde S44 (DA-91) |
 
 ---
 
@@ -254,6 +254,7 @@ El Prompt Maestro v2.7 (narrador único) tiene versiones en español e inglés. 
 | Claude API (claude-haiku) | $1-5/mes | $10-30/mes |
 | OpenWeatherMap | $0 | $0 |
 | Leaflet / OSM / Overpass | $0 | $0 |
+| CARTO Basemaps (tiles raster, con API key) | $0 | $0 hasta el tope gratuito (1 M peticiones/mes comercial) |
 | GitHub Pages | $0 | $0 |
 | Cloudflare Workers | $0 (plan gratuito) | $0 |
 | **Total** | **$1-5/mes** | **$10-30/mes** |
@@ -290,7 +291,7 @@ El Prompt Maestro v2.7 (narrador único) tiene versiones en español e inglés. 
 | DT-5 | Más ciudades en routes.js | Baja |
 | DT-8 | debug.js + debug-sim.js deshabilitados antes de v1.0 | Media |
 | DT-10 | Error IndexedDB "connection is closing" — Safari backgrounding | Media |
-| DT-12 | Atribución CARTO/OSM no visible | Baja |
+| DT-12 | Atribución CARTO/OSM no visible — **desde S44 es requisito de los términos de la key de CARTO y está suprimida a propósito en dos capas; ver anexo S44** | Media |
 | DT-16 | Pantalla POI expandida: rediseñar con nuevo sistema visual | Media |
 | DT-17 | Implementar bookmark y share (Web Share API) en pantalla POI | Baja |
 | DT-20 | Test en campo con brújula real — verificar DeviceOrientation iOS | Alta |
@@ -1226,3 +1227,47 @@ IndexedDB por presión de almacenamiento.
 ---
 
 *Follower — Producto v0.9 | Sesión 43 | 13 Agosto 2026*
+
+---
+
+## Anexo Sesión 44 — 9 Octubre 2026
+
+**Sesión de incidente.** Un cambio de política de CARTO dejó el mapa con
+marca de agua; se resolvió agregando una API key de tiles. Ver DA-91 y la
+bitácora de S44.
+
+### Tickets
+
+| ID | Descripción | Estado |
+|---|---|---|
+| DT-12 | **Atribución CARTO/OSM no visible — sube de Baja a Media y cambia de naturaleza.** Dejó de ser cosmética: los términos de la key de CARTO (S44) piden atribución visible, y hoy está **doblemente suprimida a propósito** — `attributionControl: false` en `gps.js:53` y `.leaflet-control-attribution { display:none !important }` en `main.css:199`. Poner texto en `attribution:` del `tileLayer` no la mostraría. Resolverlo exige revertir una decisión de interfaz y pasa por la pregunta rectora: ¿dónde vive un crédito mínimo sin romper el mapa limpio? (candidatos a evaluar: pie del sheet expandido, pantalla de configuración de DT-64 ruta c, o el title card). **No se hizo en S44.** A escala de piloto no corre prisa; debe resolverse antes de v1.0 | Media |
+| Categoría de la key de CARTO | Registrar si se solicitó como comercial o no comercial (topes 1 M / 5 M peticiones al mes). No está documentado. Importa si v2.0 monetiza | Por registrar |
+| **Salud de la dependencia de tiles** *(propuesto, sin ficha)* | El fallo del proveedor de tiles es invisible: PNG de marca de agua con status 200, sin `tileerror`, nada en el export. Evaluar si merece instrumentación (registrar URL/estado de carga del tile en el export, o comprobar un tile conocido al arrancar) | Por crear |
+| DT-65 | **Dato nuevo, sin cambio de alcance.** Captura del 8 oct (Cali centro): ~5 de ~9 pines visibles eran 🚉. Coincide con la señal que el ticket ya describía. Sin conteo del export no es evidencia; entra como motivo para mirar el inventario de DT-89 en la próxima caminata | Alta |
+
+### Correcciones a documentos vivos
+
+- **§19, higiene de S39:** `.gitignore` **ya no está en UTF-16 LE**
+  (verificado con `od -c`, ASCII). Esa línea de deuda queda obsoleta.
+  `js/keys.js` sigue trackeado, vacío y sin referenciar.
+- **§15 y §17:** el basemap ahora lleva API key (DA-91); la fila de costos
+  de CARTO se añade con $0 hasta el tope gratuito.
+
+### Estado al cierre
+
+| | |
+|---|---|
+| `CACHE_VERSION` | `follower-v79` |
+| `POI_CACHE_VERSION` | 7 |
+| `CLASSIFIER_PROMPT_VERSION` | v1 |
+| `PROMPT_VERSION` | v3.9 |
+| `THESIS_PROMPT_VERSION` | v5 |
+
+**Pendiente de código:** DT-90, DT-92, DT-64 (sin cambio). Pendiente de
+decisión de interfaz: DT-12.
+**Pendiente de campo:** sin cambio respecto a S43 — la caminata sigue
+debiendo todo lo listado allí.
+
+---
+
+*Follower — Producto v0.9 | Sesión 44 | 9 Octubre 2026*

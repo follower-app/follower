@@ -7034,3 +7034,146 @@ hubo dos POIs en radio a la vez — que decide si el desempate merece sesión.
 ---
 
 *Follower — Bitácora v0.9 | Sesión 43 | 13 Agosto 2026*
+
+---
+
+# Sesión 44 — 8-9 Octubre 2026
+
+**Sesión corta, de incidente.** El mapa dejó de mostrar calles; la causa
+estaba fuera del repo. Un archivo de código modificado (`gps.js`), un bump
+(`sw.js`), un cambio de configuración en el proveedor. Sin sesión de campo.
+
+## El síntoma
+
+Captura de iPhone del 8 de octubre: toda la grilla del mapa cubierta por la
+marca de agua **"API KEY REQUIRED · carto.com/basemaps/apikey"**. Los pines,
+el marcador del caminante y el sheet renderizaban bien — solo fallaba el
+basemap.
+
+## Diagnóstico
+
+- **Confirmado en código:** `gps.js:68` pedía los tiles de Voyager a
+  `{s}.basemaps.cartocdn.com/rastertiles/voyager/…` **sin ningún parámetro
+  de autenticación**. La URL era idéntica a la de DA-13.
+- **Causa: confirmada por fuente externa, no por request directo.** CARTO
+  empezó a exigir una API key gratuita en sus basemaps raster a finales de
+  agosto de 2026 (hilo de la comunidad de Grafana del 28 de agosto, mismo
+  endpoint, mismo watermark; y la página oficial de solicitud de keys).
+  **Limitación declarada:** el proxy de salida del sandbox bloquea
+  `cartocdn.com`, así que no se pudo pedir un tile directamente para ver
+  el cuerpo de la respuesta. La confirmación es por convergencia de fuentes.
+- **Por qué no hubo señal en la app:** el servicio no devuelve un error
+  HTTP; **sirve un PNG de marca de agua con status 200**. El evento
+  `tileerror` de Leaflet no se dispara, el panel de debug no registra nada
+  y el export no lo cuenta. Ver "Propuesto, sin ficha" abajo.
+
+## Qué se hizo
+
+1. Key solicitada a CARTO (formulario público, llega por correo; el
+   parámetro es `key`, no `api_key` — lo confirma el correo de entrega).
+2. `js/gps.js`: `CONFIG.CARTO_API_KEY` y `?key=` en la URL del `tileLayer`.
+3. `sw.js`: `CACHE_VERSION` v78 → **v79**, en commit aparte según la
+   convención.
+4. Dashboard de CARTO: la key se **restringió por referrer** al host
+   `follower-app.github.io`. El formulario acepta solo host (sin esquema,
+   sin path, un wildcard como máximo), de modo que no se puede acotar a
+   `/follower/`.
+5. Verificación: el contenido de `gps.js` y `sw.js` en `main` se comprobó
+   contra `raw.githubusercontent.com` con cache-buster; el workflow
+   `pages build and deployment` #256 estaba en curso cuando se probó
+   primero, lo que explicó el watermark residual. **Confirmado en campo**
+   (reporte de Jaime, 8 oct, noche): el mapa vuelve a cargar con la key y
+   la restricción activas.
+
+## La decisión que se discutió: ¿por qué no por el Worker?
+
+Se preguntó por qué la key no usa el mismo método que las de Claude y
+OpenWeatherMap (Secrets del Worker, `env.CLAUDE_API_KEY`,
+`env.OPENWEATHER_API_KEY` en `cloudflare/worker.js`). Resumen del
+razonamiento — completo en **DA-91**:
+
+- Esas dos son **llamadas JSON de baja frecuencia** a APIs de pago: el
+  Worker arma la petición y devuelve la respuesta.
+- Los tiles son **decenas de imágenes por cada pan/zoom**, repartidas en
+  cuatro subdominios (`subdomains: 'abcd'`) para cargar en paralelo desde
+  la CDN de CARTO. Pasarlas por el Worker pierde ese paralelismo, añade
+  latencia y consume la cuota gratuita del Worker (100k req/día) con el
+  simple hecho de mover el mapa.
+- Y la key de CARTO **no puede ser secreta**: tiene que viajar en la URL
+  que pide el navegador. El control que CARTO ofrece no es esconderla sino
+  **restringirla por dominio**, y eso es lo que se hizo.
+
+## Hallazgos de paso (verificados en el repo local)
+
+- **`Config` y `CONFIG` son dos cosas distintas.** `js/config.js` es el
+  módulo `Config` (preferencias del usuario en localStorage: idioma,
+  nombre, `narratedCities`). El objeto `CONFIG` con `MAP_ZOOM_MAX`,
+  `RHYTHM_MIN_METERS`, etc. es **local a la closure de `gps.js`**. La
+  primera propuesta de la sesión ponía la key en `config.js`; **estaba
+  mal**, y la lectura del archivo vivo antes de editar lo atrapó. Otra
+  colisión de vocabulario del mismo tipo que la de "Regla de Oro".
+- **`js/keys.js` sigue siendo un fósil:** trackeado, con campos vacíos
+  (`openWeatherMap`, `gemini`), **no referenciado en `index.html`** y
+  listado en `.gitignore`. Su propio comentario lo dice: las keys viven en
+  el Worker desde DA-11. No sirve para esta key, y revivirlo sería
+  reintroducir el patrón que DT-9 costó cerrar.
+- **El `.gitignore` ya no está en UTF-16 LE.** La deuda de higiene de S39
+  quedó obsoleta: `od -c` muestra ASCII con terminadores mixtos CRLF/LF.
+  Alguien lo corrigió sin dejar registro. (Los terminadores mixtos son un
+  detalle menor, sin consecuencia conocida.)
+- **La atribución está doblemente suprimida, a propósito:**
+  `attributionControl: false` en `gps.js:53` y
+  `.leaflet-control-attribution { display: none !important }` en
+  `main.css:199`. No es un olvido. Poner texto en `attribution:` del
+  `tileLayer` **no lo mostraría**. Pero los términos de la key de CARTO
+  piden atribución visible, así que **DT-12 deja de ser cosmética**: ver
+  su fila en producto.md. No se tocó en esta sesión — revertirla es una
+  decisión de interfaz que pasa por la pregunta rectora.
+- **Observación sin medir, captura del 8 oct (Cali centro):** de ~9 pines
+  visibles, 5 eran 🚉. Coincide con la señal que DT-65 describe
+  (estaciones MIO con artículo de Wikipedia). Es señal, no veredicto, y
+  sin conteo del export no cambia nada todavía.
+
+## Lo que quedó sin hacer
+
+- **Categoría de uso de la key (comercial / no comercial): sin confirmar
+  en los documentos.** El tope gratuito difiere (1 M peticiones/mes
+  comercial; 5 M no comercial, por mes calendario UTC, sumando todas las
+  keys de la cuenta). A escala de piloto ninguno preocupa; importa si
+  v2.0 monetiza. Jaime debe registrar cuál eligió en el formulario.
+- **DT-12 (atribución visible):** pendiente de decisión de interfaz.
+- **Propuesto, sin ficha — salud de la dependencia de tiles:** hoy el
+  fallo del proveedor es invisible para la app y para el export. Una
+  comprobación barata sería medir el color/tamaño de un tile conocido
+  durante el arranque, o registrar en el export la URL del tile y el
+  estado de carga. No es urgente; se anota para que no se pierda.
+- **Mantenimiento del documento (esta sesión):** la deuda de higiene de S39
+  sobre `.gitignore` queda corregida arriba, no reescrita en su entrada
+  original (la bitácora es historial).
+
+## Nota de método
+
+El fallo vivía en una dependencia externa que **cambió de política sin
+cambiar de URL y sin devolver un error**. El instrumento (panel y export)
+no tenía forma de verlo: el árbitro fue la captura del iPhone, de nuevo.
+Y la comprobación de que el push había llegado se hizo contra
+`raw.githubusercontent.com` con cache-buster antes de culpar al navegador —
+el workflow de Pages en curso explicó el resto.
+
+## Cierre
+
+`CACHE_VERSION` **v79** · `POI_CACHE_VERSION` 7 · `PROMPT_VERSION` v3.9 ·
+`THESIS_PROMPT_VERSION` v5 · `CLASSIFIER_PROMPT_VERSION` v1.
+
+Dos commits: `js/gps.js` y `sw.js`. Todo es **confirmado en campo** salvo
+lo marcado: el fix y la restricción por referrer se verificaron por el
+mapa cargando; la causa en el proveedor se confirmó por fuentes externas.
+
+Pendiente de la sesión anterior, sin cambios: la caminata de campo en Cali
+(DT-74, familias, aperturas v3.8 vs v3.9, BUG-053, BUG-058, DT-72, DT-68,
+el discriminador del "· 1", DT-89) y los tickets de código DT-90, DT-92 y
+DT-64.
+
+---
+
+*Follower — Bitácora v0.9 | Sesión 44 | 9 Octubre 2026*

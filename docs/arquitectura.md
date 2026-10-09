@@ -3631,3 +3631,73 @@ en el momento de hablar.
 ---
 
 *Follower — Arquitectura v0.9 | Sesión 43 | 13 Agosto 2026*
+
+---
+
+## DA-91 — La key de los tiles de CARTO vive en el cliente, restringida por dominio
+
+**Sesión 44 · Ratificada e implementada · sw v79**
+
+CARTO exige una API key en sus basemaps raster (`basemaps.cartocdn.com`)
+desde finales de agosto de 2026. Sin ella no devuelve un error: **sirve un
+tile con marca de agua "API KEY REQUIRED" y status 200.** Complementa a
+DA-13 (el proveedor de tiles no cambia: sigue siendo Voyager).
+
+**Decisión.** La key va en `CONFIG.CARTO_API_KEY` dentro de `gps.js` —el
+objeto `CONFIG` es local a esa closure, junto a `RHYTHM_MIN_METERS` y los
+radios— y se añade a la URL del `tileLayer` como `?key=…` (el parámetro se
+llama `key`). **No va en `js/keys.js`, no va en el Worker, no se oculta.**
+La mitigación contra su copia es una **restricción por referrer en el
+dashboard de CARTO**, fijada al host `follower-app.github.io` (el campo
+acepta solo host: sin esquema, sin path, un wildcard como máximo).
+
+**Alternativas evaluadas**
+
+| | Opción | Veredicto |
+|---|---|---|
+| A | Key en el cliente + restricción por referrer | **Elegida.** Una línea de código, cero infraestructura nueva, es el control que CARTO ofrece |
+| B | Migrar a otro proveedor sin key (OSM estándar, Esri) | Descartada por ahora: pierde el estilo Voyager que DA-13 ratificó por legibilidad bajo sol; habría que revalidar contraste en campo |
+| C | Proxy de tiles por el Worker, como Claude y OpenWeatherMap | Descartada: ver abajo |
+
+**Por qué no el patrón del Worker (DA-11).** Ese patrón sirve a llamadas
+**JSON de baja frecuencia** a APIs de pago, donde el secreto nunca debe
+tocar el cliente. Los tiles son otra naturaleza:
+
+- Leaflet pide **decenas de imágenes por pan/zoom**, repartidas en
+  `subdomains: 'abcd'` para cargar en paralelo desde la CDN de CARTO.
+  Un proxy único pierde ese paralelismo y añade latencia por tile.
+- Cada pan de mapa consumiría la cuota gratuita del Worker
+  (100k req/día) en vez de la de CARTO.
+- Y no habría ganancia de seguridad real: la key de CARTO es un
+  identificador de cuota que **tiene que viajar** en la URL de un request
+  que el navegador hace directamente. No es una credencial privilegiada.
+
+**Consecuencias**
+
+- La key es visible en el código público y en el panel de red. Es
+  deliberado; lo que la protege es la restricción por dominio, no el
+  secreto. **Corolario:** probar el mapa desde `localhost` o `file://`
+  fallará con la restricción activa (hoy no hay entorno local, así que no
+  se agregó). Si eso cambia, se añade el host en el dashboard.
+- **La atribución es obligación de los términos de uso de la key** y sigue
+  suprimida (DT-12): `attributionControl: false` (`gps.js`) y
+  `display:none` (`main.css`). Ambas capas habría que revertir; poner
+  texto en `attribution:` del `tileLayer` no basta.
+- **Un fallo de este proveedor es invisible para la app:** no hay
+  `tileerror` porque el PNG de marca de agua llega con 200. Anotado en la
+  bitácora de S44 como propuesta sin ficha.
+- Límites del plan gratuito: 1 M peticiones/mes comercial, 5 M no
+  comercial, por mes calendario UTC y sumando todas las keys de la cuenta.
+  **La categoría elegida al solicitar la key no está registrada aquí**:
+  debe anotarla Jaime. El requisito de key para tiles vectoriales está
+  anunciado por CARTO pero no vigente; Follower usa solo raster.
+
+**Lo que esta decisión NO hace:** no cambia el basemap, no toca la
+atribución, no añade un proxy. La separación entre secretos del Worker
+(Claude, OpenWeatherMap) y claves de cliente (CARTO) queda como criterio:
+**¿viaja la key en un request que el navegador debe hacer directamente? Si
+sí, no es secreta y se protege por dominio, no por ocultamiento.**
+
+---
+
+*Follower — Arquitectura v0.9 | Sesión 44 | 9 Octubre 2026*

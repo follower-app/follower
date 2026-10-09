@@ -7121,27 +7121,60 @@ razonamiento — completo en **DA-91**:
   quedó obsoleta: `od -c` muestra ASCII con terminadores mixtos CRLF/LF.
   Alguien lo corrigió sin dejar registro. (Los terminadores mixtos son un
   detalle menor, sin consecuencia conocida.)
-- **La atribución está doblemente suprimida, a propósito:**
+- **La atribución estaba doblemente suprimida, a propósito:**
   `attributionControl: false` en `gps.js:53` y
   `.leaflet-control-attribution { display: none !important }` en
-  `main.css:199`. No es un olvido. Poner texto en `attribution:` del
-  `tileLayer` **no lo mostraría**. Pero los términos de la key de CARTO
-  piden atribución visible, así que **DT-12 deja de ser cosmética**: ver
-  su fila en producto.md. No se tocó en esta sesión — revertirla es una
-  decisión de interfaz que pasa por la pregunta rectora.
+  `main.css:199`. No era un olvido. Poner texto en `attribution:` del
+  `tileLayer` **no lo habría mostrado**. Pero los términos de la key de
+  CARTO piden atribución visible, así que **DT-12 dejó de ser cosmética**
+  y se resolvió en esta misma sesión (ver "DT-12" abajo).
 - **Observación sin medir, captura del 8 oct (Cali centro):** de ~9 pines
   visibles, 5 eran 🚉. Coincide con la señal que DT-65 describe
   (estaciones MIO con artículo de Wikipedia). Es señal, no veredicto, y
   sin conteo del export no cambia nada todavía.
 
+## DT-12 — atribución visible (resuelto el 9 oct, mismo día)
+
+Jaime delegó el lugar ("donde tú recomiendes"). Se leyeron `index.html`,
+`explore.css` y `main.css` antes de decidir.
+
+- **Confirmado en código — el control nativo de Leaflet no sirve aquí:**
+  su esquina (abajo a la derecha del contenedor del mapa) queda **debajo
+  del sheet y de la bottom bar** (`z-card` y `z-ui` por encima de
+  `z-map`). Reactivarlo habría puesto el crédito donde nadie lo ve y, de
+  paso, roto el mapa limpio.
+- **Primer intento descartado con medida, no con intuición:** poner el
+  crédito dentro de la franja del clima (`.care-strip`, 32 px). Se
+  renderizó en 390, 375 y 320 px de ancho: el clima va **centrado** y el
+  texto completo mide ~190 px, así que se pisaban y el crédito se
+  truncaba. Abreviar a "OSM" se descartó: el texto exigido es
+  "© OpenStreetMap contributors".
+- **Decisión:** una etiqueta pequeña, `.map-credit`, **bajo la franja,
+  esquina superior derecha del mapa**, lejos del marcador del caminante.
+  Fondo `--color-cream` al 72 %, texto `--color-night` al 72 %, 9 px,
+  `pointer-events: none`, `z-ui` (queda debajo de la care card). Verificado
+  en render sobre fondos crema, verde y azul: legible, sin tocar el clima.
+- **Texto plano, sin enlaces, a propósito:** en una PWA instalada un
+  enlace externo saca al usuario de la app y puede cortar el audio. Si
+  CARTO u OSM exigieran enlace, eso es un trade-off nuevo.
+- **Se mantiene** `attributionControl: false` y el `display:none` del
+  control nativo. `attribution: ''` en el `tileLayer` queda vacío con un
+  comentario que remite a `.map-credit`.
+- **Límite declarado:** la etiqueta se ve en la pantalla de exploración,
+  que es donde está el mapa. **Sin validar en el iPhone todavía** (solo
+  render de escritorio). Si se siente como ruido visual, la pregunta
+  rectora decide.
+- `sw.js` v79 → **v80**.
+
+## Categoría de la key
+
+Jaime confirmó el 9 oct que la key se solicitó como **comercial**, que es
+lo que se recomendó por v2.0 y monetización. Tope gratuito: 1 M
+peticiones/mes (mes calendario UTC, sumando todas las keys de la cuenta).
+Queda registrado aquí y en DA-91.
+
 ## Lo que quedó sin hacer
 
-- **Categoría de uso de la key (comercial / no comercial): sin confirmar
-  en los documentos.** El tope gratuito difiere (1 M peticiones/mes
-  comercial; 5 M no comercial, por mes calendario UTC, sumando todas las
-  keys de la cuenta). A escala de piloto ninguno preocupa; importa si
-  v2.0 monetiza. Jaime debe registrar cuál eligió en el formulario.
-- **DT-12 (atribución visible):** pendiente de decisión de interfaz.
 - **Propuesto, sin ficha — salud de la dependencia de tiles:** hoy el
   fallo del proveedor es invisible para la app y para el export. Una
   comprobación barata sería medir el color/tamaño de un tile conocido
@@ -7162,12 +7195,15 @@ el workflow de Pages en curso explicó el resto.
 
 ## Cierre
 
-`CACHE_VERSION` **v79** · `POI_CACHE_VERSION` 7 · `PROMPT_VERSION` v3.9 ·
+`CACHE_VERSION` **v80** · `POI_CACHE_VERSION` 7 · `PROMPT_VERSION` v3.9 ·
 `THESIS_PROMPT_VERSION` v5 · `CLASSIFIER_PROMPT_VERSION` v1.
 
-Dos commits: `js/gps.js` y `sw.js`. Todo es **confirmado en campo** salvo
-lo marcado: el fix y la restricción por referrer se verificaron por el
-mapa cargando; la causa en el proveedor se confirmó por fuentes externas.
+Dos tandas de código: v79 (`js/gps.js`, `sw.js`: la key) y v80
+(`index.html`, `css/explore.css`, `js/gps.js`, `sw.js`: la atribución).
+La key y la restricción por referrer están **confirmadas en campo** (el
+mapa vuelve a cargar); la causa en el proveedor se confirmó por fuentes
+externas; **el crédito de DT-12 es confirmado en código y en render de
+escritorio, no en campo**.
 
 Pendiente de la sesión anterior, sin cambios: la caminata de campo en Cali
 (DT-74, familias, aperturas v3.8 vs v3.9, BUG-053, BUG-058, DT-72, DT-68,

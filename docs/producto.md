@@ -291,7 +291,7 @@ El Prompt Maestro v2.7 (narrador único) tiene versiones en español e inglés. 
 | DT-5 | Más ciudades en routes.js | Baja |
 | DT-8 | debug.js + debug-sim.js deshabilitados antes de v1.0 | Media |
 | DT-10 | Error IndexedDB "connection is closing" — Safari backgrounding | Media |
-| DT-12 | Atribución CARTO/OSM no visible — **desde S44 es requisito de los términos de la key de CARTO y está suprimida a propósito en dos capas; ver anexo S44** | Media |
+| ~~DT-12~~ | **CERRADA (S44, sw v80) — sin validar en campo.** Era requisito de los términos de la key de CARTO y el control nativo de Leaflet estaba suprimido a propósito en dos capas. Resuelto con una etiqueta de texto plano `.map-credit` bajo la franja superior, esquina superior derecha del mapa; ver anexo S44 | ~~Media~~ |
 | DT-16 | Pantalla POI expandida: rediseñar con nuevo sistema visual | Media |
 | DT-17 | Implementar bookmark y share (Web Share API) en pantalla POI | Baja |
 | DT-20 | Test en campo con brújula real — verificar DeviceOrientation iOS | Alta |
@@ -1240,8 +1240,8 @@ bitácora de S44.
 
 | ID | Descripción | Estado |
 |---|---|---|
-| DT-12 | **Atribución CARTO/OSM no visible — sube de Baja a Media y cambia de naturaleza.** Dejó de ser cosmética: los términos de la key de CARTO (S44) piden atribución visible, y hoy está **doblemente suprimida a propósito** — `attributionControl: false` en `gps.js:53` y `.leaflet-control-attribution { display:none !important }` en `main.css:199`. Poner texto en `attribution:` del `tileLayer` no la mostraría. Resolverlo exige revertir una decisión de interfaz y pasa por la pregunta rectora: ¿dónde vive un crédito mínimo sin romper el mapa limpio? (candidatos a evaluar: pie del sheet expandido, pantalla de configuración de DT-64 ruta c, o el title card). **No se hizo en S44.** A escala de piloto no corre prisa; debe resolverse antes de v1.0 | Media |
-| Categoría de la key de CARTO | Registrar si se solicitó como comercial o no comercial (topes 1 M / 5 M peticiones al mes). No está documentado. Importa si v2.0 monetiza | Por registrar |
+| ~~DT-12~~ | **CERRADA (S44, sw v80) — confirmada en código y en render de escritorio, no en campo.** Los términos de la key de CARTO piden atribución visible y estaba **doblemente suprimida a propósito** (`attributionControl: false` en `gps.js:53`; `.leaflet-control-attribution { display:none !important }` en `main.css:199`). El control nativo no servía: su esquina queda bajo el sheet y la bottom bar. **Primer intento descartado con medida:** dentro de la franja del clima (`.care-strip`) el texto completo (~190 px) se pisa con el clima centrado en 390, 375 y 320 px. **Decisión:** etiqueta `.map-credit` bajo la franja, esquina superior derecha del mapa — fondo `--color-cream` 72 %, texto `--color-night` 72 %, 9 px, no interactiva, `z-ui` (bajo la care card). **Texto plano sin enlaces:** en una PWA instalada un enlace externo saca al usuario de la app y puede cortar el audio. Se mantiene suprimido el control nativo. **Pendiente de campo:** verla en el iPhone y juzgarla con la pregunta rectora | ~~Media~~ |
+| ~~Categoría de la key de CARTO~~ | **Registrada (9 oct): comercial.** Tope gratuito 1 M peticiones/mes (mes calendario UTC, sumando todas las keys de la cuenta) | ~~Por registrar~~ |
 | **Salud de la dependencia de tiles** *(propuesto, sin ficha)* | El fallo del proveedor de tiles es invisible: PNG de marca de agua con status 200, sin `tileerror`, nada en el export. Evaluar si merece instrumentación (registrar URL/estado de carga del tile en el export, o comprobar un tile conocido al arrancar) | Por crear |
 | DT-65 | **Dato nuevo, sin cambio de alcance.** Captura del 8 oct (Cali centro): ~5 de ~9 pines visibles eran 🚉. Coincide con la señal que el ticket ya describía. Sin conteo del export no es evidencia; entra como motivo para mirar el inventario de DT-89 en la próxima caminata | Alta |
 
@@ -1257,14 +1257,14 @@ bitácora de S44.
 
 | | |
 |---|---|
-| `CACHE_VERSION` | `follower-v79` |
+| `CACHE_VERSION` | `follower-v80` |
 | `POI_CACHE_VERSION` | 7 |
 | `CLASSIFIER_PROMPT_VERSION` | v1 |
 | `PROMPT_VERSION` | v3.9 |
 | `THESIS_PROMPT_VERSION` | v5 |
 
-**Pendiente de código:** DT-90, DT-92, DT-64 (sin cambio). Pendiente de
-decisión de interfaz: DT-12.
+**Pendiente de código:** DT-90, DT-92, DT-64 (sin cambio). **Pendiente de
+campo:** ver el crédito de DT-12 en el iPhone.
 **Pendiente de campo:** sin cambio respecto a S43 — la caminata sigue
 debiendo todo lo listado allí.
 

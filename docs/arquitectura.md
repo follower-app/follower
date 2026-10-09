@@ -3679,21 +3679,24 @@ tocar el cliente. Los tiles son otra naturaleza:
   secreto. **Corolario:** probar el mapa desde `localhost` o `file://`
   fallará con la restricción activa (hoy no hay entorno local, así que no
   se agregó). Si eso cambia, se añade el host en el dashboard.
-- **La atribución es obligación de los términos de uso de la key** y sigue
-  suprimida (DT-12): `attributionControl: false` (`gps.js`) y
-  `display:none` (`main.css`). Ambas capas habría que revertir; poner
-  texto en `attribution:` del `tileLayer` no basta.
+- **La atribución es obligación de los términos de uso de la key** y se
+  resolvió sin reactivar el control nativo (DT-12, sw v80): una etiqueta
+  de texto plano `.map-credit` bajo la franja superior, esquina superior
+  derecha del mapa. El control nativo de Leaflet sigue suprimido
+  (`attributionControl: false` en `gps.js`, `display:none` en
+  `main.css`) porque su esquina queda bajo el sheet. Sin enlaces: en una
+  PWA instalada sacarían al usuario de la app.
 - **Un fallo de este proveedor es invisible para la app:** no hay
   `tileerror` porque el PNG de marca de agua llega con 200. Anotado en la
   bitácora de S44 como propuesta sin ficha.
 - Límites del plan gratuito: 1 M peticiones/mes comercial, 5 M no
   comercial, por mes calendario UTC y sumando todas las keys de la cuenta.
-  **La categoría elegida al solicitar la key no está registrada aquí**:
-  debe anotarla Jaime. El requisito de key para tiles vectoriales está
+  **La key se solicitó como comercial** (confirmado el 9 oct). El
+  requisito de key para tiles vectoriales está
   anunciado por CARTO pero no vigente; Follower usa solo raster.
 
-**Lo que esta decisión NO hace:** no cambia el basemap, no toca la
-atribución, no añade un proxy. La separación entre secretos del Worker
+**Lo que esta decisión NO hace:** no cambia el basemap, no reactiva el
+control nativo de atribución, no añade un proxy. La separación entre secretos del Worker
 (Claude, OpenWeatherMap) y claves de cliente (CARTO) queda como criterio:
 **¿viaja la key en un request que el navegador debe hacer directamente? Si
 sí, no es secreta y se protege por dominio, no por ocultamiento.**

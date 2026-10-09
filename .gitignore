@@ -9,3 +9,12 @@ Thumbs.db
 # Logs
 *.log
 .claude/skills/*.zip
+# Exploraciones de marca y pruebas locales - no son parte del producto
+branding/
+assets/follower-logo-9a.svg
+assets/follower-logo-9c.svg
+assets/icons/follower-icon-9a.svg
+assets/icons/follower-icon-9c.svg
+docs/INSTRUCCIONES_follower.md
+test-tesis-ciudad.html
+test-tesis-ciudadv2.html

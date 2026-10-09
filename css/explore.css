@@ -64,6 +64,28 @@
   color: var(--color-gold);
 }
 
+/* DT-12 (S44): credito de basemap — etiqueta pequena bajo la franja, esquina
+   superior derecha del mapa, lejos del marcador del caminante. Sobre el mapa claro
+   (Voyager): fondo = --color-cream a 72% y texto = --color-night a 72%, en rgba
+   literal porque no se puede aplicar opacidad al texto sin desvanecer el fondo.
+   No interactivo. Queda debajo de la care card (z-ui < z-card). */
+.map-credit {
+  position: absolute;
+  top: 32px;              /* altura de .care-strip */
+  right: 0;
+  z-index: var(--z-ui);
+  padding: 2px 7px 2px 8px;
+  border-bottom-left-radius: 6px;
+  background: rgba(245, 243, 239, 0.72);
+  color: rgba(13, 20, 32, 0.72);
+  font-family: var(--font-ui);
+  font-size: 9px;
+  font-weight: var(--weight-regular);
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
 .cs-sep {
   width: 1px;
   height: 12px;

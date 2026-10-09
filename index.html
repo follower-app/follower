@@ -186,6 +186,14 @@
     <!-- Mapa Leaflet -->
     <div id="map"></div>
 
+    <!-- DT-12 (S44): credito de basemap. Los terminos de la key de CARTO piden
+         atribucion visible; el control nativo de Leaflet queda suprimido (lo tapa
+         el sheet y rompe el mapa limpio). Texto plano, sin enlaces: en una PWA
+         instalada un enlace externo saca al usuario de la app y puede cortar el
+         audio. Fuera de la franja a proposito: el clima va centrado y el credito
+         completo no cabe a su lado. -->
+    <div class="map-credit">© OpenStreetMap contributors · © CARTO</div>
+
     <!-- Bienvenida de ciudad — texto sobre el mapa, fade in/out, una vez por sesión -->
 
     <!-- Care card — alertas de cuidado con acción -->

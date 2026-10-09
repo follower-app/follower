@@ -71,7 +71,9 @@ const GPS = (() => {
     // Voyager da color + info manteniendo legibilidad, más cerca de Google Maps
     L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png?key=' + CONFIG.CARTO_API_KEY, {
       maxZoom:      CONFIG.MAP_ZOOM_MAX,
-      attribution:  '',
+      attribution:  '',   // DT-12 (S44): vacio a proposito — attributionControl:false y el
+                          // sheet tapa la esquina del control. El credito vive en
+                          // .map-credit (etiqueta bajo la franja superior, index.html + explore.css).
       subdomains:   'abcd',
       detectRetina: true
     }).addTo(_map);

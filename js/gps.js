@@ -34,6 +34,10 @@ const GPS = (() => {
     RHYTHM_MIN_METERS:  200,
     STEPS_PER_METER:    1.3,     // pasos por metro (estimado)
     CITY_ANCHOR_KM:     10,      // DA-86 B: re-resolver ciudad solo a >10km del ancla donde se fijó
+    // CARTO exige API key en basemaps raster desde finales de agosto 2026 (watermark
+    // "API KEY REQUIRED" sin ella). No es secreto: viaja en cada request de tile que
+    // hace el navegador, por diseño de CARTO — por eso vive aqui y no en keys.js.
+    CARTO_API_KEY:      'cb1_4ev6_1_9072d673ea096aaa5ade8bf9',
     MAP_ZOOM:           17,      // zoom inicial del mapa
     MAP_ZOOM_MIN:       14,
     MAP_ZOOM_MAX:       19,
@@ -65,7 +69,7 @@ const GPS = (() => {
     // Tiles CartoDB Voyager — DA-13 revisado otra vez: Positron resultó
     // demasiado minimalista (sin parques/agua/etiquetas suficientes).
     // Voyager da color + info manteniendo legibilidad, más cerca de Google Maps
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png?key=' + CONFIG.CARTO_API_KEY, {
       maxZoom:      CONFIG.MAP_ZOOM_MAX,
       attribution:  '',
       subdomains:   'abcd',

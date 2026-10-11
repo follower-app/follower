@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Follower — Test de modelos para capitulos de POI</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Inter', sans-serif; background: #0d1420; color: #e8e4d8; min-height: 100vh; padding: 24px 20px 64px; max-width: 980px; margin: 0 auto; }
+  h1 { font-size: 18px; font-weight: 500; color: #f0c87a; margin-bottom: 4px; }
+  .subtitle { font-size: 13px; color: #6b7280; margin-bottom: 20px; line-height: 1.5; }
+  .card { background: #1a2235; border: 0.5px solid #2a3550; border-radius: 14px; padding: 18px; margin-bottom: 16px; }
+  .card h2 { font-size: 15px; font-weight: 500; margin-bottom: 4px; }
+  .card-desc { font-size: 12px; color: #6b7280; margin-bottom: 12px; line-height: 1.5; }
+  label { display: block; font-size: 11px; color: #6b7280; margin: 10px 0 5px; text-transform: uppercase; letter-spacing: .04em; }
+  input[type=text], input[type=number], select { width: 100%; padding: 9px 11px; background: #0d1420; border: .5px solid #2a3550; border-radius: 8px; color: #e8e4d8; font-size: 14px; font-family: inherit; }
+  .row { display: flex; gap: 10px; flex-wrap: wrap; }
+  .row > div { flex: 1; min-width: 120px; }
+  .btn { padding: 12px 18px; background: #1a5276; color: #e8e4d8; border: none; border-radius: 50px; font-size: 14px; font-weight: 500; cursor: pointer; margin-top: 14px; margin-right: 8px; }
+  .btn:disabled { background: #1a2235; color: #4b5563; cursor: default; }
+  .btn.alt { background: #2a3550; }
+  .log { margin-top: 12px; padding: 10px 12px; background: #0d1420; border-radius: 8px; font: 12px/1.7 'SF Mono','Fira Code',monospace; color: #8b95a5; max-height: 220px; overflow-y: auto; white-space: pre-wrap; }
+  .arm { display: flex; gap: 10px; align-items: flex-start; padding: 10px 0; border-top: .5px solid #2a3550; font-size: 13px; }
+  .arm:first-of-type { border-top: none; }
+  .arm input[type=checkbox] { margin-top: 3px; }
+  .arm .meta { color: #6b7280; font-size: 11px; margin-top: 2px; line-height: 1.5; }
+  .arm .px { display: flex; gap: 6px; margin-top: 6px; }
+  .arm .px input { width: 78px; padding: 5px 7px; font-size: 12px; }
+  .poi-pick { display: flex; gap: 8px; align-items: baseline; padding: 6px 0; font-size: 13px; border-top: .5px solid #22304a; }
+  .poi-pick .dim { color: #6b7280; font-size: 11px; }
+  .poi-block { margin-bottom: 22px; }
+  .poi-head { font-size: 15px; color: #f0c87a; margin-bottom: 4px; }
+  details.ext { font-size: 12px; color: #8b95a5; margin-bottom: 10px; line-height: 1.5; }
+  details.ext summary { cursor: pointer; color: #6b7280; }
+  .txt { background: #131c2e; border: .5px solid #2a3550; border-radius: 12px; padding: 14px; margin-bottom: 10px; }
+  .txt .lab { font-size: 11px; color: #6b7280; text-transform: uppercase; letter-spacing: .05em; margin-bottom: 6px; }
+  .txt .lab b { color: #f0c87a; font-weight: 500; }
+  .txt p { font-size: 14px; line-height: 1.65; white-space: pre-wrap; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+  .chip { font-size: 11px; padding: 3px 8px; border-radius: 20px; background: #0d1420; color: #8b95a5; border: .5px solid #2a3550; }
+  .chip.bad { color: #e74c3c; border-color: #6b2a24; }
+  .chip.ok { color: #7fb98a; border-color: #2b4a33; }
+  .rate { margin-top: 10px; font-size: 12px; color: #8b95a5; display: flex; gap: 6px; align-items: center; }
+  .rate button { width: 30px; height: 30px; border-radius: 50%; border: .5px solid #2a3550; background: #0d1420; color: #c8d4e0; cursor: pointer; }
+  .rate button.sel { background: #1a5276; color: #fff; border-color: #1a5276; }
+  table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  th, td { text-align: left; padding: 7px 8px; border-top: .5px solid #2a3550; vertical-align: top; }
+  th { color: #6b7280; font-weight: 500; font-size: 11px; text-transform: uppercase; }
+  .hidden { display: none; }
+  .note { font-size: 11px; color: #6b7280; line-height: 1.5; margin-top: 8px; }
+</style>
+</head>
+<body>
+
+<h1>Test de modelos — capitulos de POI</h1>
+<p class="subtitle">
+  Compara Haiku 4.5 (control) contra Haiku 5.5 con el prompt de produccion. El prompt, el grounding,
+  <code>sanitizeNarration</code>, <code>_extractFaceta</code> y la verificacion DT-51 se toman en vivo de
+  <code>js/narration.js</code> (no se copian). No usa cache, no escribe en IndexedDB y no envia <code>userName</code>.
+</p>
+
+<div class="card">
+  <h2>1 · Codigo vivo</h2>
+  <p class="card-desc">Carga <code>js/narration.js</code> desde el mismo sitio donde esta servida esta pagina.</p>
+  <div id="codeStatus" class="log">sin cargar</div>
+  <button class="btn alt" id="btnLoad">Recargar narration.js</button>
+  <label>o elegir archivo narration.js manualmente (si abres la pagina sin servidor)</label>
+  <input type="file" id="fileNarr" accept=".js">
+</div>
+
+<div class="card">
+  <h2>2 · Ciudad y POIs</h2>
+  <p class="card-desc">Wikipedia GeoSearch + extractos (mismo canal que poi.js: exintro, truncado a 2500 en el ultimo punto). Solo POIs con articulo (rama OSM no incluida).</p>
+  <div class="row">
+    <div><label>Ciudad</label><input type="text" id="city" value="Cali"></div>
+    <div><label>Lat</label><input type="text" id="lat" value="3.4516"></div>
+    <div><label>Lng</label><input type="text" id="lng" value="-76.5320"></div>
+    <div><label>Radio (m)</label><input type="number" id="radius" value="1500"></div>
+    <div><label>Idioma</label><select id="lang"><option value="es">es</option><option value="en">en</option></select></div>
+  </div>
+  <button class="btn" id="btnFetch">Buscar POIs</button>
+  <div id="poiList"></div>
+  <div id="fetchStatus" class="log hidden"></div>
+</div>
+
+<div class="card">
+  <h2>3 · Brazos del test</h2>
+  <p class="card-desc">Una sola variable por brazo respecto al control. Los precios son editables (USD por millon de tokens).</p>
+  <div id="arms"></div>
+  <div class="row">
+    <div><label>Repeticiones por brazo y POI</label><input type="number" id="reps" value="2" min="1" max="5"></div>
+    <div><label>Llamadas en paralelo</label><input type="number" id="conc" value="3" min="1" max="6"></div>
+  </div>
+  <p class="note">A y B tienen parametros fijos para que los resultados sigan siendo comparables con los tests 1 y 2. P lee la config del narration.js cargado: es el brazo para comparar versiones de prompt (p. ej. v4.0 contra v4.1) cargando cada archivo por turno.</p>
+  <button class="btn" id="btnRun" disabled>Correr test</button>
+  <div id="runStatus" class="log hidden"></div>
+</div>
+
+<div class="card hidden" id="resultsCard">
+  <h2>4 · Resultados (a ciegas)</h2>
+  <p class="card-desc">Los textos salen mezclados y sin nombre de modelo. Califica cada uno de 1 a 5 (1 = audioguia, 5 = cinematografico) y luego revela.</p>
+  <button class="btn" id="btnReveal">Revelar modelos y resumen</button>
+  <button class="btn alt" id="btnExport">Exportar JSON</button>
+  <div id="summary" class="hidden" style="margin-top:16px"></div>
+</div>
+<div id="results"></div>
+
+<script>
+/* ═══════════ ESTADO ═══════════ */
+let T = null;            // internos expuestos de narration.js
+let NARR_SRC = '';
+let pois = [];           // POIs encontrados
+let runs = [];           // resultados
+let revealed = false;
+
+const $ = id => document.getElementById(id);
+const log = (el, msg) => { el.classList.remove('hidden'); el.textContent += msg + '\n'; el.scrollTop = el.scrollHeight; };
+
+/* ═══════════ BRAZOS ═══════════ */
+const ARMS = [
+  { id: 'A', name: 'Haiku 4.5 · control (config actual)', model: 'claude-haiku-4-5-20251001', thinking: null, effort: null,
+    mt: () => 550, pin: 1.00, pout: 5.00, on: true,
+    meta: 'Config de produccion ANTES de la migracion (max_tokens 550 fijo, sin parametros de pensamiento). Precio 4.5: verificar en la pagina de precios.' },
+  { id: 'B', name: 'Haiku 5.5 · pensamiento apagado (cambio neutral)', model: 'claude-haiku-5-5', thinking: { type: 'disabled' }, effort: null,
+    mt: () => 715, pin: 0.10, pout: 0.50, on: true,
+    meta: 'thinking: disabled. max_tokens 715 fijo (550 x1.3).' },
+  { id: 'C', name: 'Haiku 5.5 · pensamiento adaptativo (medium)', model: 'claude-haiku-5-5', thinking: { type: 'adaptive' }, effort: 'medium',
+    mt: () => 1515, pin: 0.10, pout: 0.50, on: false,
+    meta: 'Default del modelo. max_tokens 1515. DESCARTADO en los tests 1 y 2 (el pensamiento consume todo el presupuesto); apagado por defecto.' },
+  { id: 'P', name: 'Produccion · lo que declara el narration.js cargado', model: null, thinking: null, effort: null,
+    mt: () => T.CONFIG.MAX_TOKENS, pin: 0.10, pout: 0.50, on: false,
+    meta: 'Toma API_MODEL, API_THINKING y MAX_TOKENS del narration.js cargado arriba. Sirve para comparar versiones de prompt: corre el test con una version, carga otra y vuelve a correr.' }
+];
+function armModel(a)    { return a.id === 'P' ? T.CONFIG.API_MODEL : a.model; }
+function armThinking(a) { return a.id === 'P' ? (T.CONFIG.API_THINKING || null) : a.thinking; }
+
+function renderArms() {
+  $('arms').innerHTML = ARMS.map((a, i) => `
+    <div class="arm">
+      <input type="checkbox" id="arm${i}" ${a.on ? 'checked' : ''}>
+      <div>
+        <div><b>${a.id}</b> · ${a.name}</div>
+        <div class="meta"><code>${a.model || 'del narration.js cargado'}</code> · ${a.meta}</div>
+        <div class="px">
+          <input type="number" step="0.01" id="pin${i}" value="${a.pin}" title="USD/MTok entrada">
+          <input type="number" step="0.01" id="pout${i}" value="${a.pout}" title="USD/MTok salida">
+        </div>
+      </div>
+    </div>`).join('');
+}
+
+/* ═══════════ CARGA DE narration.js EN VIVO ═══════════ */
+function bootNarration(src, origin) {
+  const marker = 'return { classifyIcons,';
+  if (!src.includes(marker)) throw new Error('No encontre el return final de Narration (' + marker + '). El archivo cambio de forma: hay que ajustar esta pagina.');
+  const patched = src.replace(marker,
+    'return { __t: { buildPrompt, sanitizeNarration, _extractFaceta, _dt51VerifyAutorFecha, cleanPOIName, CONFIG }, classifyIcons,');
+  const AppStateStub = { cityName: '', city: '', gps: null, _walkChapters: [], offline: false };
+  const POIStub = { getPOIs: () => pois };
+  // Debug queda sin definir a proposito: narration.js lo usa siempre detras de typeof.
+  const factory = new Function('AppState', 'POI', patched + '\n;return Narration;');
+  const N = factory(AppStateStub, POIStub);
+  T = N.__t;
+  T.AppState = AppStateStub;
+  NARR_SRC = src;
+  $('codeStatus').textContent =
+    `OK (${origin})\nAPI_MODEL en produccion: ${T.CONFIG.API_MODEL}\nPROMPT_VERSION: ${T.CONFIG.PROMPT_VERSION}\nMAX_TOKENS: ${T.CONFIG.MAX_TOKENS}\nAPI_URL: ${T.CONFIG.API_URL}\nTamano: ${src.length} chars`;
+  updateRunBtn();
+}
+
+async function loadLive() {
+  $('codeStatus').textContent = 'cargando...';
+  try {
+    const res = await fetch('js/narration.js?_=' + Date.now(), { cache: 'no-store' });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    bootNarration(await res.text(), 'js/narration.js del sitio');
+  } catch (e) {
+    $('codeStatus').textContent = 'No se pudo cargar narration.js: ' + e.message +
+      '\nSi abriste el archivo con file://, usa el selector de archivo de abajo o abre la pagina desde GitHub Pages.';
+  }
+}
+$('btnLoad').onclick = loadLive;
+$('fileNarr').onchange = async e => {
+  const f = e.target.files[0]; if (!f) return;
+  try { bootNarration(await f.text(), 'archivo local ' + f.name); } catch (err) { $('codeStatus').textContent = 'Error: ' + err.message; }
+};
+
+/* ═══════════ WIKIPEDIA (espejo de poi.js: fetchWikipediaPOIs + _attachExtracts) ═══════════ */
+const EXTRACT_MAX_CHARS = 2500;                       // espejo de poi.js
+const TYPE_BLACKLIST = new Set(['city','adm1st','adm2nd','adm3rd','country','continent','event','satellite']);
+
+function haversine(a, b, c, d) {
+  const R = 6371000, r = x => x * Math.PI / 180;
+  const dLat = r(c - a), dLng = r(d - b);
+  const h = Math.sin(dLat/2)**2 + Math.cos(r(a)) * Math.cos(r(c)) * Math.sin(dLng/2)**2;
+  return 2 * R * Math.asin(Math.sqrt(h));
+}
+
+async function fetchPOIs() {
+  const lat = parseFloat($('lat').value), lng = parseFloat($('lng').value), rad = parseInt($('radius').value, 10);
+  const city = $('city').value.trim();
+  const st = $('fetchStatus'); st.textContent = ''; log(st, 'Buscando en es.wikipedia...');
+  const base = 'https://es.wikipedia.org/w/api.php';
+  const p = new URLSearchParams({ action: 'query', list: 'geosearch', gscoord: `${lat}|${lng}`, gsradius: rad, gslimit: 50, gsprop: 'type|name', format: 'json', origin: '*' });
+  const res = await fetch(`${base}?${p}`);
+  if (!res.ok) throw new Error('GeoSearch HTTP ' + res.status);
+  let places = (await res.json())?.query?.geosearch || [];
+  log(st, `${places.length} articulos crudos`);
+  const cityNorm = city.toLowerCase();
+  places = places.filter(x => !(x.type && TYPE_BLACKLIST.has(x.type)) && x.title.split(',')[0].trim().toLowerCase() !== cityNorm);
+  const seen = new Set();
+  places = places.filter(x => { const k = `${Math.round(x.lat*1000)},${Math.round(x.lon*1000)}`; if (seen.has(k)) return false; seen.add(k); return true; });
+  log(st, `${places.length} tras filtro editorial y dedup`);
+  for (let i = 0; i < places.length; i += 20) {
+    const chunk = places.slice(i, i + 20);
+    const q = new URLSearchParams({ action: 'query', prop: 'extracts', exintro: 'true', explaintext: 'true', exlimit: 'max', pageids: chunk.map(x => x.pageid).join('|'), format: 'json', origin: '*' });
+    const r2 = await fetch(`${base}?${q}`);
+    if (!r2.ok) { log(st, 'extracts HTTP ' + r2.status); continue; }
+    const pages = (await r2.json())?.query?.pages || {};
+    chunk.forEach(x => {
+      let ext = pages[x.pageid]?.extract || '';
+      if (ext.length > EXTRACT_MAX_CHARS) { ext = ext.slice(0, EXTRACT_MAX_CHARS); const d = ext.lastIndexOf('.'); if (d > EXTRACT_MAX_CHARS * 0.6) ext = ext.slice(0, d + 1); }
+      x.extract = ext;
+    });
+  }
+  pois = places.map(x => ({
+    id: `wiki_${x.pageid}`, name: x.title, lat: x.lat, lng: x.lon, _source: 'wiki', _lang: null,
+    _extract: x.extract || '', tags: {}, type: 'historic',
+    _dist: Math.round(haversine(lat, lng, x.lat, x.lon))
+  })).sort((a, b) => a._dist - b._dist);
+  const withExt = pois.filter(x => x._extract.length >= 300);
+  const pre = new Set(withExt.slice(0, 8).map(x => x.id));
+  $('poiList').innerHTML = pois.map(x => `
+    <div class="poi-pick">
+      <input type="checkbox" data-id="${x.id}" ${pre.has(x.id) ? 'checked' : ''}>
+      <span>${x.name}</span>
+      <span class="dim">${x._dist} m · extracto ${x._extract.length} chars</span>
+    </div>`).join('');
+  log(st, `Listo. Preseleccione ${pre.size} POIs (los mas cercanos con extracto >= 300 chars). Ajusta la seleccion si quieres perfiles distintos.`);
+  updateRunBtn();
+}
+$('btnFetch').onclick = () => fetchPOIs().catch(e => log($('fetchStatus'), 'ERROR: ' + e.message));
+
+function selectedPOIs() { return [...document.querySelectorAll('#poiList input:checked')].map(i => pois.find(p => p.id === i.dataset.id)); }
+function updateRunBtn() { $('btnRun').disabled = !(T && pois.length); }
+
+/* ═══════════ LLAMADA AL WORKER ═══════════ */
+function buildBody(arm, system, user) {
+  const b = { model: armModel(arm), max_tokens: arm.mt(), messages: [{ role: 'user', content: user }] };
+  if (system) b.system = system;
+  if (armThinking(arm)) b.thinking = armThinking(arm);
+  if (arm.effort) b.output_config = { effort: arm.effort };
+  return b;
+}
+
+async function callWorker(body) {
+  let lastErr;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const t0 = performance.now();
+    try {
+      const ctl = new AbortController(); const tid = setTimeout(() => ctl.abort(), 90000);
+      const res = await fetch(T.CONFIG.API_URL, { method: 'POST', signal: ctl.signal, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      clearTimeout(tid);
+      const ms = Math.round(performance.now() - t0);
+      const data = await res.json().catch(() => ({}));
+      if ([429, 500, 529].includes(res.status) && attempt < 2) { await new Promise(r => setTimeout(r, 1500 * (attempt + 1))); lastErr = 'HTTP ' + res.status; continue; }
+      return { ok: res.ok, status: res.status, ms, data };
+    } catch (e) { lastErr = e.message; await new Promise(r => setTimeout(r, 1000)); }
+  }
+  return { ok: false, status: 0, ms: 0, data: {}, error: lastErr };
+}
+
+/* ═══════════ METRICAS ═══════════ */
+const RE_DEIXIS = /\b(izquierd[oa]s?|derech[oa]s?|adelante|atr[aá]s|detr[aá]s|delante|enfrente)\b/gi;
+const RE_IMPERATIVO = /\b(mira|observa|f[ií]jate|nota|levanta la mirada|alza la vista|detente|pasa|entra)\b/gi;
+const RE_REPETIDO = /\b((?:19|20)\d{2})\b[^.]{0,12}\b\1\b/;
+const RE_PROMESA = /\b(m[aá]s adelante|en breve|pronto|enseguida|a continuaci[oó]n|siguiente (parada|lugar|cap[ií]tulo)|te espera|te aguarda|descubrir[aá]s|encontrar[aá]s|ver[aá]s)\b/i;
+const RE_DURACION = /(durante|por) (siglos|generaciones|d[eé]cadas|mucho tiempo|largo tiempo)|desde hace (siglos|d[eé]cadas|mucho)|desde siempre/i;
+const RE_SCAF_START = /^\s*(verificaci[óo]n|verification|mandatory first check)/i;
+const RE_SCAF_FULL = /^\s*(verificaci[óo]n|verification|mandatory first check)[\s\S]{0,1200}?(?:-{3,}|—{2,})\s*/i;
+
+function analyze(poi, data) {
+  const blocks = data?.content || [];
+  const tb = blocks.find(b => b.type === 'text');     // igual que callClaude() en produccion
+  const raw = tb?.text || null;
+  const out = {
+    raw, blockTypes: blocks.map(b => b.type), stop: data?.stop_reason || null,
+    inTok: data?.usage?.input_tokens ?? null, outTok: data?.usage?.output_tokens ?? null
+  };
+  if (!raw) { out.text = null; return out; }
+  const text = T.sanitizeNarration(raw);
+  out.text = text;
+  out.words = text.split(/\s+/).filter(Boolean).length;
+  out.scaffold = RE_SCAF_FULL.test(raw) ? 'ok' : (RE_SCAF_START.test(raw) ? 'FUGA (sin separador)' : 'ausente');
+  out.faceta = T._extractFaceta(raw);
+  const v = T._dt51VerifyAutorFecha(poi, text);
+  out.dt51 = v ? v.veredicto : 'n/a';
+  out.deixis = (text.match(RE_DEIXIS) || []).map(s => s.toLowerCase());
+  out.imperativo = (text.match(RE_IMPERATIVO) || []).map(s => s.toLowerCase());
+  out.repetido = RE_REPETIDO.test(text);
+  out.parrafos = text.split(/\n\s*\n/).length;
+  out.apertura = text.split(/\s+/).slice(0, 4).join(' ').toLowerCase().replace(/[.,;:]/g, '');
+  out.promesa = RE_PROMESA.test(text.slice(-220));
+  out.duracion = RE_DURACION.test(text) && !/siglo|generaci|d[eé]cada/i.test(poi._extract);
+  return out;
+}
+
+/* ═══════════ EJECUCION ═══════════ */
+async function runTest() {
+  const sel = selectedPOIs(); const reps = parseInt($('reps').value, 10); const conc = parseInt($('conc').value, 10);
+  ARMS.forEach((a, i) => { a.on = $('arm' + i).checked; a.pin = parseFloat($('pin' + i).value); a.pout = parseFloat($('pout' + i).value); });
+  const arms = ARMS.filter(a => a.on);
+  if (!sel.length || !arms.length) return;
+  const lang = $('lang').value; T.AppState.cityName = T.AppState.city = $('city').value.trim();
+  const st = $('runStatus'); st.textContent = ''; runs = []; revealed = false; $('results').innerHTML = ''; $('summary').classList.add('hidden');
+  const jobs = [];
+  for (const poi of sel) for (const arm of arms) for (let r = 1; r <= reps; r++) jobs.push({ poi, arm, rep: r });
+  log(st, `${jobs.length} llamadas (${sel.length} POIs x ${arms.length} brazos x ${reps} reps), ${conc} en paralelo.`);
+  $('btnRun').disabled = true;
+  let done = 0, idx = 0;
+
+  // Los prompts se construyen en serie ANTES de lanzar, porque buildPrompt lee estado global (AppState/POI).
+  for (const j of jobs) {
+    T.AppState.gps = { lat: j.poi.lat, lng: j.poi.lng };
+    pois.forEach(p => { p._distanceMeters = Math.max(5, Math.round(haversine(j.poi.lat, j.poi.lng, p.lat, p.lng))); });
+    const { system, user } = T.buildPrompt(j.poi, lang);
+    j.body = buildBody(j.arm, system, user);
+  }
+  async function worker() {
+    while (idx < jobs.length) {
+      const j = jobs[idx++];
+      const resp = await callWorker(j.body);
+      const a = resp.ok ? analyze(j.poi, resp.data) : { text: null, raw: null, blockTypes: [], stop: null };
+      const cost = (a.inTok != null && a.outTok != null) ? (a.inTok * j.arm.pin + a.outTok * j.arm.pout) / 1e6 : null;
+      runs.push({ poiId: j.poi.id, poi: j.poi.name, arm: j.arm.id, armName: j.arm.name, model: j.body.model, rep: j.rep,
+        maxTokens: j.body.max_tokens, ms: resp.ms, http: resp.status, error: resp.ok ? null : (resp.error || JSON.stringify(resp.data).slice(0, 200)), cost, rating: null, ...a });
+      done++; log(st, `[${done}/${jobs.length}] ${j.poi.name} · ${j.arm.id}#${j.rep} · ${resp.ok ? (a.text ? a.words + ' palabras' : 'SIN TEXTO stop=' + a.stop) : 'ERROR ' + (resp.status || resp.error)} · ${resp.ms} ms`);
+    }
+  }
+  await Promise.all(Array.from({ length: conc }, worker));
+  log(st, 'Terminado.');
+  $('btnRun').disabled = false;
+  renderResults();
+}
+$('btnRun').onclick = () => runTest().catch(e => { log($('runStatus'), 'ERROR: ' + e.message); $('btnRun').disabled = false; });
+
+/* ═══════════ RENDER ═══════════ */
+function shuffle(a) { a = a.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
+const esc = s => String(s).replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+
+function chip(txt, cls) { return `<span class="chip ${cls || ''}">${esc(txt)}</span>`; }
+
+function renderResults() {
+  $('resultsCard').classList.remove('hidden');
+  const byPoi = new Map(); runs.forEach(r => { if (!byPoi.has(r.poiId)) byPoi.set(r.poiId, []); byPoi.get(r.poiId).push(r); });
+  let html = '';
+  for (const [pid, list] of byPoi) {
+    const poi = pois.find(p => p.id === pid);
+    html += `<div class="poi-block"><div class="poi-head">${esc(poi.name)}</div>
+      <details class="ext"><summary>Extracto de Wikipedia (${poi._extract.length} chars)</summary>${esc(poi._extract)}</details>`;
+    shuffle(list).forEach((r, n) => {
+      r._n = n + 1;
+      const chips = [];
+      if (r.error) chips.push(chip('ERROR ' + r.error, 'bad'));
+      else if (!r.text) chips.push(chip('SIN TEXTO · stop=' + r.stop + ' · bloques=' + r.blockTypes.join(','), 'bad'));
+      else {
+        chips.push(chip(r.words + ' palabras', (r.words >= 90 && r.words <= 130) ? 'ok' : 'bad'));
+        chips.push(chip('scaffold: ' + r.scaffold, r.scaffold === 'ok' ? 'ok' : 'bad'));
+        chips.push(chip('faceta: ' + (r.faceta || 'no'), r.faceta ? 'ok' : 'bad'));
+        chips.push(chip('DT-51: ' + r.dt51, r.dt51 === 'falla' ? 'bad' : (r.dt51 === 'cumple' ? 'ok' : '')));
+        if (r.deixis.length) chips.push(chip('deixis: ' + r.deixis.join(','), 'bad'));
+        if (r.imperativo && r.imperativo.length) chips.push(chip('imperativo: ' + r.imperativo.join(','), 'bad'));
+        if (r.repetido) chips.push(chip('dato repetido', 'bad'));
+        if (r.parrafos > 1) chips.push(chip(r.parrafos + ' parrafos (se espera prosa continua)', 'bad'));
+        if (r.promesa) chips.push(chip('posible promesa al cierre (heuristica)', 'bad'));
+        if (r.duracion) chips.push(chip('duracion no respaldada por el extracto', 'bad'));
+        if (r.stop && r.stop !== 'end_turn') chips.push(chip('stop=' + r.stop, 'bad'));
+        if (r.blockTypes.includes('thinking')) chips.push(chip('uso pensamiento'));
+        if (r.ms > T.CONFIG.API_TIMEOUT) chips.push(chip(r.ms + ' ms > timeout de produccion', 'bad'));
+      }
+      html += `<div class="txt" data-run="${runs.indexOf(r)}">
+        <div class="lab">Texto ${r._n} <span class="rev hidden"> · <b>${r.arm}</b> #${r.rep} · ${esc(r.model)} · ${r.ms} ms · ${r.inTok ?? '?'} in / ${r.outTok ?? '?'} out · max_tokens ${r.maxTokens}</span></div>
+        <p>${r.text ? esc(r.text) : '<i style="color:#6b7280">(sin texto)</i>'}</p>
+        <div class="chips">${chips.join('')}</div>
+        <div class="rate">Cinematografico: ${[1,2,3,4,5].map(v => `<button data-v="${v}">${v}</button>`).join('')}</div>
+      </div>`;
+    });
+    html += '</div>';
+  }
+  $('results').innerHTML = html;
+  document.querySelectorAll('.rate button').forEach(b => b.onclick = () => {
+    const card = b.closest('.txt'); const r = runs[+card.dataset.run]; r.rating = +b.dataset.v;
+    card.querySelectorAll('.rate button').forEach(x => x.classList.toggle('sel', x === b));
+    if (revealed) renderSummary();
+  });
+  revealed = false; $('btnReveal').textContent = 'Revelar modelos y resumen';
+  window.scrollTo({ top: $('resultsCard').offsetTop - 10, behavior: 'smooth' });
+}
+
+function avg(a) { a = a.filter(x => x != null); return a.length ? a.reduce((s, x) => s + x, 0) / a.length : null; }
+const f = (x, d = 1) => x == null ? '—' : x.toFixed(d);
+const pct = (n, d) => d ? Math.round(100 * n / d) + '%' : '—';
+
+function renderSummary() {
+  const arms = [...new Set(runs.map(r => r.arm))];
+  const rows = arms.map(id => {
+    const L = runs.filter(r => r.arm === id), W = L.filter(r => r.text);
+    return `<tr><td><b>${id}</b><br><span style="color:#6b7280">${esc(L[0].model)}</span></td>
+      <td>${W.length}/${L.length}</td>
+      <td>${f(avg(W.map(r => r.words)), 0)}<br>${pct(W.filter(r => r.words >= 90 && r.words <= 130).length, W.length)} en rango</td>
+      <td>${pct(W.filter(r => r.scaffold === 'ok').length, W.length)}<br>fugas: ${W.filter(r => r.scaffold.startsWith('FUGA')).length}</td>
+      <td>${pct(W.filter(r => r.faceta).length, W.length)}</td>
+      <td>${pct(W.filter(r => r.dt51 === 'cumple').length, W.filter(r => r.dt51 !== 'n/a' && r.dt51 !== 'sin_candidatos').length)}</td>
+      <td>${W.filter(r => r.deixis.length).length} · ${W.filter(r => r.imperativo && r.imperativo.length).length} · ${W.filter(r => r.promesa).length} · ${W.filter(r => r.duracion).length}</td>
+      <td>${f(avg(L.map(r => r.ms)) / 1000, 1)} s<br>${L.filter(r => r.ms > T.CONFIG.API_TIMEOUT).length} sobre timeout</td>
+      <td>${f(avg(L.map(r => r.inTok)), 0)} / ${f(avg(L.map(r => r.outTok)), 0)}</td>
+      <td>$${f(avg(L.map(r => r.cost)) * 1000, 3)} por 1000 cap.</td>
+      <td><b>${f(avg(L.map(r => r.rating)), 2)}</b><br>${L.filter(r => r.rating != null).length} calificados</td></tr>`;
+  }).join('');
+  $('summary').innerHTML = `<table><thead><tr><th>Brazo</th><th>Con texto</th><th>Palabras</th><th>Scaffold ok</th><th>Faceta</th><th>DT-51 cumple</th><th>Deixis · imperativo · promesa · duracion</th><th>Latencia</th><th>Tokens in/out</th><th>Costo</th><th>Cine (1-5)</th></tr></thead><tbody>${rows}</tbody></table>
+    <p class="note">Deixis, imperativo, promesa y duracion son heuristicas por expresion regular ("atras" figurado da falsos positivos): sirven para ordenar la revision, no para dictar veredicto. DT-51 queda en "sin_candidatos" cuando el extracto no trae autor ni fecha en el formato que detecta: en ese caso no mide nada. El costo de 4.5 depende del precio que hayas puesto arriba.</p>`;
+  $('summary').classList.remove('hidden');
+}
+
+$('btnReveal').onclick = () => {
+  revealed = !revealed;
+  document.querySelectorAll('.rev').forEach(e => e.classList.toggle('hidden', !revealed));
+  $('btnReveal').textContent = revealed ? 'Ocultar modelos' : 'Revelar modelos y resumen';
+  if (revealed) renderSummary(); else $('summary').classList.add('hidden');
+};
+
+$('btnExport').onclick = () => {
+  const payload = { exportedAt: new Date().toISOString(), promptVersion: T.CONFIG.PROMPT_VERSION, productionModel: T.CONFIG.API_MODEL,
+    city: $('city').value, lang: $('lang').value, arms: ARMS.filter(a => a.on).map(a => ({ id: a.id, name: a.name, model: armModel(a), thinking: armThinking(a), effort: a.effort, pin: a.pin, pout: a.pout })),
+    runs: runs.map(({ _n, ...r }) => r) };
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `test-modelos-${Date.now()}.json`; a.click();
+};
+
+renderArms();
+loadLive();
+</script>
+</body>
+</html>

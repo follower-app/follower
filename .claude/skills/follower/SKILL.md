@@ -87,6 +87,9 @@ Estos documentos cambian cada sesion. Este Skill NO los duplica - solo indica qu
 - POI_CACHE_VERSION++ en el mismo commit si cambia query/filtros/normalizacion de POIs
 - PROMPT_VERSION++ en el mismo commit si cambia el Prompt Maestro de capitulos
 - THESIS_PROMPT_VERSION versiona la generacion de tesis de ciudad, por separado
+- CLASSIFIER_PROMPT_VERSION versiona el clasificador de iconos (reclasifica solo los POIs desfasados)
+- Cambiar API_MODEL o API_THINKING (CONFIG de narration.js) exige subir las tres versiones en el mismo commit: la clave de cache no incluye el modelo
+- El arbitro de un cambio de modelo o de prompt es test-modelos-poi.html (local, ignorada por git); lee el narration.js en vivo
 
 ## Criterio de trabajo — no vive aqui
 

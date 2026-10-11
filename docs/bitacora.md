@@ -7213,3 +7213,124 @@ DT-64.
 ---
 
 *Follower — Bitácora v0.9 | Sesión 44 | 9 Octubre 2026*
+
+---
+
+# Sesión 45 — 9-11 Octubre 2026
+
+**Sesión de migración de modelo.** Haiku tuvo un upgrade y se pidió revisar el
+agente que genera el libreto de cada POI. Se leyó el código vivo, se contrastó
+con la documentación del proveedor, se construyó una página de pruebas, se
+corrieron dos tests a ciegas y se migró. Archivos de código modificados:
+`js/narration.js` y `sw.js` (v81). Sin sesión de campo.
+
+## El punto de partida (confirmado en código)
+
+- Una sola función, `callClaude()` en `narration.js`, atiende los cuatro
+  caminos (capítulo, Care, tesis, clasificador de íconos). El modelo es una
+  constante: `API_MODEL: 'claude-haiku-4-5-20251001'`.
+- El body que viaja es solo `model`, `max_tokens`, `system` y `messages`: sin
+  `temperature`, `top_p` ni prefill, así que nada de lo que Haiku 5.5 rechaza
+  estaba en uso.
+- El Worker es passthrough puro; el cliente selecciona el bloque por
+  `type === 'text'`, lo que ya toleraba bloques `thinking`.
+- La clave de caché de capítulos usa `PROMPT_VERSION` y **no el modelo**: un
+  cambio de modelo sin bump habría seguido sirviendo capítulos de 4.5.
+
+## Lo que dice la documentación del proveedor (9 oct)
+
+Haiku 5.5: ID `claude-haiku-5-5`; pensamiento adaptativo encendido por defecto,
+con tokens que cuentan contra `max_tokens`; tokenizador nuevo (~30 % más
+tokens); precio $0.10 / $0.50 por millón de tokens; `thinking: disabled`
+disponible en esfuerzo low, medium y high; prefill y sampling no default
+rechazados con 400. Haiku 4.5 sigue activo, con retiro tentativo "no antes del
+15-oct-2026"; Sonnet 4.5 está deprecado (30-sep) con retiro tentativo
+30-nov-2026. Aviso previo de al menos 60 días para retiros de modelos públicos.
+
+## El test
+
+Se construyó `test-modelos-poi.html`: lee el `narration.js` en vivo (parcha su
+`return` final para exponer `buildPrompt`, `sanitizeNarration`,
+`_extractFaceta` y `_dt51VerifyAutorFecha`, de modo que el prompt no se copia),
+trae POIs y extractos de Wikipedia con el mismo canal que `poi.js` (esta parte
+sí es un espejo, porque esas funciones no se exportan), llama al Worker, mezcla
+los textos sin nombre de modelo y deja calificar de 1 a 5. Tres brazos:
+Haiku 4.5 (control), 5.5 sin pensamiento y 5.5 con pensamiento adaptativo.
+Resultados completos y tablas en DA-92.
+
+- **Test 1** (18 llamadas, sin calificación): 5.5 sin pensamiento se pasa del
+  presupuesto de palabras; 5.5 adaptativo agota `max_tokens` (4 de 6 sin texto).
+- **Test 2** (27 llamadas, calificación ciega de Jaime): 4.5 → 3.0; 5.5 sin
+  pensamiento → 3.9; 5.5 adaptativo → 2.5 (solo 5 de 9 con texto, 2 fugas de
+  scratchpad, las 9 terminan en `max_tokens`). La ventaja de 5.5 sale de un solo
+  POI (Catedral); en los otros dos empata.
+- **Costo y velocidad (observado en test):** 5.5 sin pensamiento es ~37 % más
+  rápido (2.6 s contra 4.2 s) y unas 7 veces más barato (el precio de 4.5 es de
+  memoria, sin verificar).
+- **Defectos de 5.5 con el prompt actual (observado en test):** capítulos ~23 %
+  más largos, referencias a lados pese a que la regla 1 las prohíbe, e
+  imperativos hacia el caminante.
+
+## La decisión
+
+DA-92: migrar a Haiku 5.5 con el pensamiento apagado, techos de tokens ×1.3 y
+las tres versiones de prompt ++, en dos commits (el ajuste del prompt es DT-93
+y va después, como variable aparte). Jaime ratificó la opción "migrar en dos
+commits" y el commit de código ya está hecho; el despliegue (push) y cualquier
+observación de campo **no están confirmados en esta sesión**.
+
+## Hallazgos de paso
+
+- **`prompt_maestro_follower.md` estaba dos versiones atrasado** (v3.8 frente a
+  v3.9 del código) y todavía recomendaba "Mira hacia...". Corregido; ver
+  producto S45.
+- **Error de esta sesión:** la primera instrucción de commit mandó a versionar
+  `test-modelos-poi.html`, contra la convención de `.gitignore` que excluye las
+  pruebas locales (`test-tesis-ciudad*.html`). Se detectó al revisar la
+  documentación. Como el commit ya estaba hecho, queda pendiente
+  `git rm --cached` de la página y de los JSON si se subieron.
+- **Mis heurísticas fallaron dos veces:** la regex de deixis detectaba
+  "izquierda" pero no "izquierdo" (subestimó las referencias a lados de B), y
+  no detectaba duraciones vagas como "durante mucho tiempo". Se corrigieron en
+  la página; la lectura manual de los textos fue lo que las encontró.
+- **DT-51 no midió nada:** `sin_candidatos` en 37 de 37 textos evaluados. Un
+  instrumento que devuelve lo mismo siempre no discrimina; hacen falta POIs
+  cuyo extracto traiga autor y fecha en el formato que detecta.
+- **El Worker acepta cualquier modelo** con la key del proyecto. Anotado como
+  propuesta sin ficha en el anexo de producto S45.
+- **Las dos exportaciones** (`test-modelos-1791555161114.json` y
+  `...1791568836796.json`) viven en la raíz del repo, ahora ignoradas por git.
+
+## Nota de método
+
+Un cambio de modelo no es neutro aunque el prompt no cambie: el mismo texto
+produjo capítulos de otra longitud y una obediencia distinta a una regla
+explícita. La primera migración propuesta (cambiar solo el ID) habría
+mezclado cuatro variables, y el pensamiento adaptativo por defecto habría
+devuelto texto vacío en silencio. Lo que lo evitó fue leer la documentación del
+proveedor **antes** de tocar el código y medir con una página que usa el prompt
+real en vez de una copia. El árbitro de la calidad cinematográfica fue la
+calificación ciega de Jaime, no ninguna métrica automática.
+
+## Lo que quedó sin hacer
+
+- **DT-93** (prompt v4.1) y **DT-94** (validación en campo de tesis, íconos y
+  Care con 5.5).
+- Probar la rama OSM y un capítulo con capítulo anterior en el prompt.
+- Probar POIs cuyo extracto traiga autor y fecha, para que DT-51 mida algo.
+- Confirmar por qué Jaime calificó con 1 los tres textos de 4.5 en la Catedral.
+- Verificar el precio real de Haiku 4.5 para fijar la columna de costo.
+- Decidir si la evidencia (los dos JSON) se conserva en `docs/` o se descarta.
+
+## Cierre
+
+`CACHE_VERSION` **v81** · `POI_CACHE_VERSION` 7 · `PROMPT_VERSION` v4.0 ·
+`THESIS_PROMPT_VERSION` v6 · `CLASSIFIER_PROMPT_VERSION` v2 ·
+`API_MODEL` `claude-haiku-5-5` · `API_THINKING` `disabled`.
+
+Un archivo de código (`js/narration.js`) y su bump (`sw.js`). La migración está
+**confirmada en código y en un test local contra el Worker; no en campo**.
+
+---
+
+*Follower — Bitácora v0.9 | Sesión 45 | 11 Octubre 2026*

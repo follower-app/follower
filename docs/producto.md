@@ -1271,3 +1271,55 @@ debiendo todo lo listado allí.
 ---
 
 *Follower — Producto v0.9 | Sesión 44 | 9 Octubre 2026*
+
+---
+
+## Anexo Sesión 45 — 9-11 Octubre 2026
+
+**Sesión de migración de modelo.** Haiku tuvo un upgrade; se probó contra el
+modelo en producción antes de migrar. Ver DA-92 y la bitácora de S45.
+
+### Tickets
+
+| ID | Descripción | Estado |
+|---|---|---|
+| DT-93 | **Prompt v4.1 para Haiku 5.5 — longitud, deixis lateral e imperativos.** *Observado en test, no confirmado en campo.* Con el mismo prompt v3.9, Haiku 5.5 sin pensamiento escribió capítulos ~23 % más largos (prom. 150 palabras; 8 de 9 sobre 130), con referencias a lados en 5 de 9 textos (la regla 1 **ya las prohíbe**: no falta una regla, el modelo la incumple) e imperativos hacia el caminante en 4 de 9. Candidatos de diseño, **sin decidir**: reforzar la regla, bajar el presupuesto declarado, o un filtro determinista en JS como el de `sanitizeNarration`. Árbitro: `test-modelos-poi.html`, brazo P, cargando v4.0 y luego v4.1. Una variable a la vez: no se mezcla con la migración (DA-92) | Abierta · accionable sin campo |
+| DT-94 | **Validar en campo, con Haiku 5.5, las tres llamadas que no pasaron por el test:** (1) tesis de ciudad — el prólogo sale completo y sin "Verificación obligatoria" en voz alta; **la tesis regenerada con v6 se MUESTRA pero no se NARRA en ciudades ya narradas (DA-86)**, así que la comprobación de voz exige una ciudad nueva; (2) clasificador de iconos — salida solo JSON; si falla el parseo, `classifyIcons` devuelve null y los íconos quedan provisionales (degrada, no rompe); (3) mensaje de Care — corto y sin razonamiento filtrado. Los techos de Care (160), tesis (520) y clasificador (910) son ×1.3 **sin validar** | Abierta · requiere campo |
+| **Worker abierto a cualquier modelo** *(propuesto, sin ficha)* | `cloudflare/worker.js` reenvía el body sin validar modelo ni parámetros y responde con `Access-Control-Allow-Origin: *`: quien conozca la URL puede pedir cualquier modelo con la key del proyecto. No lo introdujo esta sesión ni cambia con la migración; se anota para que no se pierda. Mitigaciones a evaluar: lista blanca de modelos y de `max_tokens` en el Worker, restricción por origen | Sin prioridad asignada |
+| BUG-071 | **Sin cambio de alcance.** Los hallazgos de DT-93 son del mismo tipo (deixis, imperativos), pero con otro modelo. La validación de campo de v3.9 (conteo 🔤 Aperturas) sigue pendiente y ahora se mide sobre v4.0 | Pendiente de campo |
+
+### Correcciones a documentos vivos
+
+- **`prompt_maestro_follower.md` estaba en v3.8** mientras el código ya iba en
+  v3.9: la regla 1 seguía recomendando "Mira hacia...", justo lo que BUG-071
+  retiró. Corregido a v4.0 con los bloques de cambios v3.8 → v3.9 y
+  v3.9 → v4.0. La comparación línea a línea contra `SYSTEM_PROMPT.es` mostró
+  que la regla 1 era la única diferencia de texto
+- **Las tablas "Estado al cierre" de S43 y S44** (v78/v80, PROMPT v3.9,
+  THESIS v5, CLASSIFIER v1) son historia y no se reescriben; la vigente es la
+  de este anexo
+- **`.gitignore`:** `test-modelos-poi.html` y `test-modelos-*.json` se añaden
+  como pruebas locales, igual que `test-tesis-ciudad*.html`. La primera
+  instrucción de commit de la sesión los incluía por error; ver bitácora
+- **`SKILL.md`:** añadidas `CLASSIFIER_PROMPT_VERSION` y la regla de que
+  cambiar `API_MODEL` o `API_THINKING` exige subir las tres versiones
+
+### Estado al cierre
+
+| | |
+|---|---|
+| `CACHE_VERSION` | `follower-v81` |
+| `POI_CACHE_VERSION` | 7 |
+| `CLASSIFIER_PROMPT_VERSION` | v2 |
+| `PROMPT_VERSION` | v4.0 |
+| `THESIS_PROMPT_VERSION` | v6 |
+| `API_MODEL` / `API_THINKING` | `claude-haiku-5-5` / `{ type: 'disabled' }` |
+
+**Pendiente de código:** DT-93; DT-90, DT-92, DT-64 (sin cambio).
+**Pendiente de campo:** DT-94 y, sin cambio respecto a S43-S44, la caminata en
+Cali (DT-74, familias, aperturas, BUG-053, BUG-058, DT-72, DT-68, el
+discriminador del "· 1", DT-89) y ver el crédito de DT-12 en el iPhone.
+
+---
+
+*Follower — Producto v0.9 | Sesión 45 | 11 Octubre 2026*

@@ -1,8 +1,8 @@
 # docs/prompt_maestro_follower.md
 
-# PROMPT MAESTRO FOLLOWER v3.8 — OFICIAL
+# PROMPT MAESTRO FOLLOWER v4.0 — OFICIAL
 
-**DA-74 · Sesión 23 (v3.0) → DT-51 · grounding (v3.1 a v3.6) → S32 (v3.7) → DT-68 · S39 (v3.8).**
+**DA-74 · Sesión 23 (v3.0) → DT-51 · grounding (v3.1 a v3.6) → S32 (v3.7) → DT-68 · S39 (v3.8) → BUG-071 · S43 (v3.9) → DA-92 · S45 (v4.0, texto sin cambios).**
 Implementado en `narration.js` (SYSTEM_PROMPT es + en). Cualquier cambio a
 este documento debe reflejarse en `narration.js` e incrementar
 `PROMPT_VERSION` en el mismo commit (DT-50, espejo de DA-71).
@@ -246,6 +246,44 @@ prompt, y esta versión las ataca.
   4/4; (b) es observación sin línea base — mide cuánta rotación ocurre
   espontáneamente, antes de que §3 la fuerce
 
+**Cambios v3.8 → v3.9 (Sesión 43 — BUG-071, la regla 1):**
+
+*Nota de mantenimiento (S45): este bloque y el texto de la regla 1 más abajo se
+actualizaron en S45, al verificar que este documento seguía en v3.8 cuando
+`narration.js` ya estaba en v3.9. Describen lo que el código hace; la validación
+de campo de v3.9 (conteo de aperturas con 🔤 Aperturas, v3.8 contra v3.9) sigue
+pendiente.*
+
+- **Solo cambió la regla 1, en ambos idiomas.** Ofrecía tres ejemplos de
+  apertura ("Ahora estás llegando a...", "No será difícil reconocerlo...",
+  "Mira hacia..."). El tercero fusionaba las reglas 1 y 2 en una sola frase y,
+  bajo el presupuesto de 90-130 palabras, ganaba siempre. Los tres ejemplos se
+  retiran: un menú más grande habría repetido el patrón con otra máscara,
+  porque los tres eran deícticos
+- **La identificación deja de ser la primera frase obligada:** pasa a "dentro
+  de las dos primeras", y el capítulo puede abrir por el rasgo que salta a la
+  vista, un hecho, una fecha o la pregunta que provoca el lugar
+- **Se prohíbe la deixis lateral** (izquierda, derecha, al frente, detrás):
+  `buildPrompt()` no manda ningún dato espacial, y aunque lo mandara, el texto
+  se genera al arrancar y suena durante 60-67 m de caminata — cualquier
+  dirección llega tarde. La referencia vertical sigue siendo legítima, pero no
+  debe ser el recurso de siempre
+- **`PROMPT_VERSION` v3.8 → v3.9 en el mismo commit** (DT-50)
+
+**Cambios v3.9 → v4.0 (Sesión 45 — DA-92, migración de modelo; el texto NO cambia):**
+
+- **Ninguna palabra del prompt se tocó.** El bump es obligatorio por otra
+  razón: la clave de caché de capítulos (`PROMPT_VERSION_poiId_lang_topic_huella`)
+  **no incluye el modelo**, así que sin el `++` se habrían seguido sirviendo
+  capítulos generados por Haiku 4.5. `THESIS_PROMPT_VERSION` v5 → v6 y
+  `CLASSIFIER_PROMPT_VERSION` v1 → v2 suben por el mismo motivo
+- **Lo que se observó con Haiku 5.5 y este mismo texto** (*observado en test,
+  no confirmado en campo*; ver DA-92): capítulos más largos que el presupuesto
+  (promedio 150 palabras frente a 122 de Haiku 4.5; 8 de 9 sobre 130),
+  referencias a lados en 5 de 9 textos (la regla 1 **ya las prohíbe**: el
+  modelo la incumple, no falta la regla) e imperativos hacia el caminante en
+  4 de 9. Se atacan en DT-93 como variable aparte
+
 ---
 
 Eres la voz oficial de Follower.
@@ -264,7 +302,7 @@ Nunca generes un título, encabezado o frase-resumen antes del capítulo. Nada d
 
 ## REGLAS OBLIGATORIAS
 
-**1. IDENTIFICACIÓN** — Ayuda al usuario a identificar el lugar. Ejemplos: "Ahora estás llegando a...", "No será difícil reconocerlo...", "Mira hacia...".
+**1. IDENTIFICACIÓN** — El caminante debe poder identificar el lugar dentro de las dos primeras frases. No tiene que ser la primera: el capítulo puede abrir por el rasgo que salta a la vista, por un hecho, por una fecha o por la pregunta que el lugar provoca, y ubicar después. Nunca uses direcciones relativas al cuerpo del caminante — ni izquierda, ni derecha, ni al frente, ni detrás. Dentro del capítulo cualquier dirección llega tarde: el texto se genera al principio y suena mientras el caminante sigue avanzando. Ubicar por lo que se reconoce ("no hay forma de confundirlo", "es el único de la cuadra con...") funciona desde cualquier ángulo. La referencia vertical es legítima, pero no debe ser el recurso de siempre.
 
 **2. RASGO IMPOSIBLE DE IGNORAR** — Identifica aquello que cualquier visitante nota inmediatamente: una torre, una muralla, una fachada, una plaza, una vista, un sonido, una multitud, un olor. Utilízalo como puerta de entrada.
 

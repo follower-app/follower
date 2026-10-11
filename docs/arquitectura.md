@@ -3704,3 +3704,131 @@ sí, no es secreta y se protege por dominio, no por ocultamiento.**
 ---
 
 *Follower — Arquitectura v0.9 | Sesión 44 | 9 Octubre 2026*
+
+---
+
+## DA-92 — Haiku 5.5 sin pensamiento reemplaza a Haiku 4.5 como modelo de todas las llamadas
+
+**Sesión 45 · Ratificada e implementada · sw v81**
+
+`narration.js` llamaba a `claude-haiku-4-5-20251001` en sus cuatro caminos
+(capítulo, Care, tesis de ciudad, clasificador de iconos), todos a través de
+`callClaude()` y de una sola constante. Haiku 5.5 llegó con un tokenizador
+nuevo, **pensamiento adaptativo encendido por defecto** y un ID sin snapshot
+con fecha (`claude-haiku-5-5` es el alias). Complementa a DA-11: el Worker
+sigue siendo passthrough puro y no se tocó.
+
+**Decisión.** `CONFIG.API_MODEL` pasa a `claude-haiku-5-5`. Se añade
+`CONFIG.API_THINKING = { type: 'disabled' }`, que `callClaude()` envía en el
+body cuando no es null. Los cuatro techos de tokens suben ×1.3 por el
+tokenizador. Las tres versiones de prompt suben en el mismo commit. El texto
+de ningún prompt cambia.
+
+**Alternativas evaluadas**
+
+| | Opción | Veredicto |
+|---|---|---|
+| A | Cambiar solo el ID del modelo | Descartada: deja activo el pensamiento adaptativo implícito (cuyos tokens cuentan contra `max_tokens`) y el techo de 550 sin ajustar; varias variables a la vez y un fallo silencioso posible |
+| B | 5.5 con `thinking: disabled`, techos ×1.3, versiones ++ | **Elegida.** Es el análogo más cercano al comportamiento anterior: Haiku 4.5 no pensaba y el scratchpad escrito (v3.7) ya cumple esa función |
+| C | 5.5 con pensamiento adaptativo (`medium`) | Descartada con datos (ver abajo): el pensamiento consumió todo el presupuesto |
+| D | Quedarse en Haiku 4.5 | Descartada: la documentación del proveedor da retiro tentativo "no antes del 15-oct-2026" (consultada el 9-oct) sin snapshot garantizado más allá; Haiku 5.5 figura "no antes del 7-oct-2027" |
+| E | Sonnet 5.5 | **No probada.** Se descartó de la comparación por latencia y costo en un narrador que genera en caliente mientras el usuario camina; reabrible. Sonnet 4.5 está deprecado desde el 30-sep-2026 (retiro tentativo 30-nov-2026), así que no era opción de producción |
+
+**Evidencia.** Dos corridas con `test-modelos-poi.html` (página local, ignorada
+por git), con el prompt de producción v3.9 leído en vivo de `narration.js`,
+sin caché y sin `userName`. Etiqueta: **observado en test (n = 3 POIs de Cali,
+todos religiosos o patrimoniales del centro; solo POIs con extracto de
+Wikipedia, primer capítulo de cada caminata); no confirmado en campo.**
+
+*Test 1 — 18 llamadas (3 POIs × 3 brazos × 2 repeticiones), sin calificación:*
+Haiku 4.5 dio 6/6 capítulos en rango (106-127 palabras); 5.5 sin pensamiento
+1/6 en rango (130-153); 5.5 adaptativo dio texto solo en 2/6 y las 6
+terminaron en `max_tokens`.
+
+*Test 2 — 27 llamadas (3 POIs × 3 brazos × 3 repeticiones), calificación ciega
+de Jaime (1 = audioguía, 5 = cinematográfico):*
+
+| | A · Haiku 4.5 | B · 5.5 sin pensamiento | C · 5.5 adaptativo |
+|---|---|---|---|
+| Calificación media | 3.0 (seis 4, tres 1) | **3.9** (ocho 4, un 3) | 2.5 (solo 2 calificados) |
+| Con texto | 9/9 | 9/9 | **5/9** |
+| `stop_reason` | `end_turn` 9/9 | `end_turn` 9/9 | **`max_tokens` 9/9** |
+| Palabras (objetivo 90-130) | 104-149, prom. 122, 6/9 en rango | 128-166, prom. 150, **1/9 en rango** | 8-98, truncados |
+| Scratchpad | limpio 9/9 | limpio 9/9 | limpio 3/9, **2 fugas sin separador** |
+| Latencia media | 4.2 s | **2.6 s** | 7.9 s |
+| Tokens entrada / salida | 3089 / 306 | 4339 / 438 | 4340 / 1515 |
+| Costo por 1000 capítulos | $4.62* | **$0.65** | $1.19 |
+
+\*Precio de Haiku 4.5 ($1 / $5 por millón de tokens) tomado de memoria, **sin
+verificar**; $0.10 / $0.50 de 5.5 verificado en la documentación del
+proveedor (9-oct).
+
+Lecturas, cada una con su etiqueta:
+
+- *Observado en test:* con el mismo prompt, la entrada pasó de ~3080 a ~4330
+  tokens (+41 %), más que el "~30 %" que declara el proveedor. Los máximos de
+  salida de B fueron ~440 tokens, así que 715 deja margen
+- *Observado en test:* la ventaja de calificación de B sale de un solo POI
+  (Catedral: A 1-1-1, B 4-3-4). En los otros dos, A y B empatan en 4. Por qué
+  Jaime calificó con 1 los tres textos de A en la Catedral **no está
+  confirmado**; la hipótesis de lectura es el tono grandilocuente ("poder
+  instituido") y afirmaciones que el extracto no respalda ("no es la más
+  grande ni la más antigua de Colombia"), más un "en 2004, en 2004" repetido
+- *Observado en test:* con 5.5, la regla 1 se incumple. Ya prohíbe izquierda,
+  derecha, al frente y detrás, y aun así aparecen "a su costado izquierdo",
+  "lo que tienes delante" y "lo que tienes enfrente" en 5 de 9 textos de B
+  (regex amplia, con posibles falsos positivos) frente a 1 de 9 en A. Los
+  imperativos hacia el caminante ("Mira cómo la luz del mediodía cae…")
+  aparecen en 4 de 9 frente a 1 de 9. En el test 1, 3 de 6 aperturas de B
+  eran "Lo primero que llama la atención…"
+- *Observado en test:* los capítulos de B son ~23 % más largos. Con el ritmo
+  de ~60-67 m por capítulo registrado antes, son ~14 m más de caminata por
+  narración (**estimación**, no medida). Afecta al piso métrico de DA-89 /
+  DT-74
+- *Confirmado en documentación del proveedor:* los tokens de pensamiento
+  cuentan contra `max_tokens`; `temperature`, `top_p` y `top_k` con valor no
+  default devuelven 400 (Follower no los envía); un último turno de
+  `assistant` (prefill) devuelve 400 (Follower no lo usa);
+  `thinking: {type: "disabled"}` funciona en esfuerzo low, medium y high
+
+**Limitaciones de la evidencia.** DT-51 devolvió `sin_candidatos` en los 37
+textos evaluados: esos extractos no traen autor ni fecha en el formato que
+detecta, así que la fidelidad de datos **no se ejercitó**. No se probó la rama
+OSM (sin extracto), que es donde el modelo más inventa. No se probó la
+continuidad con capítulo anterior. Las heurísticas de la página (regex de
+deixis, promesa, duración) sirven para ordenar la revisión, no para dictar
+veredicto; la primera versión no detectaba "izquierdo".
+
+**Lo que esta decisión NO hace**
+
+- No cambia el texto de ningún prompt: la longitud, la deixis y los
+  imperativos son DT-93, a propósito aparte (una variable a la vez)
+- No valida en campo las tres llamadas que no pasaron por el test: tesis de
+  ciudad, clasificador de iconos y mensajes de Care (DT-94). El clasificador
+  exige salida solo JSON y la documentación advierte que con el pensamiento
+  apagado el modelo a veces escribe razonamiento en la respuesta
+- No toca `cloudflare/worker.js`
+
+**Régimen de versiones.**
+
+| | Antes | Después |
+|---|---|---|
+| `CACHE_VERSION` | v80 | **v81** (`sw.js`, commit aparte y último) |
+| `PROMPT_VERSION` | v3.9 | **v4.0** |
+| `THESIS_PROMPT_VERSION` | v5 | **v6** |
+| `CLASSIFIER_PROMPT_VERSION` | v1 | **v2** (reclasifica los POIs con `_iconVersion` v1) |
+| `POI_CACHE_VERSION` | 7 | 7 (nada toca query, filtros ni normalización) |
+
+**Reversión.** Volver a `claude-haiku-4-5-20251001`, `API_THINKING: null` y los
+techos anteriores **y subir de nuevo las tres versiones** (por ejemplo
+`PROMPT_VERSION` v4.1): la clave de caché no incluye el modelo, así que sin un
+bump nuevo se servirían los capítulos de 5.5.
+
+**Criterio que queda.** Un cambio de modelo no es neutro aunque el prompt no
+cambie: cambia longitud, obediencia a las reglas y tokenización. Se valida con
+`test-modelos-poi.html` antes de decidir, y el brazo `P` de esa página permite
+comparar versiones de prompt cargando un `narration.js` distinto cada vez.
+
+---
+
+*Follower — Arquitectura v0.9 | Sesión 45 | 11 Octubre 2026*

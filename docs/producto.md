@@ -1301,8 +1301,11 @@ modelo en producción antes de migrar. Ver DA-92 y la bitácora de S45.
 - **`.gitignore`:** `test-modelos-poi.html` y `test-modelos-*.json` se añaden
   como pruebas locales, igual que `test-tesis-ciudad*.html`. La primera
   instrucción de commit de la sesión los incluía por error; ver bitácora
-- **`SKILL.md`:** añadidas `CLASSIFIER_PROMPT_VERSION` y la regla de que
-  cambiar `API_MODEL` o `API_THINKING` exige subir las tres versiones
+- **`SKILL.md`:** aplicado a mano por Jaime (las herramientas de la sesión no
+  pueden escribir en `.claude/`). Bajo "Versionado de cache" se añadieron
+  `CLASSIFIER_PROMPT_VERSION`, la regla de que cambiar `API_MODEL` o
+  `API_THINKING` exige subir las tres versiones en el mismo commit, y el
+  puntero a `test-modelos-poi.html` como árbitro de un cambio de modelo
 
 ### Estado al cierre
 
